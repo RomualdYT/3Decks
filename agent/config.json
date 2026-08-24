@@ -1,0 +1,366 @@
+{
+  "revision": 15,
+  "server": {
+    "host": "0.0.0.0",
+    "port": 38123,
+    "token": "",
+    "poll_interval": 1.0,
+    "volume_step": 5
+  },
+  "integrations": {
+    "obs": {
+      "enabled": false,
+      "host": "127.0.0.1",
+      "port": 4455,
+      "password": "",
+      "timeout": 2.0
+    }
+  },
+  "pages": [
+    {
+      "id": "main",
+      "title": {
+        "en": "Main",
+        "fr": "Principal"
+      },
+      "icon": "star",
+      "dashboard": "auto",
+      "buttons": [
+        {
+          "id": "browser",
+          "slot": 0,
+          "label": {
+            "en": "Browser",
+            "fr": "Navigateur"
+          },
+          "icon": "browser",
+          "color": "#3B82F6",
+          "action": {
+            "type": "app.launch",
+            "target": "Safari"
+          }
+        },
+        {
+          "id": "discord",
+          "slot": 1,
+          "label": "Discord",
+          "icon": "chat",
+          "color": "#5865F2",
+          "action": {
+            "type": "app.launch",
+            "target": "Discord"
+          }
+        },
+        {
+          "id": "spotify",
+          "slot": 2,
+          "label": "Spotify",
+          "icon": "music",
+          "color": "#1DB954",
+          "action": {
+            "type": "app.launch",
+            "target": "Spotify"
+          }
+        },
+        {
+          "id": "mic",
+          "slot": 3,
+          "label": {
+            "en": "Mic",
+            "fr": "Micro"
+          },
+          "icon": "mic",
+          "color": "#F59E0B",
+          "toggle": "mic_muted",
+          "action": "mic.mute_toggle"
+        },
+        {
+          "id": "volumes",
+          "slot": 4,
+          "label": "Volumes",
+          "icon": "volume-up",
+          "color": "#6EE7B7",
+          "hold_label": {
+            "en": "Mute",
+            "fr": "Muet"
+          },
+          "action": "modal.volumes",
+          "hold_action": "volume.mute_toggle"
+        },
+        {
+          "id": "capture",
+          "slot": 5,
+          "label": "Capture",
+          "icon": "video",
+          "color": "#A78BFA",
+          "action": {
+            "type": "hotkey",
+            "keys": "cmd+shift+4"
+          }
+        }
+      ]
+    },
+    {
+      "id": "sound",
+      "title": {
+        "en": "Sound",
+        "fr": "Son"
+      },
+      "icon": "music",
+      "dashboard": "audio",
+      "buttons": [
+        {
+          "id": "previous",
+          "slot": 0,
+          "label": {
+            "en": "Previous",
+            "fr": "Précédent"
+          },
+          "icon": "previous",
+          "color": "#6EE7B7",
+          "action": "media.previous"
+        },
+        {
+          "id": "play",
+          "slot": 1,
+          "label": {
+            "en": "Play",
+            "fr": "Lecture"
+          },
+          "icon": "play",
+          "color": "#1DB954",
+          "toggle": "playing",
+          "action": "media.play_pause"
+        },
+        {
+          "id": "next",
+          "slot": 2,
+          "label": {
+            "en": "Next",
+            "fr": "Suivant"
+          },
+          "icon": "next",
+          "color": "#6EE7B7",
+          "action": "media.next"
+        },
+        {
+          "id": "vol",
+          "slot": 3,
+          "label": "Volumes",
+          "icon": "volume-up",
+          "color": "#3B82F6",
+          "action": "modal.volumes"
+        },
+        {
+          "id": "output",
+          "slot": 4,
+          "label": {
+            "en": "Output",
+            "fr": "Sortie"
+          },
+          "icon": "gear",
+          "color": "#A78BFA",
+          "action": "audio_output.cycle"
+        },
+        {
+          "id": "frame",
+          "slot": 5,
+          "label": {
+            "en": "Frame",
+            "fr": "Cadre"
+          },
+          "icon": "video",
+          "color": "#8B5CF6",
+          "hold_label": {
+            "en": "Mute",
+            "fr": "Muet"
+          },
+          "action": "frame.toggle",
+          "hold_action": "volume.mute_toggle"
+        }
+      ]
+    },
+    {
+      "id": "windows",
+      "title": {
+        "en": "Windows",
+        "fr": "Fenêtres"
+      },
+      "icon": "app",
+      "dashboard": "apps",
+      "layout": "list",
+      "source": "windows",
+      "buttons": []
+    },
+    {
+      "id": "notify",
+      "title": {
+        "en": "Alerts",
+        "fr": "Alertes"
+      },
+      "icon": "chat",
+      "dashboard": "notifications",
+      "buttons": [
+        {
+          "id": "messages",
+          "slot": 0,
+          "label": "Messages",
+          "icon": "chat",
+          "color": "#34D399",
+          "action": {
+            "type": "app.launch",
+            "target": "Messages"
+          }
+        },
+        {
+          "id": "mail",
+          "slot": 1,
+          "label": "Mail",
+          "icon": "page",
+          "color": "#3B82F6",
+          "action": {
+            "type": "app.launch",
+            "target": "Mail"
+          }
+        },
+        {
+          "id": "chatgpt",
+          "slot": 2,
+          "label": "ChatGPT",
+          "icon": "app",
+          "color": "#10A37F",
+          "action": {
+            "type": "app.launch",
+            "target": "ChatGPT"
+          }
+        },
+        {
+          "id": "mic2",
+          "slot": 3,
+          "label": {
+            "en": "Mic",
+            "fr": "Micro"
+          },
+          "icon": "mic",
+          "color": "#F59E0B",
+          "toggle": "mic_muted",
+          "action": "mic.mute_toggle"
+        },
+        {
+          "id": "silence",
+          "slot": 4,
+          "label": "Silence",
+          "icon": "volume-mute",
+          "color": "#EF4444",
+          "toggle": "muted",
+          "action": "volume.mute_toggle"
+        }
+      ]
+    },
+    {
+      "id": "work",
+      "title": {
+        "en": "Work",
+        "fr": "Travail"
+      },
+      "icon": "terminal",
+      "dashboard": "system",
+      "buttons": [
+        {
+          "id": "editor",
+          "slot": 0,
+          "label": {
+            "en": "Editor",
+            "fr": "Éditeur"
+          },
+          "icon": "app",
+          "color": "#0EA5E9",
+          "action": {
+            "type": "app.launch",
+            "target": "Visual Studio Code"
+          }
+        },
+        {
+          "id": "terminal",
+          "slot": 1,
+          "label": "Terminal",
+          "icon": "terminal",
+          "color": "#94A3B8",
+          "action": {
+            "type": "app.launch",
+            "target": "Terminal"
+          }
+        },
+        {
+          "id": "files",
+          "slot": 2,
+          "label": {
+            "en": "Files",
+            "fr": "Fichiers"
+          },
+          "icon": "folder",
+          "color": "#FBBF24",
+          "action": {
+            "type": "path.open",
+            "path": "~"
+          }
+        },
+        {
+          "id": "github",
+          "slot": 3,
+          "label": "GitHub",
+          "icon": "app",
+          "color": "#8B5CF6",
+          "action": {
+            "type": "app.launch",
+            "target": "GitHub Desktop"
+          }
+        },
+        {
+          "id": "lock",
+          "slot": 4,
+          "label": {
+            "en": "Lock",
+            "fr": "Verrou"
+          },
+          "icon": "lock",
+          "color": "#F87171",
+          "action": "system.lock"
+        },
+        {
+          "id": "settings",
+          "slot": 5,
+          "label": {
+            "en": "Settings",
+            "fr": "Réglages"
+          },
+          "icon": "gear",
+          "color": "#64748B",
+          "action": "settings.open"
+        }
+      ]
+    },
+    {
+      "id": "page1",
+      "title": "New page",
+      "icon": "page",
+      "dashboard": "auto",
+      "buttons": [
+        {
+          "id": "button1",
+          "slot": 0,
+          "label": {
+            "en": "Keyboard shortcut",
+            "fr": "Raccourci clavier"
+          },
+          "icon": "star",
+          "color": "#7C6BF2",
+          "action": {
+            "type": "hotkey",
+            "keys": "echap"
+          }
+        }
+      ]
+    }
+  ]
+}

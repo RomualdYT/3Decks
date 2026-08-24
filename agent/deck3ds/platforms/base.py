@@ -1,0 +1,373 @@
+"""Contrat commun aux adaptateurs de plateforme.
+
+Chaque système d'exploitation fournit une sous-classe. Les capacités réellement
+disponibles varient : une méthode non supportée lève `Unsupported`, ce qui
+remonte jusqu'à la 3DS sous forme de message d'échec explicite. Un bouton ne
+doit jamais sembler fonctionner sans effet.
+"""
+
+# Deck3DS — Copyright (C) 2026 Romuald (@RomualdYT)
+# Free software under the GNU GPL v3. See LICENSE for details.
+
+from __future__ import annotations
+
+import subprocess
+from dataclasses import dataclass, field
+from dataclasses import fields as dataclass_fields
+
+
+class Unsupported(Exception):
+    """L'action n'est pas disponible sur cette plateforme ou cette machine."""
+
+
+class ActionFailed(Exception):
+    """L'action est supportée mais a échoué."""
+
+
+@dataclass
+class MediaInfo:
+    """Média en cours de lecture."""
+
+    title: str = ""
+    artist: str = ""
+    app: str = ""
+    playing: bool = False
+    album: str = ""
+    #: Adresse de la pochette, si le lecteur en expose une.
+    art_url: str = ""
+    #: Position de lecture et durée, en secondes. `None` si inconnues.
+    position: float | None = None
+    duration: float | None = None
+
+    def as_payload(self) -> dict[str, object] | None:
+        if not self.title:
+            return None
+
+        payload: dict[str, object] = {
+            "title": self.title,
+            "artist": self.artist,
+            "app": self.app,
+            "playing": self.playing,
+        }
+
+        if self.album:
+            payload["album"] = self.album
+
+        # La position n'est transmise que si la durée est connue : sans elle,
+        # la console ne pourrait pas dessiner de barre de progression.
+        if self.duration is not None and self.duration > 0:
+            payload["duration"] = int(self.duration)
+            if self.position is not None:
+                payload["position"] = max(
+                    0, min(int(self.duration), int(self.position))
+                )
+
+        return payload
+
+
+@dataclass
+class NotificationInfo:
+    """Notification du système, telle qu'affichée par la console."""
+
+    app: str = ""
+    title: str = ""
+    body: str = ""
+    icon: str = "star"
+    age: int = 0
+
+    def as_payload(self) -> dict[str, object]:
+        payload: dict[str, object] = {
+            "app": self.app,
+            "title": self.title,
+            "icon": self.icon,
+            "age": self.age,
+        }
+        if self.body:
+            payload["body"] = self.body
+        return payload
+
+
+@dataclass(frozen=True)
+class Capabilities:
+    """Ce que l'adaptateur sait réellement faire sur cette machine.
+
+    Sans cette déclaration, l'interface laisserait configurer des boutons
+    inertes : sur Windows par exemple, la sélection de fenêtre n'est pas
+    implémentée. Le bouton se poserait sans erreur et resterait sans effet, ce
+    qui est le pire des deux mondes. Ici, l'interface peut prévenir avant.
+
+    Chaque champ correspond à une famille d'actions, pas à une méthode : c'est
+    la granularité utile pour l'utilisateur qui compose une page.
+    """
+
+    volume: bool = False
+    mute: bool = False
+    mic: bool = False
+    #: Volume interne du lecteur, distinct du volume système.
+    app_volume: bool = False
+    audio_output: bool = False
+    media: bool = False
+    #: Pochette de l'album transmise à la console.
+    media_artwork: bool = False
+    #: Lancement et fermeture d'applications.
+    apps: bool = False
+    #: Énumération et sélection des fenêtres ouvertes.
+    windows: bool = False
+    hotkey: bool = False
+    open_url: bool = False
+    open_path: bool = False
+    lock: bool = False
+    notifications: bool = False
+    #: Processeur et mémoire, pour le tableau de bord « system ».
+    system_stats: bool = False
+    #: Integration transversale, activee par la configuration et non par l'OS.
+    obs: bool = False
+
+    def as_payload(self) -> dict[str, bool]:
+        return {field_name: getattr(self, field_name) for field_name in fields_of(self)}
+
+
+def fields_of(instance: object) -> tuple[str, ...]:
+    """Noms des champs d'une dataclass, dans l'ordre de déclaration."""
+    return tuple(item.name for item in dataclass_fields(instance))
+
+
+@dataclass
+class SystemSnapshot:
+    """Photographie de l'état du poste, envoyée à la 3DS."""
+
+    volume: int | None = None
+    muted: bool | None = None
+    mic_muted: bool | None = None
+    #: Volume interne du lecteur, distinct du volume système.
+    app_volume: int | None = None
+    #: Sortie audio active et sorties disponibles.
+    audio_output: str = ""
+    audio_outputs: list[str] = field(default_factory=list)
+    media: MediaInfo | None = None
+    #: Notifications récentes, de la plus récente à la plus ancienne.
+    notifications: list[NotificationInfo] = field(default_factory=list)
+    #: Notification venant d'arriver, à annoncer une seule fois.
+    new_notification: NotificationInfo | None = None
+    active_app: str = ""
+    apps: list[str] = field(default_factory=list)
+    cpu: int | None = None
+    memory: int | None = None
+
+
+class Platform:
+    """Adaptateur de plateforme.
+
+    Les implémentations doivent être tolérantes : une information indisponible
+    vaut `None` plutôt qu'une exception, afin que le tableau de bord affiche
+    « inconnu » au lieu de faire échouer la collecte entière.
+    """
+
+    name = "generique"
+
+    # --- Capacités ------------------------------------------------------------
+
+    def capabilities(self) -> Capabilities:
+        """Ce que cet adaptateur sait faire.
+
+        L'adaptateur générique ne sait rien faire : c'est le comportement voulu
+        pour une plateforme sans implémentation, afin que l'interface le dise
+        clairement plutôt que de laisser croire le contraire.
+        """
+        return Capabilities()
+
+    # --- Volume ---------------------------------------------------------------
+
+    def get_volume(self) -> int | None:
+        return None
+
+    def set_volume(self, value: int) -> None:
+        raise Unsupported("reglage du volume indisponible")
+
+    def is_muted(self) -> bool | None:
+        return None
+
+    def set_muted(self, muted: bool) -> None:
+        raise Unsupported("coupure du son indisponible")
+
+    # --- Volume propre à une application -------------------------------------
+
+    def get_app_volume(self) -> int | None:
+        """Volume interne du lecteur, indépendant du volume système.
+
+        Utile lorsque la musique sort sur une enceinte externe : le volume du
+        système ne l'affecte alors plus, seul celui du lecteur agit.
+        """
+        return None
+
+    def set_app_volume(self, value: int) -> None:
+        raise Unsupported("volume de l'application indisponible")
+
+    # --- Sortie audio ---------------------------------------------------------
+
+    def get_audio_output(self) -> str:
+        """Nom de la sortie audio active."""
+        return ""
+
+    def list_audio_outputs(self) -> list[str]:
+        """Sorties audio disponibles."""
+        return []
+
+    def cycle_audio_output(self) -> str:
+        raise Unsupported("changement de sortie indisponible")
+
+    def select_audio_output(self, needle: str) -> str:
+        raise Unsupported("changement de sortie indisponible")
+
+    # --- Microphone -----------------------------------------------------------
+
+    def is_mic_muted(self) -> bool | None:
+        return None
+
+    def set_mic_muted(self, muted: bool) -> None:
+        raise Unsupported("controle du micro indisponible")
+
+    # --- Média ----------------------------------------------------------------
+
+    def get_media(self) -> MediaInfo | None:
+        return None
+
+    def media_play_pause(self) -> None:
+        raise Unsupported("controle media indisponible")
+
+    def media_next(self) -> None:
+        raise Unsupported("controle media indisponible")
+
+    def media_previous(self) -> None:
+        raise Unsupported("controle media indisponible")
+
+    # --- Applications ---------------------------------------------------------
+
+    def get_active_app(self) -> str:
+        return ""
+
+    def list_apps(self) -> list[str]:
+        return []
+
+    def list_windows(self) -> list[tuple[str, str]]:
+        """Fenêtres ouvertes, sous forme de paires (application, titre).
+
+        La plus en avant vient en premier.
+        """
+        return []
+
+    def focus_window(self, app: str, title: str) -> str:
+        """Ramène une fenêtre au premier plan. Retourne le libellé retenu."""
+        raise Unsupported("selection de fenetre indisponible")
+
+    def launch_app(self, target: str) -> None:
+        raise Unsupported("lancement d'application indisponible")
+
+    def quit_app(self, target: str) -> None:
+        raise Unsupported("fermeture d'application indisponible")
+
+    # --- Système --------------------------------------------------------------
+
+    def open_url(self, url: str) -> None:
+        raise Unsupported("ouverture d'URL indisponible")
+
+    def open_path(self, path: str) -> None:
+        raise Unsupported("ouverture de fichier indisponible")
+
+    def send_hotkey(self, keys: str) -> None:
+        raise Unsupported("raccourcis clavier indisponibles")
+
+    def lock_session(self) -> None:
+        raise Unsupported("verrouillage indisponible")
+
+    def list_notifications(self) -> list[NotificationInfo]:
+        """Notifications récentes du système."""
+        return []
+
+    def take_new_notification(self) -> NotificationInfo | None:
+        """Notification venant d'arriver, ou `None`.
+
+        Ne la retourne qu'une seule fois : l'appelant peut donc l'annoncer sans
+        risque de répétition.
+        """
+        return None
+
+    def get_cpu(self) -> int | None:
+        return None
+
+    def get_memory(self) -> int | None:
+        return None
+
+    # --- Collecte -------------------------------------------------------------
+
+    def snapshot(self) -> SystemSnapshot:
+        """Collecte l'état complet, en isolant chaque source de panne.
+
+        Une seule information cassée ne doit pas priver le tableau de bord de
+        toutes les autres.
+        """
+        snapshot = SystemSnapshot()
+
+        def safe(getter, default=None):
+            try:
+                return getter()
+            except Exception:
+                return default
+
+        snapshot.volume = safe(self.get_volume)
+        snapshot.muted = safe(self.is_muted)
+        snapshot.mic_muted = safe(self.is_mic_muted)
+        snapshot.media = safe(self.get_media)
+        snapshot.active_app = safe(self.get_active_app, "") or ""
+        snapshot.apps = safe(self.list_apps, []) or []
+        snapshot.cpu = safe(self.get_cpu)
+        snapshot.memory = safe(self.get_memory)
+        return snapshot
+
+    # --- Utilitaires partagés -------------------------------------------------
+
+    @staticmethod
+    def run(
+        command: list[str],
+        timeout: float = 5.0,
+        check: bool = True,
+    ) -> str:
+        """Exécute un programme et retourne sa sortie standard.
+
+        La liste d'arguments est passée telle quelle, sans shell : aucune
+        interpolation n'est possible, ce qui élimine l'injection de commande.
+        """
+        try:
+            completed = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                check=False,
+            )
+        except FileNotFoundError as error:
+            raise Unsupported(f"{command[0]} introuvable") from error
+        except subprocess.TimeoutExpired as error:
+            raise ActionFailed(f"{command[0]} n'a pas repondu") from error
+
+        if check and completed.returncode != 0:
+            detail = (completed.stderr or completed.stdout or "").strip()
+            # Un message court reste lisible sur l'écran de la console.
+            raise ActionFailed(detail.splitlines()[0][:80] if detail else "echec")
+
+        return completed.stdout
+
+    @staticmethod
+    def spawn(command: list[str]) -> None:
+        """Lance un programme sans attendre sa fin."""
+        try:
+            subprocess.Popen(
+                command,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                stdin=subprocess.DEVNULL,
+            )
+        except FileNotFoundError as error:
+            raise Unsupported(f"{command[0]} introuvable") from error
+        except OSError as error:
+            raise ActionFailed(str(error)) from error

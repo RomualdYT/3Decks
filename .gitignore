@@ -1,0 +1,20 @@
+# Artefacts de compilation 3DS
+3ds-app/build/
+3ds-app/*.elf
+3ds-app/*.3dsx
+3ds-app/*.smdh
+3ds-app/*.map
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Configuration locale
+# Dupliquez config.json en config.local.json pour vos reglages personnels.
+agent/config.local.json
+
+# Systeme
+.DS_Store
+Thumbs.db
