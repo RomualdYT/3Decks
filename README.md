@@ -1,0 +1,2 @@
+# 3Decks
+Deck3DS turns your Nintendo 3DS into a Stream Deck-like controller for your computer. Connect your 3DS to a Windows or macOS machine and use it as a fully customizable control panel. Create your own buttons, launch apps, switch between open windows, control Spotify, manage volume, change audio devices, receive PC notifications, and display what’s currently playing, including album artwork.
