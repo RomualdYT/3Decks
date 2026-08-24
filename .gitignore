@@ -10,6 +10,9 @@ __pycache__/
 *.py[cod]
 .venv/
 venv/
+.python/
+python-*-embed-amd64.zip
+agent/agent-windows*.log
 
 # Configuration locale
 # Dupliquez config.json en config.local.json pour vos reglages personnels.

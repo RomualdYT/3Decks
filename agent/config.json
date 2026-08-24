@@ -1,5 +1,5 @@
 {
-  "revision": 15,
+  "revision": 20,
   "server": {
     "host": "0.0.0.0",
     "port": 38123,
@@ -353,11 +353,11 @@
             "en": "Keyboard shortcut",
             "fr": "Raccourci clavier"
           },
-          "icon": "star",
+          "icon": "video",
           "color": "#7C6BF2",
           "action": {
             "type": "hotkey",
-            "keys": "echap"
+            "keys": "a"
           }
         }
       ]

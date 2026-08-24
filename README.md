@@ -17,7 +17,7 @@ see what is currently playing — album artwork included.
 <img src="https://img.shields.io/badge/console-3DS%20%7C%202DS%20%7C%20New%203DS-6EE7B7?style=flat-square" alt="Consoles: 3DS, 2DS, New 3DS">
 <img src="https://img.shields.io/badge/python-3.9%2B-34D399?style=flat-square" alt="Python 3.9 or newer">
 <img src="https://img.shields.io/badge/dependencies-none-34D399?style=flat-square" alt="No dependencies">
-<img src="https://img.shields.io/badge/tests-177%20passing-34D399?style=flat-square" alt="177 tests passing">
+<img src="https://img.shields.io/badge/tests-182%20passing-34D399?style=flat-square" alt="182 tests passing">
 <img src="https://img.shields.io/badge/licence-GPL--3.0-F59E0B?style=flat-square" alt="Licence GPL-3.0">
 </p>
 
@@ -445,7 +445,7 @@ agent/              companion agent
       api.py        schema, configuration, state
       static/       editor (plain HTML, CSS, JavaScript)
   config.json       pages and buttons
-  tests/            168 automated tests
+  tests/            182 automated tests
 
 tools/
   send3ds.py        send over Wi-Fi (3dslink protocol)
@@ -478,17 +478,17 @@ about two seconds for the state to settle.
 **macOS, processor load.** Derived from the system load average, which is far
 cheaper to read than `top`. Representative rather than exact.
 
-**Windows.** A PowerShell process is kept alive, since starting one costs close
-to a second. Volume and microphone go through the system audio API, falling back
-to media keys. **This adapter has not been exercised on real hardware yet** and
-deserves testing.
+**Windows.** The adapter is exercised on real hardware. Volume and microphone
+use the system Core Audio API, media metadata and progress use WinRT, and window
+enumeration/focus uses Win32 directly. A persistent PowerShell process carries
+the Core Audio and WinRT calls; scripts are sent atomically and every response
+has a real timeout so a blocked Windows API cannot freeze the agent.
 
-Four capabilities are not ported yet: window selection, audio output switching,
-per-application volume and notifications. Album art is also absent, as the WinRT
-media API exposes no image URL. The adapter declares these gaps in
-`capabilities()`, so `--ui` greys out the corresponding actions and dashboards
-instead of offering buttons that would quietly do nothing. Implementing one means
-updating that declaration — a test in `TestCapabilities` will remind you.
+Two capabilities are not ported yet: per-application volume and notification
+history. Output switching uses Core Audio and `IPolicyConfig`; Spotify artwork
+is read through WinRT and converted locally with System.Drawing. The adapter
+declares the remaining gaps in `capabilities()`, so `--ui` greys out the
+corresponding actions and dashboards instead of offering inert buttons.
 
 **Discord voice channels.** Reading participants requires an OAuth scope granted
 per application by Discord, so it is not implemented. Muting your system

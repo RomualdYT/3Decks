@@ -113,11 +113,20 @@ def command_probe() -> int:
             "       premier basculement."
         )
     if snapshot.media is None:
-        print(
-            "Note : aucun media detecte. Sur macOS, autorisez l'application\n"
-            "       Terminal a piloter Spotify ou Musique dans Reglages Systeme,\n"
-            "       rubrique Confidentialite et securite, puis Automatisation."
-        )
+        if sys.platform == "darwin":
+            print(
+                "Note : aucun media detecte. Autorisez l'application Terminal\n"
+                "       a piloter Spotify ou Musique dans Reglages Systeme,\n"
+                "       rubrique Confidentialite et securite, puis Automatisation."
+            )
+        else:
+            print(
+                "Note : aucun media detecte. Lancez une lecture dans une application\n"
+                "       compatible avec les controles media de Windows."
+            )
+    close = getattr(platform, "close", None)
+    if callable(close):
+        close()
     return 0
 
 

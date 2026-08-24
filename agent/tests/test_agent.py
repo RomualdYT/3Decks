@@ -1626,14 +1626,97 @@ class TestCapabilities(unittest.TestCase):
         from deck3ds.platforms.windows import WindowsPlatform
 
         capabilities = WindowsPlatform.capabilities(None)
-        self.assertFalse(capabilities.windows)
-        self.assertFalse(capabilities.audio_output)
+        self.assertTrue(capabilities.windows)
+        self.assertTrue(capabilities.audio_output)
         self.assertFalse(capabilities.app_volume)
         self.assertFalse(capabilities.notifications)
-        self.assertFalse(capabilities.media_artwork)
+        self.assertTrue(capabilities.media_artwork)
         # Ce qui fonctionne doit rester déclaré.
         self.assertTrue(capabilities.volume)
         self.assertTrue(capabilities.media)
+
+
+class TestWindowsAdapter(unittest.TestCase):
+    """Comportements Windows testables sans appeler l'OS hôte."""
+
+    def test_focus_fenetre_filtre_application_et_titre(self):
+        from deck3ds.platforms.windows import WindowsPlatform
+
+        class User32:
+            def __init__(self):
+                self.focused = None
+
+            def ShowWindow(self, handle, _mode):
+                self.focused = handle
+                return True
+
+            def SetForegroundWindow(self, handle):
+                self.focused = handle
+                return True
+
+        platform = WindowsPlatform.__new__(WindowsPlatform)
+        platform._user32 = User32()
+        platform._window_records = lambda: [
+            (10, "chrome", "Documentation"),
+            (20, "Notepad", "Notes de test"),
+        ]
+
+        label = platform.focus_window("notepad.exe", "Notes")
+
+        self.assertEqual(label, "Notes de test")
+        self.assertEqual(platform._user32.focused, 20)
+
+    def test_focus_fenetre_absente_est_explicite(self):
+        from deck3ds.platforms.windows import WindowsPlatform
+
+        platform = WindowsPlatform.__new__(WindowsPlatform)
+        platform._window_records = lambda: []
+        with self.assertRaises(ActionFailed):
+            platform.focus_window("absente", "")
+
+    def test_alias_safari_ouvre_le_navigateur(self):
+        from deck3ds.platforms.windows import WindowsPlatform
+
+        platform = WindowsPlatform.__new__(WindowsPlatform)
+        calls = []
+        platform.spawn = calls.append
+
+        platform.launch_app("Safari")
+
+        self.assertIn("https://", calls[0][-1])
+
+    def test_capture_macos_devient_capture_windows(self):
+        from deck3ds.platforms.windows import WindowsPlatform
+
+        class User32:
+            def __init__(self):
+                self.events = []
+
+            def keybd_event(self, code, _scan, flags, _extra):
+                self.events.append((code, flags))
+
+        platform = WindowsPlatform.__new__(WindowsPlatform)
+        platform._user32 = User32()
+
+        platform.send_hotkey("cmd+shift+4")
+
+        pressed = [code for code, flags in platform._user32.events if flags == 0]
+        self.assertEqual(pressed, [0x5B, 0x10, ord("S")])
+
+    def test_sorties_audio_du_registre_sont_parsees(self):
+        from deck3ds.platforms.windows import WindowsPlatform
+
+        class Shell:
+            def run(self, _script, timeout=0):
+                return "id-1\tCasque USB\nid-2\tÉcran HDMI"
+
+        platform = WindowsPlatform.__new__(WindowsPlatform)
+        platform._shell = Shell()
+
+        self.assertEqual(
+            platform._audio_devices(),
+            [("id-1", "Casque USB"), ("id-2", "Écran HDMI")],
+        )
 
 
 # --- Boucle de collecte --------------------------------------------------------

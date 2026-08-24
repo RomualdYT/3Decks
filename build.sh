@@ -33,8 +33,16 @@ arm64 | aarch64)
 esac
 
 run_make() {
-	docker run --rm "${PLATFORM_ARG[@]}" \
-		-v "$APP_DIR":/work -w /work \
+	DOCKER_APP_DIR="$APP_DIR"
+	CONVERSION_EXCLUSION=
+	case "${OSTYPE:-}" in
+	msys* | cygwin*)
+		DOCKER_APP_DIR="$(cygpath -w "$APP_DIR")"
+		CONVERSION_EXCLUSION='*'
+		;;
+	esac
+	MSYS2_ARG_CONV_EXCL="$CONVERSION_EXCLUSION" docker run --rm "${PLATFORM_ARG[@]}" \
+		-v "$DOCKER_APP_DIR":/work -w /work \
 		"$IMAGE" \
 		bash -c 'export PATH=$DEVKITARM/bin:$DEVKITPRO/tools/bin:$PATH && make '"$1"' 2>&1' |
 		grep -vE "modification time|Clock skew" || true

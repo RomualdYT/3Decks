@@ -19,6 +19,8 @@ compressé est fait ici.
 
 from __future__ import annotations
 
+import base64
+import os
 import struct
 import subprocess
 import tempfile
@@ -142,6 +144,10 @@ def to_texture(image: bytes) -> bytes | None:
         target = Path(folder) / "resized.tiff"
         source.write_bytes(image)
 
+        if os.name == "nt":
+            pixels = _resize_windows(source, Path(folder) / "resized.bgr")
+            return _swizzle(pixels, 3) if pixels is not None else None
+
         try:
             # `sips` redimensionne puis produit un TIFF non compressé, bien plus
             # simple à décoder qu'un PNG et sans dépendance supplémentaire.
@@ -177,6 +183,61 @@ def to_texture(image: bytes) -> bytes | None:
 
     pixels, samples = decoded
     return _swizzle(pixels, samples)
+
+
+def _resize_windows(source: Path, target: Path) -> bytes | None:
+    """Redimensionne avec System.Drawing et retourne des pixels RGB linéaires."""
+    source_text = str(source).replace("'", "''")
+    target_text = str(target).replace("'", "''")
+    script = f"""
+Add-Type -AssemblyName System.Drawing
+$source=[System.Drawing.Image]::FromFile('{source_text}')
+$bitmap=New-Object System.Drawing.Bitmap {ART_SIZE},{ART_SIZE},([System.Drawing.Imaging.PixelFormat]::Format24bppRgb)
+$graphics=[System.Drawing.Graphics]::FromImage($bitmap)
+$graphics.InterpolationMode=[System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+$graphics.PixelOffsetMode=[System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
+$graphics.DrawImage($source,0,0,{ART_SIZE},{ART_SIZE})
+$rectangle=New-Object System.Drawing.Rectangle 0,0,{ART_SIZE},{ART_SIZE}
+$data=$bitmap.LockBits($rectangle,[System.Drawing.Imaging.ImageLockMode]::ReadOnly,[System.Drawing.Imaging.PixelFormat]::Format24bppRgb)
+$length=[Math]::Abs($data.Stride)*{ART_SIZE}
+$bytes=New-Object byte[] $length
+[Runtime.InteropServices.Marshal]::Copy($data.Scan0,$bytes,0,$length)
+[IO.File]::WriteAllBytes('{target_text}',$bytes)
+$bitmap.UnlockBits($data)
+$graphics.Dispose(); $bitmap.Dispose(); $source.Dispose()
+"""
+    encoded = base64.b64encode(script.encode("utf-16-le")).decode("ascii")
+    try:
+        completed = subprocess.run(
+            [
+                "powershell.exe",
+                "-NoLogo",
+                "-NoProfile",
+                "-NonInteractive",
+                "-EncodedCommand",
+                encoded,
+            ],
+            capture_output=True,
+            timeout=10.0,
+            check=False,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return None
+    if completed.returncode != 0 or not target.exists():
+        return None
+    try:
+        bgr = target.read_bytes()
+    except OSError:
+        return None
+    expected = ART_SIZE * ART_SIZE * 3
+    if len(bgr) != expected:
+        return None
+    rgb = bytearray(expected)
+    for offset in range(0, expected, 3):
+        rgb[offset] = bgr[offset + 2]
+        rgb[offset + 1] = bgr[offset + 1]
+        rgb[offset + 2] = bgr[offset]
+    return bytes(rgb)
 
 
 def _swizzle(pixels: bytes, samples: int) -> bytes:

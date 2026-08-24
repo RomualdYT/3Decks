@@ -16,12 +16,16 @@ Aucune dépendance externe n'est requise : la bibliothèque standard suffit.
 
 from __future__ import annotations
 
+import base64
 import ctypes
+import json
 import os
+import queue
 import re
 import subprocess
+import tempfile
 import threading
-import time
+from pathlib import Path
 
 from .base import (
     ActionFailed,
@@ -41,6 +45,8 @@ VK_MEDIA_PREV = 0xB1
 VK_MEDIA_PLAY_PAUSE = 0xB3
 
 KEYEVENTF_KEYUP = 0x0002
+SW_RESTORE = 9
+PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
 
 #: Modificateurs reconnus par `send_hotkey`, avec leur code virtuel.
 _MODIFIER_CODES = {
@@ -63,6 +69,7 @@ _SPECIAL_CODES = {
     "delete": 0x2E,
     "escape": 0x1B,
     "esc": 0x1B,
+    "echap": 0x1B,
     "left": 0x25,
     "up": 0x26,
     "right": 0x27,
@@ -115,6 +122,8 @@ class _PowerShellSession:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 bufsize=1,
                 creationflags=creation_flags,
             )
@@ -130,34 +139,54 @@ class _PowerShellSession:
             assert process.stdout is not None
 
             try:
-                process.stdin.write(f"{script}\n")
-                process.stdin.write(f'Write-Output "{self.MARKER}"\n')
+                # `powershell -Command -` interprète l'entrée ligne par ligne.
+                # Un script contenant un here-string (notamment le helper C#
+                # audio) serait donc exécuté avant d'être complet. On transmet
+                # le bloc en base64 pour qu'une seule ligne atomique soit lue.
+                encoded = base64.b64encode(script.encode("utf-8")).decode("ascii")
+                process.stdin.write(
+                    "$deck3dsSource=[Text.Encoding]::UTF8.GetString("
+                    f"[Convert]::FromBase64String('{encoded}'));"
+                    "& ([ScriptBlock]::Create($deck3dsSource));"
+                    f'Write-Output "{self.MARKER}"\n'
+                )
                 process.stdin.flush()
             except (BrokenPipeError, OSError) as error:
                 self.close()
                 raise ActionFailed("PowerShell interrompu") from error
 
-            lines: list[str] = []
-            deadline = time.monotonic() + timeout
+            result: queue.Queue[tuple[bool, object]] = queue.Queue(maxsize=1)
 
-            while True:
-                if time.monotonic() > deadline:
-                    # Le processus est probablement bloqué : on le recycle pour
-                    # que la commande suivante repart d'un état sain.
-                    self.close()
-                    raise ActionFailed("PowerShell n'a pas repondu")
+            def read_response() -> None:
+                lines: list[str] = []
+                try:
+                    while True:
+                        line = process.stdout.readline()
+                        if not line:
+                            raise ActionFailed("PowerShell s'est arrete")
+                        stripped = line.rstrip("\r\n")
+                        if stripped == self.MARKER:
+                            result.put((True, "\n".join(lines).strip()))
+                            return
+                        lines.append(stripped)
+                except BaseException as error:
+                    result.put((False, error))
 
-                line = process.stdout.readline()
-                if not line:
-                    self.close()
-                    raise ActionFailed("PowerShell s'est arrete")
+            # readline() est bloquant sous Windows. Un thread permet au délai
+            # d'expirer même quand PowerShell ou une API COM ne répond plus.
+            threading.Thread(target=read_response, daemon=True).start()
+            try:
+                succeeded, value = result.get(timeout=timeout)
+            except queue.Empty as error:
+                self.close()
+                raise ActionFailed("PowerShell n'a pas repondu") from error
 
-                stripped = line.rstrip("\r\n")
-                if stripped == self.MARKER:
-                    break
-                lines.append(stripped)
-
-            return "\n".join(lines).strip()
+            if not succeeded:
+                self.close()
+                assert isinstance(value, BaseException)
+                raise value
+            assert isinstance(value, str)
+            return value
 
     def close(self) -> None:
         process = self._process
@@ -178,10 +207,23 @@ class WindowsPlatform(Platform):
         self._shell = _PowerShellSession()
         self._mic_muted: bool | None = None
         self._user32 = ctypes.WinDLL("user32", use_last_error=True)
+        self._user32.GetForegroundWindow.restype = ctypes.c_void_p
+        self._user32.GetWindowTextLengthW.argtypes = [ctypes.c_void_p]
+        self._user32.GetWindowTextW.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_wchar_p,
+            ctypes.c_int,
+        ]
+        self._user32.IsWindowVisible.argtypes = [ctypes.c_void_p]
+        self._user32.ShowWindow.argtypes = [ctypes.c_void_p, ctypes.c_int]
+        self._user32.SetForegroundWindow.argtypes = [ctypes.c_void_p]
         self._cpu_count = os.cpu_count() or 1
         # Indique si le module audio a déjà échoué, pour ne pas réessayer en
         # boucle une opération impossible.
         self._audio_broken = False
+        self._media_key = ""
+        self._media_art_url = ""
+        self._media_error = ""
 
     # --- Capacités ------------------------------------------------------------
 
@@ -201,11 +243,11 @@ class WindowsPlatform(Platform):
             mute=True,
             mic=True,
             app_volume=False,
-            audio_output=False,
+            audio_output=True,
             media=True,
-            media_artwork=False,
+            media_artwork=True,
             apps=True,
-            windows=False,
+            windows=True,
             hotkey=True,
             open_url=True,
             open_path=True,
@@ -252,6 +294,9 @@ class WindowsPlatform(Platform):
             "  interface IMMDevice {\n"
             "    int Activate(ref Guid id, int clsCtx, IntPtr p,"
             " [MarshalAs(UnmanagedType.IUnknown)] out object i);\n"
+            "    int OpenPropertyStore(int access, out IntPtr properties);\n"
+            "    int GetId([MarshalAs(UnmanagedType.LPWStr)] out string id);\n"
+            "    int GetState(out int state);\n"
             "  }\n"
             '  [Guid("A95664D2-9614-4F35-A746-DE8DB63617E6"),'
             " InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]\n"
@@ -294,11 +339,103 @@ class WindowsPlatform(Platform):
             "    public static void SetMicMute(bool m) {\n"
             "      Endpoint(1).SetMute(m, Guid.Empty);\n"
             "    }\n"
+            "    public static string GetDefaultOutputId() {\n"
+            "      IMMDeviceEnumerator e = (IMMDeviceEnumerator)(new MMDeviceEnumeratorComObject());\n"
+            "      IMMDevice dev; Marshal.ThrowExceptionForHR(e.GetDefaultAudioEndpoint(0, 1, out dev));\n"
+            "      string id; Marshal.ThrowExceptionForHR(dev.GetId(out id)); return id;\n"
+            "    }\n"
             "  }\n"
             "}\n"
             "'@\n"
             "}\n" + body
         )
+
+    def _device_script(self, body: str) -> str:
+        """Interfaces COM d'énumération et de sélection des sorties audio."""
+        return r'''
+if (-not ([System.Management.Automation.PSTypeName]'Deck3DS.AudioDevices').Type) {
+Add-Type -TypeDefinition @'
+using System;
+using System.Collections.Generic;
+using System.Runtime.InteropServices;
+namespace Deck3DS {
+  [StructLayout(LayoutKind.Sequential)]
+  struct PropertyKey { public Guid formatId; public int propertyId; }
+  [StructLayout(LayoutKind.Explicit)]
+  struct PropertyVariant {
+    [FieldOffset(0)] public ushort variantType;
+    [FieldOffset(8)] public IntPtr pointerValue;
+    public string Text() { return Marshal.PtrToStringUni(pointerValue) ?? ""; }
+  }
+  [ComImport, Guid("0BD7A1BE-7A1A-44DB-8397-C0A1CE7191C3"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+  interface IMMDeviceCollection {
+    [PreserveSig] int GetCount(out uint count);
+    [PreserveSig] int Item(uint index, out IMMDevice device);
+  }
+  [ComImport, Guid("886D8EEB-8CF2-4446-8D02-CDBA1DBDCF99"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+  interface IPropertyStore {
+    [PreserveSig] int GetCount(out uint count);
+    [PreserveSig] int GetAt(uint index, out PropertyKey key);
+    [PreserveSig] int GetValue(ref PropertyKey key, out PropertyVariant value);
+    int SetValue(ref PropertyKey key, ref PropertyVariant value);
+    int Commit();
+  }
+  [ComImport, Guid("D666063F-1587-4E43-81F1-B948E807363F"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+  interface IMMDevice {
+    [PreserveSig] int Activate(ref Guid id, int clsCtx, IntPtr parameters, [MarshalAs(UnmanagedType.IUnknown)] out object result);
+    [PreserveSig] int OpenPropertyStore(int access, out IPropertyStore properties);
+    [PreserveSig] int GetId([MarshalAs(UnmanagedType.LPWStr)] out string id);
+    [PreserveSig] int GetState(out int state);
+  }
+  [ComImport, Guid("A95664D2-9614-4F35-A746-DE8DB63617E6"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+  interface IMMDeviceEnumerator {
+    [PreserveSig] int EnumAudioEndpoints(int flow, int mask, out IMMDeviceCollection devices);
+    [PreserveSig] int GetDefaultAudioEndpoint(int flow, int role, out IMMDevice device);
+    [PreserveSig] int GetDevice(string id, out IMMDevice device);
+    int RegisterEndpointNotificationCallback(IntPtr client);
+    int UnregisterEndpointNotificationCallback(IntPtr client);
+  }
+  [ComImport, Guid("BCDE0395-E52F-467C-8E3D-C4579291692E")]
+  class MMDeviceEnumeratorComObject { }
+  enum ERole { Console = 0, Multimedia = 1, Communications = 2 }
+  [ComImport, Guid("F8679F50-850A-41CF-9C72-430F290290C8"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+  interface IPolicyConfig {
+    int GetMixFormat(string id, IntPtr format);
+    int GetDeviceFormat(string id, int @default, IntPtr format);
+    int ResetDeviceFormat(string id);
+    int SetDeviceFormat(string id, IntPtr endpoint, IntPtr mix);
+    int GetProcessingPeriod(string id, int @default, IntPtr period, IntPtr minimum);
+    int SetProcessingPeriod(string id, IntPtr period);
+    int GetShareMode(string id, IntPtr mode);
+    int SetShareMode(string id, IntPtr mode);
+    int GetPropertyValue(string id, IntPtr key, IntPtr value);
+    int SetPropertyValue(string id, IntPtr key, IntPtr value);
+    int SetDefaultEndpoint([MarshalAs(UnmanagedType.LPWStr)] string id, ERole role);
+    int SetEndpointVisibility(string id, int visible);
+  }
+  [ComImport, Guid("870AF99C-171D-4F9E-AF0D-E63DF40C2BC9")]
+  class PolicyConfigClient { }
+  public class AudioDevices {
+    static IMMDeviceEnumerator Enumerator() { return (IMMDeviceEnumerator)new MMDeviceEnumeratorComObject(); }
+    static string Name(IMMDevice device) {
+      IPropertyStore store; Marshal.ThrowExceptionForHR(device.OpenPropertyStore(0, out store));
+      PropertyKey key = new PropertyKey { formatId = new Guid("A45C254E-DF1C-4EFD-8020-67D146A850E0"), propertyId = 14 };
+      PropertyVariant value; Marshal.ThrowExceptionForHR(store.GetValue(ref key, out value));
+      return value.Text();
+    }
+    public static string[] Outputs() {
+      IMMDeviceCollection collection; Marshal.ThrowExceptionForHR(Enumerator().EnumAudioEndpoints(0, 1, out collection));
+      uint count; collection.GetCount(out count); var result = new List<string>();
+      for (uint i = 0; i < count; i++) { IMMDevice device; collection.Item(i, out device); string id; device.GetId(out id); result.Add(id + "\t" + Name(device)); }
+      return result.ToArray();
+    }
+    public static string DefaultId() { IMMDevice device; Enumerator().GetDefaultAudioEndpoint(0, 1, out device); string id; device.GetId(out id); return id; }
+    public static void SetDefault(string id) { var policy = (IPolicyConfig)new PolicyConfigClient(); for (int role = 0; role < 3; role++) Marshal.ThrowExceptionForHR(policy.SetDefaultEndpoint(id, (ERole)role)); }
+  }
+}
+'@
+}
+''' + body
 
     def get_volume(self) -> int | None:
         if self._audio_broken:
@@ -370,6 +507,82 @@ class WindowsPlatform(Platform):
         )
         self._mic_muted = muted
 
+    # --- Sorties audio -------------------------------------------------------
+
+    def _audio_devices(self) -> list[tuple[str, str]]:
+        script = (
+            "$root='HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\MMDevices\\Audio\\Render'; "
+            "Get-ChildItem $root -ErrorAction SilentlyContinue | ForEach-Object { "
+            "$device=Get-ItemProperty $_.PSPath; if ($device.DeviceState -eq 1) { "
+            "$properties=Get-ItemProperty ($_.PSPath+'\\Properties'); "
+            "$name=$properties.'{a45c254e-df1c-4efd-8020-67d146a850e0},2'; "
+            "if ($name) { Write-Output ('{0.0.0.00000000}.'+$_.PSChildName + \"`t\" + $name) } } }"
+        )
+        try:
+            raw = self._shell.run(script, timeout=8.0)
+        except (Unsupported, ActionFailed):
+            return []
+        devices: list[tuple[str, str]] = []
+        for line in raw.splitlines():
+            if "\t" not in line:
+                continue
+            identifier, name = line.split("\t", 1)
+            if identifier.strip() and name.strip():
+                devices.append((identifier.strip(), name.strip()))
+        return devices
+
+    def get_audio_output(self) -> str:
+        devices = self._audio_devices()
+        if not devices:
+            return ""
+        try:
+            current = self._shell.run(
+                self._audio_script("[Deck3DS.Audio]::GetDefaultOutputId()"),
+                timeout=12.0,
+            ).strip()
+        except (Unsupported, ActionFailed):
+            return ""
+        return next((name for identifier, name in devices if identifier == current), "")
+
+    def list_audio_outputs(self) -> list[str]:
+        return [name for _, name in self._audio_devices()]
+
+    def select_audio_output(self, needle: str) -> str:
+        match = next(
+            (
+                (identifier, name)
+                for identifier, name in self._audio_devices()
+                if needle.casefold() in name.casefold()
+            ),
+            None,
+        )
+        if match is None:
+            raise ActionFailed(f"sortie introuvable : {needle}")
+        identifier, name = match
+        escaped = identifier.replace("'", "''")
+        self._shell.run(
+            self._device_script(f"[Deck3DS.AudioDevices]::SetDefault('{escaped}')"),
+            timeout=12.0,
+        )
+        return name
+
+    def cycle_audio_output(self) -> str:
+        devices = self._audio_devices()
+        if len(devices) < 2:
+            raise ActionFailed("une seule sortie disponible")
+        current = self.get_audio_output()
+        index = next(
+            (position for position, (_, name) in enumerate(devices) if name == current),
+            -1,
+        )
+        identifier, name = devices[(index + 1) % len(devices)]
+        escaped = identifier.replace("'", "''")
+        self._shell.run(
+            self._device_script(f"[Deck3DS.AudioDevices]::SetDefault('{escaped}')"),
+            timeout=12.0,
+        )
+        return name
+
     # --- Média ----------------------------------------------------------------
 
     def get_media(self) -> MediaInfo | None:
@@ -388,28 +601,58 @@ class WindowsPlatform(Platform):
             "Windows.Media.Control,ContentType=WindowsRuntime]\n"
             "$op = $T::RequestAsync()\n"
             "$m = ([System.WindowsRuntimeSystemExtensions].GetMethods() | "
-            "Where-Object { $_.Name -eq 'GetAwaiter' -and "
-            "$_.GetParameters().Count -eq 1 } | Select-Object -First 1)."
+            "Where-Object { $_.Name -eq 'AsTask' -and $_.IsGenericMethod "
+            "-and $_.GetParameters().Count -eq 1 } | Select-Object -First 1)."
             "MakeGenericMethod([Windows.Media.Control."
             "GlobalSystemMediaTransportControlsSessionManager,"
             "Windows.Media.Control,ContentType=WindowsRuntime])\n"
-            "$mgr = $m.Invoke($null, @($op)).GetResult()\n"
+            "$task = $m.Invoke($null, @($op))\n"
+            "$task.Wait()\n"
+            "$mgr = $task.Result\n"
             "$s = $mgr.GetCurrentSession()\n"
             "if ($s) {\n"
             "  $pop = $s.TryGetMediaPropertiesAsync()\n"
             "  $pm = ([System.WindowsRuntimeSystemExtensions].GetMethods() | "
-            "Where-Object { $_.Name -eq 'GetAwaiter' -and "
-            "$_.GetParameters().Count -eq 1 } | Select-Object -First 1)."
+            "Where-Object { $_.Name -eq 'AsTask' -and $_.IsGenericMethod "
+            "-and $_.GetParameters().Count -eq 1 } | Select-Object -First 1)."
             "MakeGenericMethod([Windows.Media.Control."
             "GlobalSystemMediaTransportControlsSessionMediaProperties,"
             "Windows.Media.Control,ContentType=WindowsRuntime])\n"
-            "  $p = $pm.Invoke($null, @($pop)).GetResult()\n"
+            "  $ptask = $pm.Invoke($null, @($pop))\n"
+            "  $ptask.Wait()\n"
+            "  $p = $ptask.Result\n"
             "  $st = $s.GetPlaybackInfo().PlaybackStatus\n"
-            "  Write-Output ("
-            "$p.Title + '|' + $p.Artist + '|' + $s.SourceAppUserModelId "
-            "+ '|' + $st)\n"
+            "  $tl = $s.GetTimelineProperties()\n"
+            "  $mediaKey = $p.Title + '|' + $p.Artist + '|' + $p.AlbumTitle\n"
+            "  $art = ''\n"
+            "  if ($p.Thumbnail -and $global:Deck3DSArtKey -ne $mediaKey) {\n"
+            "    $top = $p.Thumbnail.OpenReadAsync()\n"
+            "    $tm = ([System.WindowsRuntimeSystemExtensions].GetMethods() | "
+            "Where-Object { $_.Name -eq 'AsTask' -and $_.IsGenericMethod "
+            "-and $_.GetParameters().Count -eq 1 } | Select-Object -First 1)."
+            "MakeGenericMethod([Windows.Storage.Streams."
+            "IRandomAccessStreamWithContentType,Windows.Storage.Streams,"
+            "ContentType=WindowsRuntime])\n"
+            "    $ttask = $tm.Invoke($null, @($top))\n"
+            "    $ttask.Wait()\n"
+            "    $sm = [System.IO.WindowsRuntimeStreamExtensions].GetMethods() | "
+            "Where-Object { $_.Name -eq 'AsStreamForRead' -and "
+            "$_.GetParameters().Count -eq 1 } | Select-Object -First 1\n"
+            "    $net = $sm.Invoke($null, @($ttask.Result))\n"
+            "    $memory = New-Object System.IO.MemoryStream\n"
+            "    $net.CopyTo($memory)\n"
+            "    $art = [Convert]::ToBase64String($memory.ToArray())\n"
+            "    $global:Deck3DSArtKey = $mediaKey\n"
+            "  }\n"
+            "  [PSCustomObject]@{"
+            "title=$p.Title; artist=$p.Artist; album=$p.AlbumTitle; "
+            "app=$s.SourceAppUserModelId; playing=($st -eq 'Playing'); "
+            "position=[math]::Max(0,$tl.Position.TotalSeconds); "
+            "duration=[math]::Max(0,($tl.EndTime-$tl.StartTime).TotalSeconds); "
+            "key=$mediaKey; art=$art"
+            "} | ConvertTo-Json -Compress\n"
             "}\n"
-            "} catch { }"
+            "} catch { Write-Output ('DECK3DS_ERROR ' + $_.Exception.ToString()) }"
         )
 
         try:
@@ -417,34 +660,57 @@ class WindowsPlatform(Platform):
         except (Unsupported, ActionFailed):
             return None
 
-        if not raw or "|" not in raw:
+        if not raw:
             return None
 
-        # La dernière ligne utile évite les avertissements éventuels.
-        line = [item for item in raw.splitlines() if "|" in item]
-        if not line:
+        data = None
+        for line in reversed(raw.splitlines()):
+            try:
+                candidate = json.loads(line)
+            except (TypeError, json.JSONDecodeError):
+                continue
+            if isinstance(candidate, dict):
+                data = candidate
+                break
+        if data is None:
+            self._media_error = raw
             return None
+        self._media_error = ""
 
-        fields = line[-1].split("|")
-        if len(fields) < 4:
-            return None
-
-        title = fields[0].strip()
+        title = str(data.get("title") or "").strip()
         if not title:
             return None
 
-        app = fields[2].strip()
+        app = str(data.get("app") or "").strip()
         # L'identifiant de paquet est illisible : on garde une forme courte.
         if "!" in app:
             app = app.split("!")[0]
         if "." in app and len(app) > 24:
             app = app.split(".")[-1]
 
+        media_key = str(data.get("key") or f"{title}|{data.get('artist', '')}")
+        encoded_art = str(data.get("art") or "")
+        if media_key != self._media_key:
+            self._media_key = media_key
+            self._media_art_url = ""
+        if encoded_art:
+            try:
+                image = base64.b64decode(encoded_art, validate=True)
+                art_path = Path(tempfile.gettempdir()) / "deck3ds-winrt-artwork.img"
+                art_path.write_bytes(image)
+                self._media_art_url = art_path.as_uri()
+            except (OSError, ValueError):
+                self._media_art_url = ""
+
         return MediaInfo(
             title=title,
-            artist=fields[1].strip(),
+            artist=str(data.get("artist") or "").strip(),
             app=app,
-            playing=fields[3].strip() == "Playing",
+            playing=bool(data.get("playing")),
+            album=str(data.get("album") or "").strip(),
+            art_url=self._media_art_url,
+            position=float(data.get("position") or 0),
+            duration=float(data.get("duration") or 0) or None,
         )
 
     def media_play_pause(self) -> None:
@@ -491,8 +757,91 @@ class WindowsPlatform(Platform):
 
         return [line.strip() for line in raw.splitlines() if line.strip()][:16]
 
+    def _window_records(self) -> list[tuple[int, str, str]]:
+        """Fenêtres visibles avec leur handle, exécutable et titre."""
+        records: list[tuple[int, str, str]] = []
+        user32 = self._user32
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel32.OpenProcess.restype = ctypes.c_void_p
+        kernel32.CloseHandle.argtypes = [ctypes.c_void_p]
+        callback_type = ctypes.WINFUNCTYPE(
+            ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p
+        )
+
+        def visit(handle: int, _parameter: int) -> bool:
+            if not user32.IsWindowVisible(handle):
+                return True
+            length = user32.GetWindowTextLengthW(handle)
+            if length <= 0:
+                return True
+            title_buffer = ctypes.create_unicode_buffer(length + 1)
+            user32.GetWindowTextW(handle, title_buffer, length + 1)
+            title = title_buffer.value.strip()
+            if not title:
+                return True
+
+            pid = ctypes.c_ulong()
+            user32.GetWindowThreadProcessId(handle, ctypes.byref(pid))
+            process = kernel32.OpenProcess(
+                PROCESS_QUERY_LIMITED_INFORMATION, False, pid.value
+            )
+            app = ""
+            if process:
+                try:
+                    size = ctypes.c_ulong(32768)
+                    path_buffer = ctypes.create_unicode_buffer(size.value)
+                    if kernel32.QueryFullProcessImageNameW(
+                        process, 0, path_buffer, ctypes.byref(size)
+                    ):
+                        app = os.path.splitext(os.path.basename(path_buffer.value))[0]
+                finally:
+                    kernel32.CloseHandle(process)
+            if app:
+                records.append((int(handle), app, title))
+            return True
+
+        callback = callback_type(visit)
+        user32.EnumWindows(callback, 0)
+        return records
+
+    def list_windows(self) -> list[tuple[str, str]]:
+        return [(app, title) for _, app, title in self._window_records()][:32]
+
+    def focus_window(self, app: str, title: str) -> str:
+        app_needle = app.casefold().removesuffix(".exe")
+        title_needle = title.casefold()
+        match: tuple[int, str, str] | None = None
+        for record in self._window_records():
+            _, candidate_app, candidate_title = record
+            if app_needle and app_needle not in candidate_app.casefold():
+                continue
+            if title_needle and title_needle not in candidate_title.casefold():
+                continue
+            match = record
+            break
+        if match is None:
+            raise ActionFailed(f"fenetre introuvable : {title or app}")
+
+        handle, candidate_app, candidate_title = match
+        self._user32.ShowWindow(handle, SW_RESTORE)
+        if not self._user32.SetForegroundWindow(handle):
+            self._tap(0x12)
+            self._user32.SetForegroundWindow(handle)
+        return candidate_title or candidate_app
+
     def launch_app(self, target: str) -> None:
-        self.spawn(["cmd", "/c", "start", "", target])
+        aliases = {
+            "safari": ["cmd", "/c", "start", "", "https://www.google.com"],
+            "browser": ["cmd", "/c", "start", "", "https://www.google.com"],
+            "terminal": ["cmd", "/c", "start", "", "wt.exe"],
+            "visual studio code": ["cmd", "/c", "start", "", "code"],
+            "mail": ["cmd", "/c", "start", "", "mailto:"],
+            "messages": ["cmd", "/c", "start", "", "ms-chat:"],
+        }
+        command = aliases.get(
+            target.casefold(), ["cmd", "/c", "start", "", target]
+        )
+        self.spawn(command)
 
     def quit_app(self, target: str) -> None:
         name = target.rsplit(".", 1)[0] if target.lower().endswith(".exe") else target
@@ -516,10 +865,14 @@ class WindowsPlatform(Platform):
         self.spawn(["cmd", "/c", "start", "", url])
 
     def open_path(self, path: str) -> None:
-        self.spawn(["explorer.exe", path])
+        self.spawn(["explorer.exe", os.path.expanduser(path)])
 
     def send_hotkey(self, keys: str) -> None:
         parts = [part.strip().lower() for part in keys.split("+") if part.strip()]
+        # La configuration d'exemple reste commune aux deux OS : le raccourci
+        # de capture macOS devient son équivalent natif Outil Capture Windows.
+        if parts == ["cmd", "shift", "4"]:
+            parts = ["win", "shift", "s"]
         if not parts:
             raise ActionFailed("combinaison vide")
 
@@ -579,6 +932,12 @@ class WindowsPlatform(Platform):
         # inconnu, on complète avec le suivi local.
         if snapshot.mic_muted is None:
             snapshot.mic_muted = self._mic_muted
+        try:
+            snapshot.audio_outputs = self.list_audio_outputs()
+            snapshot.audio_output = self.get_audio_output()
+        except Exception:
+            snapshot.audio_outputs = []
+            snapshot.audio_output = ""
         return snapshot
 
     def close(self) -> None:
