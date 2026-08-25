@@ -404,9 +404,10 @@ function banner(message, kind) {
 }
 
 function normaliseColor(value) {
-  const text = String(value || '#3B82F6');
+  const fallback = defaultValue('button_color', '#3B82F6');
+  const text = String(value || fallback);
   if (/^#[0-9a-f]{3}$/i.test(text)) return '#' + text.slice(1).split('').map((item) => item + item).join('');
-  return /^#[0-9a-f]{6}$/i.test(text) ? text : '#3B82F6';
+  return /^#[0-9a-f]{6}$/i.test(text) ? text : fallback;
 }
 
 function iconSvg(name, className = 'icon') {

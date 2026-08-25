@@ -123,6 +123,7 @@ def build_schema(
             "obs_host": config_module.ObsConfig().host,
             "obs_port": config_module.ObsConfig().port,
             "obs_timeout": config_module.ObsConfig().timeout,
+            "button_color": config_module.DEFAULT_BUTTON_COLOR,
         },
         "layouts": ["grid", "list"],
         "sources": ["", "windows"],

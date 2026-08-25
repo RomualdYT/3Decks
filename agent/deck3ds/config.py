@@ -32,6 +32,9 @@ MAX_ID = 32
 #: Bornes des réglages numériques, sous forme `(minimum, maximum)`. Nommées ici
 #: pour que la validation et l'interface partagent la même règle : l'éditeur les
 #: recopiait, et rien ne garantissait qu'elles restent identiques.
+#: Couleur d'un bouton dont la configuration n'en précise aucune.
+DEFAULT_BUTTON_COLOR = "#3B82F6"
+
 PORT_RANGE = (1, 65535)
 POLL_INTERVAL_RANGE = (0.2, 30.0)
 VOLUME_STEP_RANGE = (1, 50)
@@ -232,7 +235,7 @@ class ButtonConfig:
     #: Libellé par langue. Une même valeur pour toutes si non traduit.
     labels: dict[str, str] = field(default_factory=dict)
     icon: str = "app"
-    color: str = "#3B82F6"
+    color: str = DEFAULT_BUTTON_COLOR
     toggle: str = ""
     hold_labels: dict[str, str] = field(default_factory=dict)
     action: Action = field(default_factory=lambda: Action("noop"))
@@ -489,6 +492,42 @@ def _require_host(value: Any, context: str) -> str:
     return value.strip()
 
 
+def _require_choice(
+    value: Any, context: str, allowed, listing: str, feminine: bool = True
+) -> str:
+    """Valeur appartenant à un ensemble connu.
+
+    `listing` est l'énumération présentée à l'utilisateur : la lui donner évite
+    de deviner ce qui était attendu. L'accord suit le genre du terme désigné —
+    « icône inconnue », « dashboard inconnu ».
+    """
+    if not isinstance(value, str) or value not in allowed:
+        adjective = "inconnue" if feminine else "inconnu"
+        raise ConfigError(f"{context}: '{value}' {adjective}. {listing}")
+    return value
+
+
+def _require_slot(value: Any, context: str) -> int:
+    """Emplacement d'un bouton sur la grille de la console."""
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise ConfigError(f"{context}: un entier est attendu")
+    if not 0 <= value < MAX_BUTTONS_PER_PAGE:
+        raise ConfigError(
+            f"{context}: {value} hors bornes (0 a {MAX_BUTTONS_PER_PAGE - 1})"
+        )
+    return value
+
+
+def _require_step(value: Any, context: str) -> int:
+    """Pas de réglage du volume, borné."""
+    low, high = VOLUME_STEP_RANGE
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise ConfigError(f"{context}: entier entre {low} et {high}")
+    if not low <= value <= high:
+        raise ConfigError(f"{context}: entier entre {low} et {high}")
+    return value
+
+
 def _require_seconds(value: Any, context: str, low: float, high: float) -> float:
     """Durée en secondes, bornée."""
     if not isinstance(value, (int, float)) or isinstance(value, bool):
@@ -504,45 +543,56 @@ def _duplicates(values: list[Any]) -> list[Any]:
     return sorted({value for value in values if values.count(value) > 1})
 
 
-def _parse_action(raw: Any, context: str) -> Action:
-    if raw is None:
-        return Action("noop")
+def _split_action(raw: Any, context: str) -> tuple[str, dict[str, Any]]:
+    """Sépare le type de l'action de ses arguments.
 
+    Deux écritures sont acceptées : la forme abrégée `"media.play_pause"`,
+    lorsque l'action n'a pas d'argument, et la forme complète `{"type": ...}`.
+    """
     if isinstance(raw, str):
-        # Forme abrégée : "media.play_pause"
-        kind = raw.strip()
-        args: dict[str, Any] = {}
-    elif isinstance(raw, dict):
-        kind_value = raw.get("type")
-        if not isinstance(kind_value, str):
+        return raw.strip(), {}
+    if isinstance(raw, dict):
+        kind = raw.get("type")
+        if not isinstance(kind, str):
             raise ConfigError(f"{context}: champ 'type' manquant")
-        kind = kind_value.strip()
-        args = {key: value for key, value in raw.items() if key != "type"}
-    else:
-        raise ConfigError(f"{context}: action invalide")
+        return kind.strip(), {
+            key: value for key, value in raw.items() if key != "type"
+        }
+    raise ConfigError(f"{context}: action invalide")
 
-    if kind not in KNOWN_ACTIONS:
-        known = ", ".join(sorted(KNOWN_ACTIONS))
-        raise ConfigError(f"{context}: action inconnue '{kind}'. Connues: {known}")
 
-    # Validation des arguments obligatoires, au chargement plutôt qu'à l'usage :
-    # une erreur de frappe est ainsi signalée immédiatement.
+def _check_action_args(kind: str, args: dict[str, Any], context: str) -> None:
+    """Valide les arguments d'une action et normalise ce qui peut l'être.
+
+    Le contrôle a lieu au chargement plutôt qu'à l'usage : une erreur de frappe
+    est ainsi signalée dans l'éditeur, et non à l'appui du bouton sur la console.
+    `args` est modifié sur place lorsqu'une valeur admet une forme canonique.
+    """
     for argument in action_arguments(kind):
         name = argument["name"]
         if argument.get("required") and name not in args:
             raise ConfigError(f"{context}: l'action '{kind}' exige '{name}'")
 
-        # Un raccourci est vérifié ici, et non à l'appui du bouton : sinon
-        # `ctrl+alt+banane` serait accepté par l'éditeur pour n'échouer que sur
-        # la console, à l'endroit le moins propice au diagnostic. La forme
-        # enregistrée est normalisée, afin que `shift+cmd+a` et `cmd+shift+a`
-        # ne produisent pas deux écritures pour un même raccourci.
+        # Un raccourci mal écrit — `ctrl+alt+banane` — était accepté ici pour
+        # n'échouer que sur la console. La forme retenue est normalisée, afin
+        # que `shift+cmd+a` et `cmd+shift+a` ne donnent pas deux écritures.
         if argument.get("type") == "hotkey" and name in args:
             try:
                 args[name] = parse_hotkey(args[name]).canonical()
             except InvalidHotkey as error:
                 raise ConfigError(f"{context}.{name}: {error}") from error
 
+
+def _parse_action(raw: Any, context: str) -> Action:
+    if raw is None:
+        return Action("noop")
+
+    kind, args = _split_action(raw, context)
+    if kind not in KNOWN_ACTIONS:
+        known = ", ".join(sorted(KNOWN_ACTIONS))
+        raise ConfigError(f"{context}: action inconnue '{kind}'. Connues: {known}")
+
+    _check_action_args(kind, args, context)
     return Action(kind, args)
 
 
@@ -553,21 +603,15 @@ def _parse_button(raw: Any, index: int, context: str) -> ButtonConfig:
     button_id = _require_str(raw.get("id"), f"{context}.id", MAX_ID)
     labels = _localised(raw.get("label", button_id), f"{context}.label", MAX_LABEL)
 
-    slot = raw.get("slot", index)
-    if not isinstance(slot, int) or isinstance(slot, bool):
-        raise ConfigError(f"{context}.slot: un entier est attendu")
-    if not 0 <= slot < MAX_BUTTONS_PER_PAGE:
-        raise ConfigError(
-            f"{context}.slot: {slot} hors bornes (0 a {MAX_BUTTONS_PER_PAGE - 1})"
-        )
+    slot = _require_slot(raw.get("slot", index), f"{context}.slot")
+    icon = _require_choice(
+        raw.get("icon", "app"),
+        f"{context}.icon",
+        ICONS,
+        f"Connues: {', '.join(sorted(ICONS))}",
+    )
 
-    icon = raw.get("icon", "app")
-    if not isinstance(icon, str) or icon not in ICONS:
-        raise ConfigError(
-            f"{context}.icon: '{icon}' inconnue. Connues: {', '.join(sorted(ICONS))}"
-        )
-
-    color = raw.get("color", "#3B82F6")
+    color = raw.get("color", DEFAULT_BUTTON_COLOR)
     if not isinstance(color, str) or not _is_hex_color(color):
         raise ConfigError(f"{context}.color: '{color}' n'est pas un code #RRGGBB")
 
@@ -608,52 +652,23 @@ def _is_hex_color(value: str) -> bool:
     return all(character in "0123456789abcdefABCDEF" for character in digits)
 
 
-def _parse_page(raw: Any, index: int) -> PageConfig:
-    context = f"pages[{index}]"
-    if not isinstance(raw, dict):
-        raise ConfigError(f"{context}: un objet est attendu")
+def _parse_buttons(raw: Any, context: str) -> list[ButtonConfig]:
+    """Boutons d'une page, emplacements et identifiants vérifiés uniques.
 
-    page_id = _require_str(raw.get("id"), f"{context}.id", MAX_ID)
-    titles = _localised(raw.get("title", page_id), f"{context}.title", MAX_LABEL)
-
-    dashboard = raw.get("dashboard", "auto")
-    if not isinstance(dashboard, str) or dashboard not in DASHBOARDS:
-        raise ConfigError(
-            f"{context}.dashboard: '{dashboard}' inconnu. "
-            f"Connus: {', '.join(sorted(DASHBOARDS))}"
-        )
-
-    page_icon = raw.get("icon", "page")
-    if not isinstance(page_icon, str) or page_icon not in ICONS:
-        raise ConfigError(
-            f"{context}.icon: '{page_icon}' inconnue. "
-            f"Connues: {', '.join(sorted(ICONS))}"
-        )
-
-    layout = raw.get("layout", "grid")
-    if not isinstance(layout, str) or layout not in ("grid", "list"):
-        raise ConfigError(
-            f"{context}.layout: '{layout}' inconnue. Connues: grid, list"
-        )
-
-    source = raw.get("source", "")
-    if not isinstance(source, str) or source not in ("", "windows"):
-        raise ConfigError(
-            f"{context}.source: '{source}' inconnue. Connue: windows"
-        )
-
-    raw_buttons = raw.get("buttons", [])
-    if not isinstance(raw_buttons, list):
+    Deux boutons partageant un emplacement en masqueraient un ; deux
+    identifiants identiques rendraient l'un des deux inatteignable.
+    """
+    if not isinstance(raw, list):
         raise ConfigError(f"{context}.buttons: une liste est attendue")
-    if len(raw_buttons) > MAX_BUTTONS_PER_PAGE:
+    if len(raw) > MAX_BUTTONS_PER_PAGE:
         raise ConfigError(
-            f"{context}.buttons: {len(raw_buttons)} boutons, "
+            f"{context}.buttons: {len(raw)} boutons, "
             f"maximum {MAX_BUTTONS_PER_PAGE}"
         )
 
     buttons = [
         _parse_button(item, position, f"{context}.buttons[{position}]")
-        for position, item in enumerate(raw_buttons)
+        for position, item in enumerate(raw)
     ]
 
     duplicates = _duplicates([button.slot for button in buttons])
@@ -663,6 +678,41 @@ def _parse_page(raw: Any, index: int) -> PageConfig:
     duplicate_ids = _duplicates([button.id for button in buttons])
     if duplicate_ids:
         raise ConfigError(f"{context}: identifiants en double: {duplicate_ids}")
+
+    return buttons
+
+
+def _parse_page(raw: Any, index: int) -> PageConfig:
+    context = f"pages[{index}]"
+    if not isinstance(raw, dict):
+        raise ConfigError(f"{context}: un objet est attendu")
+
+    page_id = _require_str(raw.get("id"), f"{context}.id", MAX_ID)
+    titles = _localised(raw.get("title", page_id), f"{context}.title", MAX_LABEL)
+
+    dashboard = _require_choice(
+        raw.get("dashboard", "auto"),
+        f"{context}.dashboard",
+        DASHBOARDS,
+        f"Connus: {', '.join(sorted(DASHBOARDS))}",
+        feminine=False,
+    )
+    page_icon = _require_choice(
+        raw.get("icon", "page"),
+        f"{context}.icon",
+        ICONS,
+        f"Connues: {', '.join(sorted(ICONS))}",
+    )
+    layout = _require_choice(
+        raw.get("layout", "grid"), f"{context}.layout", ("grid", "list"),
+        "Connues: grid, list",
+    )
+    source = _require_choice(
+        raw.get("source", ""), f"{context}.source", ("", "windows"),
+        "Connue: windows",
+    )
+
+    buttons = _parse_buttons(raw.get("buttons", []), context)
 
     return PageConfig(
         id=page_id,
@@ -709,104 +759,135 @@ def parse_obs(raw: Any) -> ObsConfig:
     )
 
 
+def _apply_server(raw: Any, config: Config) -> None:
+    """Applique la section `server`, en conservant les défauts absents."""
+    if not raw:
+        return
+    if not isinstance(raw, dict):
+        raise ConfigError("server: un objet est attendu")
+
+    config.host = _require_host(raw.get("host", config.host), "server.host")
+    config.port = _require_port(raw.get("port", config.port), "server.port")
+
+    token = raw.get("token", "")
+    if not isinstance(token, str):
+        raise ConfigError("server.token: une chaine est attendue")
+    config.token = token.strip()
+
+    config.poll_interval = _require_seconds(
+        raw.get("poll_interval", config.poll_interval),
+        "server.poll_interval",
+        *POLL_INTERVAL_RANGE,
+    )
+    config.volume_step = _require_step(
+        raw.get("volume_step", config.volume_step), "server.volume_step"
+    )
+
+
+def _parse_scripts(raw: Any) -> dict[str, list[str]]:
+    """Commandes autorisées, référencées par leur nom depuis les boutons."""
+    if not raw:
+        return {}
+    if not isinstance(raw, dict):
+        raise ConfigError("scripts: un objet est attendu")
+
+    scripts: dict[str, list[str]] = {}
+    for name, command in raw.items():
+        if not isinstance(command, list) or not command:
+            raise ConfigError(
+                f"scripts.{name}: une liste d'arguments non vide est attendue"
+            )
+        if not all(isinstance(item, str) for item in command):
+            raise ConfigError(f"scripts.{name}: arguments textuels attendus")
+        scripts[str(name)] = list(command)
+    return scripts
+
+
+def _parse_integrations(raw: Any, config: Config) -> None:
+    if not raw:
+        return
+    if not isinstance(raw, dict):
+        raise ConfigError("integrations: un objet est attendu")
+    if "obs" in raw:
+        config.obs = parse_obs(raw["obs"])
+
+
+def _parse_pages(raw: Any) -> list[PageConfig]:
+    if not isinstance(raw, list) or not raw:
+        raise ConfigError("pages: une liste non vide est attendue")
+    if len(raw) > MAX_PAGES:
+        raise ConfigError(f"pages: {len(raw)} pages, maximum {MAX_PAGES}")
+
+    pages = [_parse_page(item, index) for index, item in enumerate(raw)]
+
+    duplicates = _duplicates([page.id for page in pages])
+    if duplicates:
+        raise ConfigError(f"pages: identifiants en double: {duplicates}")
+    return pages
+
+
+def _each_action(pages: list[PageConfig]):
+    """Parcourt toutes les actions déclarées, appui long compris."""
+    return (
+        (page, button, action)
+        for page in pages
+        for button in page.buttons
+        for action in (button.action, button.hold_action)
+        if action is not None
+    )
+
+
+def _check_references(
+    pages: list[PageConfig], kind: str, argument: str, known, complaint: str
+) -> None:
+    """Vérifie que les actions d'un type donné visent une cible existante.
+
+    Une référence brisée ne se verrait qu'à l'appui du bouton, sur la console :
+    la signaler au chargement évite ce détour. La navigation et les scripts
+    partagent ce contrôle, seul le vocabulaire du message diffère.
+    """
+    for page, button, action in _each_action(pages):
+        if action.kind != kind:
+            continue
+        target = action.args.get(argument)
+        if target not in known:
+            raise ConfigError(
+                f"pages[{page.id}].{button.id}: {complaint.format(target=target)}"
+            )
+
+
 def parse(raw: Any) -> Config:
-    """Valide une structure déjà décodée et retourne la configuration."""
+    """Valide une structure déjà décodée et retourne la configuration.
+
+    Chaque section est validée par une fonction dédiée ; ne subsiste ici que
+    l'enchaînement, et les vérifications qui exigent la configuration complète.
+    """
     if not isinstance(raw, dict):
         raise ConfigError("la racine doit etre un objet")
 
     config = Config()
-
-    server = raw.get("server", {})
-    if server:
-        if not isinstance(server, dict):
-            raise ConfigError("server: un objet est attendu")
-
-        config.host = _require_host(server.get("host", config.host), "server.host")
-        config.port = _require_port(server.get("port", config.port), "server.port")
-
-        token = server.get("token", "")
-        if not isinstance(token, str):
-            raise ConfigError("server.token: une chaine est attendue")
-        config.token = token.strip()
-
-        config.poll_interval = _require_seconds(
-            server.get("poll_interval", config.poll_interval),
-            "server.poll_interval",
-            *POLL_INTERVAL_RANGE,
-        )
-
-        step = server.get("volume_step", config.volume_step)
-        low, high = VOLUME_STEP_RANGE
-        if (
-            not isinstance(step, int)
-            or isinstance(step, bool)
-            or not low <= step <= high
-        ):
-            raise ConfigError(f"server.volume_step: entier entre {low} et {high}")
-        config.volume_step = step
-
+    _apply_server(raw.get("server", {}), config)
     config.revision = _require_int(raw.get("revision", 1), "revision")
+    _parse_integrations(raw.get("integrations", {}), config)
+    config.scripts = _parse_scripts(raw.get("scripts", {}))
+    config.pages = _parse_pages(raw.get("pages", []))
 
-    integrations = raw.get("integrations", {})
-    if integrations:
-        if not isinstance(integrations, dict):
-            raise ConfigError("integrations: un objet est attendu")
-
-        if "obs" in integrations:
-            config.obs = parse_obs(integrations["obs"])
-
-    scripts = raw.get("scripts", {})
-    if scripts:
-        if not isinstance(scripts, dict):
-            raise ConfigError("scripts: un objet est attendu")
-        for name, command in scripts.items():
-            if not isinstance(command, list) or not command:
-                raise ConfigError(
-                    f"scripts.{name}: une liste d'arguments non vide est attendue"
-                )
-            if not all(isinstance(item, str) for item in command):
-                raise ConfigError(f"scripts.{name}: arguments textuels attendus")
-            config.scripts[str(name)] = list(command)
-
-    raw_pages = raw.get("pages", [])
-    if not isinstance(raw_pages, list) or not raw_pages:
-        raise ConfigError("pages: une liste non vide est attendue")
-    if len(raw_pages) > MAX_PAGES:
-        raise ConfigError(f"pages: {len(raw_pages)} pages, maximum {MAX_PAGES}")
-
-    config.pages = [_parse_page(item, index) for index, item in enumerate(raw_pages)]
-
-    page_ids = [page.id for page in config.pages]
-    duplicates = _duplicates(page_ids)
-    if duplicates:
-        raise ConfigError(f"pages: identifiants en double: {duplicates}")
-
-    # Vérification croisée : une navigation ne doit pas pointer dans le vide.
-    for page in config.pages:
-        for button in page.buttons:
-            for action in (button.action, button.hold_action):
-                if action is None or action.kind != "page.open":
-                    continue
-                target = action.args.get("page")
-                if target not in page_ids:
-                    raise ConfigError(
-                        f"pages[{page.id}].{button.id}: page cible "
-                        f"'{target}' inexistante"
-                    )
-
-    # Vérification croisée des scripts référencés.
-    for page in config.pages:
-        for button in page.buttons:
-            for action in (button.action, button.hold_action):
-                if action is None or action.kind != "script.run":
-                    continue
-                name = action.args.get("script")
-                if name not in config.scripts:
-                    raise ConfigError(
-                        f"pages[{page.id}].{button.id}: script "
-                        f"'{name}' non declare dans 'scripts'"
-                    )
-
+    # Vérifications croisées : elles supposent toutes les pages et tous les
+    # scripts déjà connus, et ne peuvent donc pas être faites plus tôt.
+    _check_references(
+        config.pages,
+        "page.open",
+        "page",
+        {page.id for page in config.pages},
+        "page cible '{target}' inexistante",
+    )
+    _check_references(
+        config.pages,
+        "script.run",
+        "script",
+        config.scripts,
+        "script '{target}' non declare dans 'scripts'",
+    )
     return config
 
 
@@ -833,6 +914,47 @@ def _action_to_raw(action: Action | None) -> Any:
     if not action.args:
         return action.kind
     return {"type": action.kind, **action.args}
+
+
+def _button_to_raw(button: ButtonConfig) -> dict[str, Any]:
+    """Écriture concise d'un bouton : les valeurs par défaut sont omises."""
+    raw: dict[str, Any] = {
+        "id": button.id,
+        "slot": button.slot,
+        "label": _localised_to_raw(button.labels),
+        "icon": button.icon,
+        "color": button.color,
+    }
+    if button.toggle:
+        raw["toggle"] = button.toggle
+    if button.hold_labels:
+        raw["hold_label"] = _localised_to_raw(button.hold_labels)
+
+    raw["action"] = _action_to_raw(button.action)
+    if button.hold_action is not None:
+        raw["hold_action"] = _action_to_raw(button.hold_action)
+    return raw
+
+
+def _page_to_raw(page: PageConfig) -> dict[str, Any]:
+    raw: dict[str, Any] = {
+        "id": page.id,
+        "title": _localised_to_raw(page.titles),
+        "icon": page.icon,
+        "dashboard": page.dashboard,
+    }
+    if page.layout != "grid":
+        raw["layout"] = page.layout
+    if page.source:
+        raw["source"] = page.source
+
+    # Les boutons sont rangés par emplacement : le fichier reflète alors
+    # l'ordre visible sur la console.
+    raw["buttons"] = [
+        _button_to_raw(button)
+        for button in sorted(page.buttons, key=lambda item: item.slot)
+    ]
+    return raw
 
 
 def to_raw(config: Config) -> dict[str, Any]:
@@ -867,48 +989,7 @@ def to_raw(config: Config) -> dict[str, Any]:
             name: list(command) for name, command in config.scripts.items()
         }
 
-    pages: list[dict[str, Any]] = []
-
-    for page in config.pages:
-        entry: dict[str, Any] = {
-            "id": page.id,
-            "title": _localised_to_raw(page.titles),
-            "icon": page.icon,
-            "dashboard": page.dashboard,
-        }
-
-        if page.layout != "grid":
-            entry["layout"] = page.layout
-        if page.source:
-            entry["source"] = page.source
-
-        buttons: list[dict[str, Any]] = []
-
-        for button in sorted(page.buttons, key=lambda item: item.slot):
-            raw_button: dict[str, Any] = {
-                "id": button.id,
-                "slot": button.slot,
-                "label": _localised_to_raw(button.labels),
-                "icon": button.icon,
-                "color": button.color,
-            }
-
-            if button.toggle:
-                raw_button["toggle"] = button.toggle
-            if button.hold_labels:
-                raw_button["hold_label"] = _localised_to_raw(button.hold_labels)
-
-            raw_button["action"] = _action_to_raw(button.action)
-
-            if button.hold_action is not None:
-                raw_button["hold_action"] = _action_to_raw(button.hold_action)
-
-            buttons.append(raw_button)
-
-        entry["buttons"] = buttons
-        pages.append(entry)
-
-    raw["pages"] = pages
+    raw["pages"] = [_page_to_raw(page) for page in config.pages]
     return raw
 
 
