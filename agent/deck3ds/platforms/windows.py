@@ -201,13 +201,11 @@ class WindowsPlatform(Platform):
     def capabilities(self) -> Capabilities:
         """Capacités réelles de cet adaptateur, y compris ses manques.
 
-        Quatre familles ne sont pas encore portées : sélection de fenêtre,
-        bascule de sortie audio, volume par application et notifications. Les
-        déclarer fausses vaut mieux que de laisser l'interface proposer des
-        boutons qui resteraient sans effet.
-
-        La pochette est également absente : l'API WinRT n'expose pas d'URL
-        d'image, et la conversion repose sur `sips`, propre à macOS.
+        Deux familles restent non portées : le volume par application, qui
+        exigerait `IAudioSessionManager2`, et les notifications, dont Windows
+        n'expose pas d'historique lisible sans paquet signé. Les déclarer
+        fausses vaut mieux que de laisser l'interface proposer des boutons qui
+        resteraient sans effet.
         """
         return Capabilities(
             volume=True,
