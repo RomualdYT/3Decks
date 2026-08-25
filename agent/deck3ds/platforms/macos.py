@@ -84,6 +84,26 @@ _SPECIAL_KEYS = {
     "f10": 109,
     "f11": 103,
     "f12": 111,
+    # Noms français des touches non alphabétiques.
+    #
+    # L'interface étant bilingue, un utilisateur francophone écrit naturellement
+    # « echap » ou « entree ». Refuser ces graphies produisait une erreur
+    # « touche inconnue » que rien dans la configuration ne laissait prévoir,
+    # alors que l'intention était sans ambiguïté.
+    "echap": 53,
+    "echappement": 53,
+    "entree": 36,
+    "retour": 36,
+    "tabulation": 48,
+    "espace": 49,
+    "suppr": 51,
+    "supprimer": 51,
+    "gauche": 123,
+    "droite": 124,
+    "bas": 125,
+    "haut": 126,
+    "fin": 119,
+    "debut": 115,
 }
 
 

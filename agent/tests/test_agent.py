@@ -1569,6 +1569,69 @@ class TestMessages(unittest.TestCase):
         self.assertEqual(manquantes, set(), f"clés sans traduction : {manquantes}")
 
 
+# --- Noms de touches -----------------------------------------------------------
+
+
+class TestKeyNames(unittest.TestCase):
+    """Régression : « echap » était refusé alors que l'intention était claire.
+
+    L'interface affiche des libellés en français ; un utilisateur francophone
+    écrit donc « echap » plutôt que « escape ». L'action échouait avec
+    « touche inconnue », sans que rien dans la configuration ne le laisse
+    prévoir.
+    """
+
+    def test_noms_francais_reconnus(self):
+        from deck3ds.platforms.macos import _SPECIAL_KEYS
+        from deck3ds.platforms.windows import _SPECIAL_CODES
+
+        for table, plateforme in ((_SPECIAL_KEYS, "macos"), (_SPECIAL_CODES, "windows")):
+            for nom in ("echap", "entree", "espace", "tabulation", "suppr",
+                        "gauche", "droite", "haut", "bas", "fin"):
+                self.assertIn(nom, table, f"{nom} absent de {plateforme}")
+
+    def test_equivalences_coherentes(self):
+        """Un nom français doit viser la même touche que son équivalent anglais."""
+        from deck3ds.platforms.macos import _SPECIAL_KEYS
+        from deck3ds.platforms.windows import _SPECIAL_CODES
+
+        paires = (
+            ("echap", "escape"),
+            ("entree", "return"),
+            ("espace", "space"),
+            ("tabulation", "tab"),
+            ("suppr", "delete"),
+            ("gauche", "left"),
+            ("droite", "right"),
+            ("haut", "up"),
+            ("bas", "down"),
+            ("fin", "end"),
+        )
+        for table in (_SPECIAL_KEYS, _SPECIAL_CODES):
+            for francais, anglais in paires:
+                self.assertEqual(
+                    table[francais], table[anglais],
+                    f"{francais} et {anglais} devraient viser la meme touche",
+                )
+
+    def test_tables_alignees_entre_plateformes(self):
+        """Une touche acceptée sur un système doit l'être sur l'autre.
+
+        Sans quoi une configuration écrite sur macOS échouerait sur Windows,
+        ou l'inverse, pour une simple divergence de vocabulaire.
+        """
+        from deck3ds.platforms.macos import _SPECIAL_KEYS
+        from deck3ds.platforms.windows import _SPECIAL_CODES
+
+        # `backspace` et `printscreen` n'ont pas d'équivalent utile sur macOS.
+        propres_a_windows = {"backspace", "printscreen"}
+        ecart = set(_SPECIAL_CODES) - set(_SPECIAL_KEYS) - propres_a_windows
+        self.assertEqual(ecart, set(), f"touches absentes de macOS : {sorted(ecart)}")
+
+        ecart = set(_SPECIAL_KEYS) - set(_SPECIAL_CODES)
+        self.assertEqual(ecart, set(), f"touches absentes de Windows : {sorted(ecart)}")
+
+
 # --- Capacités de plateforme ---------------------------------------------------
 
 

@@ -69,7 +69,6 @@ _SPECIAL_CODES = {
     "delete": 0x2E,
     "escape": 0x1B,
     "esc": 0x1B,
-    "echap": 0x1B,
     "left": 0x25,
     "up": 0x26,
     "right": 0x27,
@@ -79,6 +78,22 @@ _SPECIAL_CODES = {
     "pageup": 0x21,
     "pagedown": 0x22,
     "printscreen": 0x2C,
+    # Noms français des touches non alphabétiques, comme sur macOS : l'interface
+    # est bilingue, la configuration doit accepter les deux graphies.
+    "echap": 0x1B,
+    "echappement": 0x1B,
+    "entree": 0x0D,
+    "retour": 0x0D,
+    "tabulation": 0x09,
+    "espace": 0x20,
+    "suppr": 0x2E,
+    "supprimer": 0x2E,
+    "gauche": 0x25,
+    "haut": 0x26,
+    "droite": 0x27,
+    "bas": 0x28,
+    "debut": 0x24,
+    "fin": 0x23,
 }
 for _index in range(1, 13):
     _SPECIAL_CODES[f"f{_index}"] = 0x6F + _index
