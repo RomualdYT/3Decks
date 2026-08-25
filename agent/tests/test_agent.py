@@ -24,6 +24,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from deck3ds import config as config_module  # noqa: E402
+from deck3ds import keys  # noqa: E402
 from deck3ds import protocol  # noqa: E402
 from deck3ds.actions import Dispatcher  # noqa: E402
 from deck3ds.platforms.base import (  # noqa: E402
@@ -288,6 +289,58 @@ class TestConfig(unittest.TestCase):
         with self.assertRaises(config_module.ConfigError) as ctx:
             config_module.parse(raw)
         self.assertIn("target", str(ctx.exception))
+
+    def _with_hotkey(self, combination):
+        raw = minimal_config()
+        raw["pages"][0]["buttons"][0]["action"] = {
+            "type": "hotkey",
+            "keys": combination,
+        }
+        return raw
+
+    def test_raccourci_invalide_refuse_a_l_enregistrement(self):
+        """Le défaut corrigé : l'erreur surgissait sur la console, pas ici.
+
+        Un raccourci fautif était accepté par l'éditeur et n'échouait qu'à
+        l'appui du bouton, à l'endroit le moins propice au diagnostic.
+        """
+        for combination in ("nimportequoi", "ctrl+alt+banane", "", "cmd", "a+b", "f13"):
+            with self.assertRaises(config_module.ConfigError, msg=combination):
+                config_module.parse(self._with_hotkey(combination))
+
+    def test_message_de_raccourci_situe_le_bouton(self):
+        """Sans le chemin, l'utilisateur devrait chercher le bouton fautif."""
+        with self.assertRaises(config_module.ConfigError) as ctx:
+            config_module.parse(self._with_hotkey("ctrl+alt+banane"))
+        message = str(ctx.exception)
+        self.assertIn("keys", message)
+        self.assertIn("banane", message)
+
+    def test_raccourci_enregistre_sous_forme_normalisee(self):
+        """Deux écritures d'un même raccourci ne doivent pas coexister."""
+        config = config_module.parse(self._with_hotkey("shift+cmd+a"))
+        self.assertEqual(config.pages[0].buttons[0].action.args["keys"], "cmd+shift+a")
+
+    def test_graphies_historiques_toujours_acceptees(self):
+        """Les configurations déjà écrites ne doivent pas devenir invalides."""
+        for ancien, attendu in (
+            ("echap", "escape"),
+            ("entree", "return"),
+            ("espace", "space"),
+            ("cmd+shift+4", "cmd+shift+4"),
+        ):
+            config = config_module.parse(self._with_hotkey(ancien))
+            self.assertEqual(
+                config.pages[0].buttons[0].action.args["keys"], attendu, ancien
+            )
+
+    def test_raccourci_valide_survit_a_une_reecriture(self):
+        """L'éditeur relit ce qu'il écrit : la forme doit être stable."""
+        config = config_module.parse(self._with_hotkey("cmd+shift+escape"))
+        rewritten = config_module.parse(config_module.to_raw(config))
+        self.assertEqual(
+            rewritten.pages[0].buttons[0].action.args["keys"], "cmd+shift+escape"
+        )
 
     def test_slot_hors_bornes(self):
         raw = minimal_config()
@@ -1570,67 +1623,223 @@ class TestMessages(unittest.TestCase):
         self.assertEqual(manquantes, set(), f"clés sans traduction : {manquantes}")
 
 
-# --- Noms de touches -----------------------------------------------------------
+# --- Catalogue de touches ------------------------------------------------------
 
 
-class TestKeyNames(unittest.TestCase):
-    """Régression : « echap » était refusé alors que l'intention était claire.
+class TestKeyCatalog(unittest.TestCase):
+    """Le catalogue est l'unique source de vérité des raccourcis.
 
-    L'interface affiche des libellés en français ; un utilisateur francophone
-    écrit donc « echap » plutôt que « escape ». L'action échouait avec
-    « touche inconnue », sans que rien dans la configuration ne le laisse
-    prévoir.
+    Auparavant chaque adaptateur portait sa propre table, et les deux
+    divergeaient : une touche acceptée sur un système pouvait être refusée sur
+    l'autre, alors qu'un fichier de configuration est censé être portable.
     """
 
-    def test_noms_francais_reconnus(self):
-        from deck3ds.platforms.macos import _SPECIAL_KEYS
-        from deck3ds.platforms.windows import _SPECIAL_CODES
+    def test_identifiants_uniques(self):
+        noms = [key.name for key in keys.KEYS]
+        self.assertEqual(len(noms), len(set(noms)), "identifiants en double")
 
-        for table, plateforme in ((_SPECIAL_KEYS, "macos"), (_SPECIAL_CODES, "windows")):
-            for nom in ("echap", "entree", "espace", "tabulation", "suppr",
-                        "gauche", "droite", "haut", "bas", "fin"):
-                self.assertIn(nom, table, f"{nom} absent de {plateforme}")
+    def test_aucun_alias_n_entre_en_collision(self):
+        """Un alias qui masque un identifiant rendrait une touche inatteignable."""
+        vus = {}
+        for key in keys.KEYS:
+            for nom in (key.name, *key.aliases):
+                self.assertNotIn(
+                    nom, vus, f"'{nom}' déclaré par {key.name} et {vus.get(nom)}"
+                )
+                vus[nom] = key.name
 
-    def test_equivalences_coherentes(self):
-        """Un nom français doit viser la même touche que son équivalent anglais."""
-        from deck3ds.platforms.macos import _SPECIAL_KEYS
-        from deck3ds.platforms.windows import _SPECIAL_CODES
+    def test_codes_uniques_par_plateforme(self):
+        """Deux touches partageant un code en viseraient une seule en pratique."""
+        for plateforme in ("mac", "win"):
+            codes = [getattr(key, plateforme) for key in keys.KEYS]
+            doublons = sorted({code for code in codes if codes.count(code) > 1})
+            self.assertEqual(
+                doublons, [], f"codes {plateforme} en double : {doublons}"
+            )
 
-        paires = (
+    def test_chaque_touche_declare_ses_deux_codes(self):
+        """C'est l'invariant qui empêche les tables de diverger à nouveau.
+
+        Déclarer les deux codes sur la même ligne rend structurellement
+        impossible d'ajouter une touche pour un seul système.
+        """
+        for key in keys.KEYS:
+            self.assertGreater(key.mac, 0, key.name)
+            self.assertGreater(key.win, 0, key.name)
+            self.assertTrue(key.label_en, key.name)
+            self.assertTrue(key.label_fr, key.name)
+            self.assertIn(key.group, keys.GROUPS, key.name)
+
+    def test_libelles_francais_distincts_des_identifiants(self):
+        """La langue ne doit plus servir de clé : elle est de l'affichage."""
+        self.assertEqual(keys.BY_NAME["escape"].label_fr, "Échap")
+        self.assertEqual(keys.BY_NAME["escape"].name, "escape")
+
+    def test_modificateurs_coherents(self):
+        noms = [modifier.name for modifier in keys.MODIFIERS]
+        self.assertEqual(len(noms), len(set(noms)))
+        for modifier in keys.MODIFIERS:
+            self.assertTrue(modifier.mac.endswith("down"), modifier.name)
+            self.assertGreater(modifier.win, 0, modifier.name)
+
+
+class TestKeyCatalogAndEditor(unittest.TestCase):
+    """L'éditeur web et l'agent doivent parler du même catalogue.
+
+    L'interface traduit `event.code` — la position physique de la touche, donc
+    indépendante de la langue du clavier — vers les identifiants de ce module.
+    Une divergence produirait un raccourci proposé par l'éditeur puis refusé à
+    l'enregistrement, ou l'inverse.
+    """
+
+    def _editor_source(self):
+        from pathlib import Path
+
+        import deck3ds
+
+        source = Path(deck3ds.__file__).parent / "ui" / "static" / "app.js"
+        return source.read_text(encoding="utf-8")
+
+    def _mapped_names(self):
+        import re
+
+        source = self._editor_source()
+        table = re.search(r"const byCode = \{(.*?)\};", source, re.S)
+        self.assertIsNotNone(table, "table de correspondance introuvable")
+        names = {name for _, name in re.findall(r"(\w+):\s*'([\w_]+)'", table.group(1))}
+        # Les touches de fonction sont reconnues par expression régulière.
+        return names | {f"f{index}" for index in range(1, 13)}
+
+    def test_editeur_ne_cite_que_des_touches_connues(self):
+        for name in self._mapped_names():
+            self.assertIn(name, keys.BY_NAME, f"'{name}' absent du catalogue")
+
+    def test_toute_touche_du_catalogue_est_capturable(self):
+        """Une touche proposée mais impossible à saisir serait un piège."""
+        mapped = self._mapped_names()
+        missing = sorted(key.name for key in keys.KEYS if key.name not in mapped)
+        self.assertEqual(missing, [], f"non capturables : {missing}")
+
+    def test_libelles_de_groupes_traduits(self):
+        """Un groupe sans libellé s'afficherait sous son nom technique."""
+        source = self._editor_source()
+        for group in keys.GROUPS:
+            self.assertIn(f"keyGroup_{group}", source, group)
+
+
+class TestParseHotkey(unittest.TestCase):
+    """Analyse des combinaisons, partagée par l'éditeur et les adaptateurs.
+
+    Une seule implémentation garantit que ce qu'accepte l'éditeur est
+    exactement ce que le système saura exécuter.
+    """
+
+    def test_combinaison_simple(self):
+        hotkey = keys.parse_hotkey("cmd+shift+a")
+        self.assertEqual([m.name for m in hotkey.modifiers], ["cmd", "shift"])
+        self.assertEqual(hotkey.character, "a")
+        self.assertIsNone(hotkey.key)
+
+    def test_touche_speciale(self):
+        hotkey = keys.parse_hotkey("escape")
+        self.assertEqual(hotkey.key.name, "escape")
+        self.assertEqual(hotkey.character, "")
+
+    def test_casse_ignoree(self):
+        self.assertEqual(keys.parse_hotkey("ESCAPE").key.name, "escape")
+        self.assertEqual(keys.parse_hotkey("Cmd+Shift+A").character, "a")
+
+    def test_espaces_ignores(self):
+        self.assertEqual(keys.parse_hotkey(" cmd + a ").canonical(), "cmd+a")
+
+    def test_ordre_des_modificateurs_normalise(self):
+        """Deux écritures équivalentes doivent produire le même enregistrement."""
+        self.assertEqual(
+            keys.parse_hotkey("shift+cmd+a").canonical(),
+            keys.parse_hotkey("cmd+shift+a").canonical(),
+        )
+
+    def test_modificateur_repete_tolere(self):
+        """`cmd+cmd+a` exprime sans ambiguïté la même intention que `cmd+a`."""
+        self.assertEqual(keys.parse_hotkey("cmd+cmd+a").canonical(), "cmd+a")
+
+    def test_alias_historiques_toujours_acceptes(self):
+        """Les configurations déjà écrites ne doivent pas devenir invalides."""
+        for ancien, attendu in (
             ("echap", "escape"),
+            ("echappement", "escape"),
+            ("esc", "escape"),
             ("entree", "return"),
-            ("espace", "space"),
+            ("retour", "return"),
             ("tabulation", "tab"),
-            ("suppr", "delete"),
+            ("espace", "space"),
+            ("suppr", "forward_delete"),
+            ("supprimer", "forward_delete"),
             ("gauche", "left"),
             ("droite", "right"),
             ("haut", "up"),
             ("bas", "down"),
+            ("debut", "home"),
             ("fin", "end"),
-        )
-        for table in (_SPECIAL_KEYS, _SPECIAL_CODES):
-            for francais, anglais in paires:
-                self.assertEqual(
-                    table[francais], table[anglais],
-                    f"{francais} et {anglais} devraient viser la meme touche",
-                )
+            ("delete", "backspace"),
+        ):
+            self.assertEqual(
+                keys.parse_hotkey(ancien).key.name, attendu, f"alias {ancien}"
+            )
 
-    def test_tables_alignees_entre_plateformes(self):
-        """Une touche acceptée sur un système doit l'être sur l'autre.
+    def test_alias_de_modificateurs(self):
+        for ancien, attendu in (
+            ("command", "cmd"), ("win", "cmd"), ("super", "cmd"),
+            ("control", "ctrl"), ("opt", "alt"), ("option", "alt"),
+        ):
+            hotkey = keys.parse_hotkey(f"{ancien}+a")
+            self.assertEqual(hotkey.modifiers[0].name, attendu, ancien)
 
-        Sans quoi une configuration écrite sur macOS échouerait sur Windows,
-        ou l'inverse, pour une simple divergence de vocabulaire.
-        """
-        from deck3ds.platforms.macos import _SPECIAL_KEYS
-        from deck3ds.platforms.windows import _SPECIAL_CODES
+    def test_combinaison_vide_refusee(self):
+        for texte in ("", "   ", "+", "++"):
+            with self.assertRaises(keys.InvalidHotkey):
+                keys.parse_hotkey(texte)
 
-        # `backspace` et `printscreen` n'ont pas d'équivalent utile sur macOS.
-        propres_a_windows = {"backspace", "printscreen"}
-        ecart = set(_SPECIAL_CODES) - set(_SPECIAL_KEYS) - propres_a_windows
-        self.assertEqual(ecart, set(), f"touches absentes de macOS : {sorted(ecart)}")
+    def test_modificateur_seul_refuse(self):
+        with self.assertRaises(keys.InvalidHotkey):
+            keys.parse_hotkey("cmd")
 
-        ecart = set(_SPECIAL_KEYS) - set(_SPECIAL_CODES)
-        self.assertEqual(ecart, set(), f"touches absentes de Windows : {sorted(ecart)}")
+    def test_deux_touches_refusees(self):
+        with self.assertRaises(keys.InvalidHotkey):
+            keys.parse_hotkey("a+b")
+
+    def test_touche_inconnue_refusee(self):
+        """C'est le défaut principal corrigé : refuser avant d'enregistrer."""
+        for texte in ("banane", "ctrl+alt+banane", "f13"):
+            with self.assertRaises(keys.InvalidHotkey) as ctx:
+                keys.parse_hotkey(texte)
+            self.assertIn("touche", str(ctx.exception).lower())
+
+    def test_message_nomme_la_touche_fautive(self):
+        """Un message vague obligerait l'utilisateur à deviner son erreur."""
+        with self.assertRaises(keys.InvalidHotkey) as ctx:
+            keys.parse_hotkey("ctrl+alt+banane")
+        self.assertIn("banane", str(ctx.exception))
+
+    def test_lettres_et_chiffres_acceptes(self):
+        for texte in ("a", "z", "7", "0"):
+            self.assertEqual(keys.parse_hotkey(texte).character, texte)
+
+    def test_libelle_traduit(self):
+        hotkey = keys.parse_hotkey("cmd+shift+escape")
+        self.assertEqual(hotkey.label("fr"), "Cmd + Maj + Échap")
+        self.assertEqual(hotkey.label("en"), "Cmd + Shift + Escape")
+
+    def test_catalogue_expose_tout_le_necessaire(self):
+        catalogue = keys.catalog("fr")
+        self.assertEqual(len(catalogue["keys"]), len(keys.KEYS))
+        self.assertEqual(len(catalogue["modifiers"]), len(keys.MODIFIERS))
+        for entree in catalogue["keys"]:
+            self.assertIn(entree["group"], catalogue["groups"])
+            self.assertTrue(entree["label"])
+        # Les alias ne sont jamais proposés : ils ne servent qu'à relire.
+        noms = {entree["name"] for entree in catalogue["keys"]}
+        self.assertNotIn("echap", noms)
 
 
 # --- Adaptateur macOS ----------------------------------------------------------
@@ -2045,6 +2254,88 @@ class TestWindowsAdapter(unittest.TestCase):
         platform.launch_app("Safari")
 
         self.assertIn("https://", calls[0][-1])
+
+    def test_lettre_resolue_selon_la_disposition_du_clavier(self):
+        """`ord('A')` supposait un clavier QWERTY.
+
+        Sur un clavier AZERTY, la position que QWERTY réserve au « Q » porte
+        le « A ». Convertir le caractère avec `ord` déclenchait donc une autre
+        touche que celle demandée. `VkKeyScanW` interroge la disposition
+        réellement installée, ce qui aligne Windows sur macOS.
+        """
+        import ctypes
+
+        class User32:
+            def __init__(self):
+                self.events = []
+
+            def keybd_event(self, code, _scan, flags, _extra):
+                self.events.append((code, flags))
+
+            def VkKeyScanW(self, char):
+                caractere = char.value if isinstance(char, ctypes.c_wchar) else str(char)
+                # Disposition AZERTY : « a » est à la position du « Q ».
+                return {"a": 0x51, "4": 0x34 | (1 << 8)}.get(
+                    caractere, ord(caractere.upper())
+                )
+
+        from deck3ds.platforms.windows import WindowsPlatform
+
+        platform = WindowsPlatform.__new__(WindowsPlatform)
+        platform._user32 = User32()
+        platform.send_hotkey("ctrl+a")
+
+        pressed = [code for code, flags in platform._user32.events if flags == 0]
+        self.assertEqual(pressed, [0x11, 0x51], "le A d'AZERTY est à la place du Q")
+
+    def test_majuscule_requise_par_la_disposition_est_ajoutee(self):
+        """Sur AZERTY, « 4 » ne s'obtient qu'avec Maj.
+
+        Sans cet ajout, la frappe produirait l'apostrophe au lieu du chiffre.
+        """
+        import ctypes
+
+        class User32:
+            def __init__(self):
+                self.events = []
+
+            def keybd_event(self, code, _scan, flags, _extra):
+                self.events.append((code, flags))
+
+            def VkKeyScanW(self, char):
+                caractere = char.value if isinstance(char, ctypes.c_wchar) else str(char)
+                return {"4": 0x34 | (1 << 8)}.get(caractere, ord(caractere.upper()))
+
+        from deck3ds.platforms.windows import WindowsPlatform
+
+        platform = WindowsPlatform.__new__(WindowsPlatform)
+        platform._user32 = User32()
+        platform.send_hotkey("4")
+
+        pressed = [code for code, flags in platform._user32.events if flags == 0]
+        self.assertIn(0x10, pressed, "Maj doit être ajoutée")
+        self.assertIn(0x34, pressed)
+
+    def test_touche_speciale_ignore_la_disposition(self):
+        """Échap occupe la même position sur tous les claviers."""
+        class User32:
+            def __init__(self):
+                self.events = []
+
+            def keybd_event(self, code, _scan, flags, _extra):
+                self.events.append((code, flags))
+
+            def VkKeyScanW(self, _char):  # ne doit pas être consulté
+                raise AssertionError("une touche spéciale n'a pas de caractère")
+
+        from deck3ds.platforms.windows import WindowsPlatform
+
+        platform = WindowsPlatform.__new__(WindowsPlatform)
+        platform._user32 = User32()
+        platform.send_hotkey("echap")
+
+        pressed = [code for code, flags in platform._user32.events if flags == 0]
+        self.assertEqual(pressed, [0x1B])
 
     def test_capture_macos_devient_capture_windows(self):
         from deck3ds.platforms.windows import WindowsPlatform
@@ -2493,6 +2784,36 @@ class TestUiApi(unittest.IsolatedAsyncioTestCase):
         limits = build_schema(Capabilities())["limits"]
         self.assertEqual(limits["buttons_per_page"], config_module.MAX_BUTTONS_PER_PAGE)
         self.assertEqual(limits["pages"], config_module.MAX_PAGES)
+
+    async def test_schema_expose_le_catalogue_de_touches(self):
+        """L'éditeur propose les touches au lieu de laisser l'utilisateur deviner.
+
+        Le catalogue vient de l'agent : l'interface n'en garde aucune copie, ce
+        qui évite qu'une touche ajoutée ici manque là-bas.
+        """
+        from deck3ds.ui.api import build_schema
+        from deck3ds.platforms.base import Capabilities
+
+        catalogue = build_schema(Capabilities(hotkey=True))["keys"]
+
+        self.assertEqual(len(catalogue["keys"]), len(keys.KEYS))
+        self.assertEqual(len(catalogue["modifiers"]), len(keys.MODIFIERS))
+        for entry in catalogue["keys"]:
+            self.assertIn(entry["group"], catalogue["groups"])
+            # Les deux langues voyagent ensemble : le navigateur choisit.
+            self.assertTrue(entry["label_en"])
+            self.assertTrue(entry["label_fr"])
+            # Un identifiant proposé doit être accepté par le validateur.
+            keys.parse_hotkey(entry["name"])
+
+    async def test_argument_de_raccourci_est_declare_comme_tel(self):
+        """Sans ce type, l'éditeur retomberait sur un champ texte libre."""
+        from deck3ds.ui.api import build_schema
+        from deck3ds.platforms.base import Capabilities
+
+        schema = build_schema(Capabilities(hotkey=True))
+        hotkey = next(item for item in schema["actions"] if item["kind"] == "hotkey")
+        self.assertEqual(hotkey["arguments"][0]["type"], "hotkey")
 
     async def test_etat_expose_capacites_et_journal(self):
         self.server.log("ligne de test")

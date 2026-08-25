@@ -565,6 +565,40 @@ input[type="checkbox"] { accent-color: var(--accent); }
 .icon-choice.active { border-color: var(--accent); color: #fff; background: #174b96; }
 .icon-choice .icon { width: 21px; height: 21px; }
 
+/* Éditeur de raccourci clavier */
+.hotkey-editor { display: grid; gap: 8px; }
+.hotkey-preview {
+  padding: 10px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: #0a1a2d;
+  color: #cfe1ff;
+  font-weight: 600;
+  text-align: center;
+  letter-spacing: 0.02em;
+}
+.hotkey-modifiers { display: flex; flex-wrap: wrap; gap: 6px; }
+.hotkey-modifier,
+.hotkey-key {
+  padding: 6px 11px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  color: #90a2ba;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+.hotkey-modifier:hover,
+.hotkey-key:hover { border-color: var(--accent); color: #cfe1ff; background: var(--accent-soft); }
+.hotkey-modifier.active,
+.hotkey-key.active { border-color: var(--accent); color: #fff; background: #174b96; }
+.hotkey-editor .listening { border-color: var(--accent); color: #fff; background: var(--accent-soft); }
+.hotkey-catalog { margin-top: 2px; }
+.hotkey-catalog > summary { cursor: pointer; color: #90a2ba; font-size: 0.85rem; }
+.hotkey-group, .hotkey-letters { display: grid; gap: 5px; margin-top: 9px; }
+.hotkey-group-title { color: #6f829b; font-size: 0.76rem; text-transform: uppercase; letter-spacing: 0.05em; }
+.hotkey-keys { display: flex; flex-wrap: wrap; gap: 5px; }
+
 .layout-picker { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .layout-choice {
   min-height: 70px;

@@ -19,6 +19,7 @@ from __future__ import annotations
 import re
 
 from ..coreaudio import CoreAudio
+from ..keys import InvalidHotkey, parse_hotkey
 from ..notifications import NotificationReader
 from ..windows_list import WindowLister
 from .base import (
@@ -49,70 +50,6 @@ _HIDDEN_PROCESSES = frozenset(
 KEY_PREVIOUS = 98
 KEY_PLAY_PAUSE = 100
 KEY_NEXT = 101
-
-#: Correspondance des modificateurs pour `send_hotkey`.
-_MODIFIERS = {
-    "cmd": "command down",
-    "command": "command down",
-    "ctrl": "control down",
-    "control": "control down",
-    "alt": "option down",
-    "opt": "option down",
-    "option": "option down",
-    "shift": "shift down",
-}
-
-#: Touches non imprimables, avec leur code clavier.
-_SPECIAL_KEYS = {
-    "return": 36,
-    "enter": 36,
-    "tab": 48,
-    "space": 49,
-    "delete": 51,
-    "escape": 53,
-    "esc": 53,
-    "left": 123,
-    "right": 124,
-    "down": 125,
-    "up": 126,
-    "home": 115,
-    "end": 119,
-    "pageup": 116,
-    "pagedown": 121,
-    "f1": 122,
-    "f2": 120,
-    "f3": 99,
-    "f4": 118,
-    "f5": 96,
-    "f6": 97,
-    "f7": 98,
-    "f8": 100,
-    "f9": 101,
-    "f10": 109,
-    "f11": 103,
-    "f12": 111,
-    # Noms français des touches non alphabétiques.
-    #
-    # L'interface étant bilingue, un utilisateur francophone écrit naturellement
-    # « echap » ou « entree ». Refuser ces graphies produisait une erreur
-    # « touche inconnue » que rien dans la configuration ne laissait prévoir,
-    # alors que l'intention était sans ambiguïté.
-    "echap": 53,
-    "echappement": 53,
-    "entree": 36,
-    "retour": 36,
-    "tabulation": 48,
-    "espace": 49,
-    "suppr": 51,
-    "supprimer": 51,
-    "gauche": 123,
-    "droite": 124,
-    "bas": 125,
-    "haut": 126,
-    "fin": 119,
-    "debut": 115,
-}
-
 
 def _parse_number(text: str) -> float | None:
     """Lit un nombre produit par AppleScript.
@@ -589,31 +526,32 @@ class MacPlatform(Platform):
     def open_path(self, path: str) -> None:
         self.run(["open", path], timeout=8.0)
 
-    def send_hotkey(self, keys: str) -> None:
-        """Envoie une combinaison décrite sous la forme `cmd+shift+n`."""
-        parts = [part.strip().lower() for part in keys.split("+") if part.strip()]
-        if not parts:
-            raise ActionFailed("combinaison vide")
+    def send_hotkey(self, combination: str) -> None:
+        """Envoie une combinaison décrite sous la forme `cmd+shift+n`.
 
-        modifiers = [_MODIFIERS[part] for part in parts if part in _MODIFIERS]
-        remaining = [part for part in parts if part not in _MODIFIERS]
+        L'analyse est déléguée au catalogue partagé : l'éditeur de
+        configuration applique ainsi exactement la même règle, et une
+        combinaison enregistrée est nécessairement exécutable.
+        """
+        try:
+            hotkey = parse_hotkey(combination)
+        except InvalidHotkey as error:
+            raise ActionFailed(str(error)) from error
 
-        if len(remaining) != 1:
-            raise ActionFailed(f"combinaison invalide: {keys}")
-
-        key = remaining[0]
         using = ""
-        if modifiers:
-            using = " using {" + ", ".join(modifiers) + "}"
+        if hotkey.modifiers:
+            using = " using {" + ", ".join(
+                modifier.mac for modifier in hotkey.modifiers
+            ) + "}"
 
-        if key in _SPECIAL_KEYS:
-            action = f"key code {_SPECIAL_KEYS[key]}"
-        elif len(key) == 1:
-            # Échappement du guillemet pour rester dans une chaîne AppleScript.
-            safe = key.replace("\\", "\\\\").replace('"', '\\"')
-            action = f'keystroke "{safe}"'
+        if hotkey.key is not None:
+            action = f"key code {hotkey.key.mac}"
         else:
-            raise ActionFailed(f"touche inconnue: {key}")
+            # `keystroke` envoie un caractère : AppleScript le résout selon la
+            # disposition active, ce qui reste juste sur un clavier AZERTY.
+            # Échappement du guillemet pour rester dans une chaîne AppleScript.
+            safe = hotkey.character.replace("\\", "\\\\").replace('"', '\\"')
+            action = f'keystroke "{safe}"'
 
         self._script(f'tell application "System Events" to {action}{using}')
 

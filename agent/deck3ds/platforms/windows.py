@@ -27,6 +27,7 @@ import tempfile
 import threading
 from pathlib import Path
 
+from ..keys import MODIFIER_BY_NAME, InvalidHotkey, parse_hotkey
 from .base import (
     ActionFailed,
     Capabilities,
@@ -47,57 +48,6 @@ VK_MEDIA_PLAY_PAUSE = 0xB3
 KEYEVENTF_KEYUP = 0x0002
 SW_RESTORE = 9
 PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
-
-#: Modificateurs reconnus par `send_hotkey`, avec leur code virtuel.
-_MODIFIER_CODES = {
-    "ctrl": 0x11,
-    "control": 0x11,
-    "alt": 0x12,
-    "shift": 0x10,
-    "win": 0x5B,
-    "cmd": 0x5B,
-    "super": 0x5B,
-}
-
-#: Touches spéciales et leur code virtuel.
-_SPECIAL_CODES = {
-    "return": 0x0D,
-    "enter": 0x0D,
-    "tab": 0x09,
-    "space": 0x20,
-    "backspace": 0x08,
-    "delete": 0x2E,
-    "escape": 0x1B,
-    "esc": 0x1B,
-    "left": 0x25,
-    "up": 0x26,
-    "right": 0x27,
-    "down": 0x28,
-    "home": 0x24,
-    "end": 0x23,
-    "pageup": 0x21,
-    "pagedown": 0x22,
-    "printscreen": 0x2C,
-    # Noms français des touches non alphabétiques, comme sur macOS : l'interface
-    # est bilingue, la configuration doit accepter les deux graphies.
-    "echap": 0x1B,
-    "echappement": 0x1B,
-    "entree": 0x0D,
-    "retour": 0x0D,
-    "tabulation": 0x09,
-    "espace": 0x20,
-    "suppr": 0x2E,
-    "supprimer": 0x2E,
-    "gauche": 0x25,
-    "haut": 0x26,
-    "droite": 0x27,
-    "bas": 0x28,
-    "debut": 0x24,
-    "fin": 0x23,
-}
-for _index in range(1, 13):
-    _SPECIAL_CODES[f"f{_index}"] = 0x6F + _index
-
 
 class _PowerShellSession:
     """Processus PowerShell persistant.
@@ -232,6 +182,10 @@ class WindowsPlatform(Platform):
         self._user32.IsWindowVisible.argtypes = [ctypes.c_void_p]
         self._user32.ShowWindow.argtypes = [ctypes.c_void_p, ctypes.c_int]
         self._user32.SetForegroundWindow.argtypes = [ctypes.c_void_p]
+        # Traduit un caractère en position de touche sur la disposition
+        # réellement installée : indispensable sur un clavier AZERTY.
+        self._user32.VkKeyScanW.argtypes = [ctypes.c_wchar]
+        self._user32.VkKeyScanW.restype = ctypes.c_short
         self._cpu_count = os.cpu_count() or 1
         # Indique si le module audio a déjà échoué, pour ne pas réessayer en
         # boucle une opération impossible.
@@ -848,28 +802,62 @@ if ($s) {
     def open_path(self, path: str) -> None:
         self.spawn(["explorer.exe", os.path.expanduser(path)])
 
-    def send_hotkey(self, keys: str) -> None:
-        parts = [part.strip().lower() for part in keys.split("+") if part.strip()]
+    def _character_code(self, character: str) -> tuple[int, bool]:
+        """Code virtuel produisant ce caractère sur la disposition active.
+
+        `VkKeyScanW` interroge la disposition réellement installée : sur un
+        clavier AZERTY, le « a » se trouve à la position que QWERTY réserve au
+        « q », et le « 4 » exige Maj. Convertir avec `ord(...)` supposerait un
+        clavier QWERTY et déclencherait une autre touche que celle demandée.
+        Cette résolution donne à Windows le même comportement que macOS, où
+        AppleScript envoie un caractère et non une position.
+
+        Retourne le code et un indicateur signalant que Maj est nécessaire.
+        """
+        scan = getattr(self._user32, "VkKeyScanW", None)
+        if scan is None:
+            # Repli : suppose une disposition QWERTY. Vaut mieux qu'un échec.
+            return ord(character.upper()), False
+
+        result = scan(ctypes.c_wchar(character))
+        if result == -1:
+            raise ActionFailed(f"touche absente du clavier: {character}")
+
+        code = result & 0xFF
+        needs_shift = bool(result >> 8 & 0x01)
+        return code, needs_shift
+
+    def send_hotkey(self, combination: str) -> None:
+        """Envoie une combinaison décrite sous la forme `cmd+shift+n`.
+
+        L'analyse est déléguée au catalogue partagé, afin que l'éditeur de
+        configuration applique exactement la même règle que l'exécution.
+        """
         # La configuration d'exemple reste commune aux deux OS : le raccourci
         # de capture macOS devient son équivalent natif Outil Capture Windows.
-        if parts == ["cmd", "shift", "4"]:
-            parts = ["win", "shift", "s"]
-        if not parts:
-            raise ActionFailed("combinaison vide")
+        if [part.strip().lower() for part in combination.split("+")] == [
+            "cmd",
+            "shift",
+            "4",
+        ]:
+            combination = "win+shift+s"
 
-        modifiers = [_MODIFIER_CODES[part] for part in parts if part in _MODIFIER_CODES]
-        remaining = [part for part in parts if part not in _MODIFIER_CODES]
+        try:
+            hotkey = parse_hotkey(combination)
+        except InvalidHotkey as error:
+            raise ActionFailed(str(error)) from error
 
-        if len(remaining) != 1:
-            raise ActionFailed(f"combinaison invalide: {keys}")
+        modifiers = [modifier.win for modifier in hotkey.modifiers]
 
-        key = remaining[0]
-        if key in _SPECIAL_CODES:
-            code = _SPECIAL_CODES[key]
-        elif len(key) == 1:
-            code = ord(key.upper())
+        if hotkey.key is not None:
+            code = hotkey.key.win
         else:
-            raise ActionFailed(f"touche inconnue: {key}")
+            code, needs_shift = self._character_code(hotkey.character)
+            # Maj imposée par la disposition, sans que l'utilisateur l'ait
+            # demandée : sur AZERTY, « 4 » ne s'obtient pas autrement.
+            shift = MODIFIER_BY_NAME["shift"].win
+            if needs_shift and shift not in modifiers:
+                modifiers.append(shift)
 
         for modifier in modifiers:
             self._user32.keybd_event(modifier, 0, 0, 0)

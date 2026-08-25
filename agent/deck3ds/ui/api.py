@@ -19,6 +19,7 @@ import asyncio
 from typing import Any
 
 from .. import config as config_module
+from .. import keys as keys_module
 from ..platforms.base import Capabilities, fields_of
 from ..obs import ObsError, test_connection
 from .http import HttpError, Request, Response
@@ -68,6 +69,30 @@ def build_schema(
         "actions": actions,
         "dashboards": dashboards,
         "icons": sorted(config_module.ICONS),
+        # Touches assignables, pour que l'éditeur les propose au lieu de
+        # laisser l'utilisateur en deviner l'orthographe. Les libellés sont
+        # fournis dans les deux langues : la langue est un choix d'affichage
+        # côté navigateur, jamais une clé d'identification.
+        "keys": {
+            "modifiers": [
+                {
+                    "name": modifier.name,
+                    "label_en": modifier.label_en,
+                    "label_fr": modifier.label_fr,
+                }
+                for modifier in keys_module.MODIFIERS
+            ],
+            "groups": list(keys_module.GROUPS),
+            "keys": [
+                {
+                    "name": key.name,
+                    "label_en": key.label_en,
+                    "label_fr": key.label_fr,
+                    "group": key.group,
+                }
+                for key in keys_module.KEYS
+            ],
+        },
         "locales": list(config_module.LOCALES),
         "capabilities": available,
         "capability_names": list(fields_of(capabilities)),

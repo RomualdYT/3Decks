@@ -82,6 +82,15 @@ const COPY = {
     id: 'Identifiant technique', titleEn: 'Titre anglais', titleFr: 'Titre français',
     labelEn: 'Libellé anglais', labelFr: 'Libellé français', icon: 'Icône', color: 'Couleur',
     chooseIcon: 'Choisir une icône', gridLayout: 'Grille 3 × 2', listLayout: 'Liste',
+    hotkeyEmpty: 'Aucune touche choisie',
+    hotkeyCapture: 'Appuyer sur une touche',
+    hotkeyListening: 'En attente… (Échap pour annuler)',
+    hotkeyCaptureHelp: 'La touche est reconnue par sa position : la langue du clavier n’a pas d’importance.',
+    hotkeyBrowse: 'Choisir dans la liste',
+    keyGroup_character: 'Lettres et chiffres',
+    keyGroup_editing: 'Édition',
+    keyGroup_navigation: 'Navigation',
+    keyGroup_function: 'Touches de fonction',
     gridLayoutHelp: 'Six boutons immédiatement accessibles.', listLayoutHelp: 'Fenêtres défilantes alimentées par l’agent.',
     listNeedsSource: 'La liste est disponible avec un contenu automatique.',
     dashboard: 'Écran supérieur', layout: 'Disposition', automaticSource: 'Contenu automatique',
@@ -153,6 +162,15 @@ const COPY = {
     id: 'Technical identifier', titleEn: 'English title', titleFr: 'French title',
     labelEn: 'English label', labelFr: 'French label', icon: 'Icon', color: 'Colour',
     chooseIcon: 'Choose an icon', gridLayout: '3 × 2 grid', listLayout: 'List',
+    hotkeyEmpty: 'No key selected',
+    hotkeyCapture: 'Press a key',
+    hotkeyListening: 'Waiting… (Esc to cancel)',
+    hotkeyCaptureHelp: 'Keys are matched by position: the keyboard language does not matter.',
+    hotkeyBrowse: 'Pick from the list',
+    keyGroup_character: 'Letters and digits',
+    keyGroup_editing: 'Editing',
+    keyGroup_navigation: 'Navigation',
+    keyGroup_function: 'Function keys',
     gridLayoutHelp: 'Six buttons available at a glance.', listLayoutHelp: 'Scrollable windows supplied by the agent.',
     listNeedsSource: 'List view is available with automatic content.',
     dashboard: 'Top screen', layout: 'Layout', automaticSource: 'Automatic content',
@@ -755,6 +773,110 @@ function iconPicker(binding, value) {
   </div>`;
 }
 
+/* Raccourcis clavier --------------------------------------------------------
+ *
+ * Le catalogue vient de l'agent (`schema.keys`) : cette vue n'en garde aucune
+ * copie, faute de quoi une touche ajoutée à l'agent manquerait ici. La saisie
+ * était auparavant un champ texte libre, où l'utilisateur devait deviner
+ * l'orthographe attendue.
+ */
+
+/* Décompose « cmd+shift+a » en modificateurs et touche finale. */
+function splitHotkey(value) {
+  const parts = String(value || '').split('+').map((part) => part.trim().toLowerCase()).filter(Boolean);
+  const known = new Set((state.schema.keys?.modifiers || []).map((modifier) => modifier.name));
+  return {
+    modifiers: parts.filter((part) => known.has(part)),
+    key: parts.filter((part) => !known.has(part))[0] || '',
+  };
+}
+
+function joinHotkey(modifiers, key) {
+  // L'ordre suit celui du catalogue, pour que deux saisies équivalentes
+  // produisent la même écriture.
+  const order = (state.schema.keys?.modifiers || []).map((modifier) => modifier.name);
+  const sorted = order.filter((name) => modifiers.includes(name));
+  return [...sorted, key].filter(Boolean).join('+');
+}
+
+function keyLabel(name) {
+  const entry = (state.schema.keys?.keys || []).find((item) => item.name === name);
+  if (entry) return state.locale === 'fr' ? entry.label_fr : entry.label_en;
+  return String(name || '').toUpperCase();
+}
+
+function modifierLabel(name) {
+  const entry = (state.schema.keys?.modifiers || []).find((item) => item.name === name);
+  if (entry) return state.locale === 'fr' ? entry.label_fr : entry.label_en;
+  return name;
+}
+
+function hotkeyPreview(value) {
+  const { modifiers, key } = splitHotkey(value);
+  if (!key && !modifiers.length) return t('hotkeyEmpty');
+  return [...modifiers.map(modifierLabel), key ? keyLabel(key) : '…'].join(' + ');
+}
+
+function hotkeyEditor(binding, value) {
+  const catalogue = state.schema.keys;
+  // Repli défensif : un agent plus ancien ne fournirait pas le catalogue.
+  if (!catalogue) return textInput(binding, value, { placeholder: 'cmd+shift+4' });
+
+  const { modifiers, key } = splitHotkey(value);
+  const groups = catalogue.groups.map((group) => {
+    const entries = catalogue.keys.filter((item) => item.group === group);
+    if (!entries.length) return '';
+    return `<div class="hotkey-group"><span class="hotkey-group-title">${escapeHtml(t(`keyGroup_${group}`))}</span>
+      <div class="hotkey-keys">${entries.map((entry) => `<button type="button" class="hotkey-key ${entry.name === key ? 'active' : ''}" data-hotkey-key="${escapeHtml(entry.name)}" data-hotkey-binding="${escapeHtml(binding)}" aria-pressed="${entry.name === key}">${escapeHtml(state.locale === 'fr' ? entry.label_fr : entry.label_en)}</button>`).join('')}</div></div>`;
+  }).join('');
+
+  return `<div class="hotkey-editor" data-hotkey-binding="${escapeHtml(binding)}">
+    <div class="hotkey-preview" aria-live="polite">${escapeHtml(hotkeyPreview(value))}</div>
+    <div class="hotkey-modifiers">
+      ${catalogue.modifiers.map((modifier) => `<button type="button" class="hotkey-modifier ${modifiers.includes(modifier.name) ? 'active' : ''}" data-hotkey-modifier="${escapeHtml(modifier.name)}" data-hotkey-binding="${escapeHtml(binding)}" aria-pressed="${modifiers.includes(modifier.name)}">${escapeHtml(state.locale === 'fr' ? modifier.label_fr : modifier.label_en)}</button>`).join('')}
+    </div>
+    <button type="button" class="button secondary compact full" data-hotkey-capture data-hotkey-binding="${escapeHtml(binding)}">${t('hotkeyCapture')}</button>
+    <p class="field-note">${t('hotkeyCaptureHelp')}</p>
+    <details class="hotkey-catalog"><summary>${t('hotkeyBrowse')}</summary>
+      <div class="hotkey-letters">
+        <span class="hotkey-group-title">${escapeHtml(t('keyGroup_character'))}</span>
+        <div class="hotkey-keys">${'abcdefghijklmnopqrstuvwxyz0123456789'.split('').map((letter) => `<button type="button" class="hotkey-key ${letter === key ? 'active' : ''}" data-hotkey-key="${letter}" data-hotkey-binding="${escapeHtml(binding)}" aria-pressed="${letter === key}">${letter.toUpperCase()}</button>`).join('')}</div>
+      </div>
+      ${groups}
+    </details>
+  </div>`;
+}
+
+/* Traduit un événement clavier en identifiant du catalogue.
+ *
+ * `event.code` décrit la position physique de la touche : il ne dépend ni de
+ * la langue du système ni de la disposition, ce qui est exactement ce qu'il
+ * faut ici. `event.key` renverrait « é » sur un clavier français.
+ */
+function hotkeyFromEvent(event) {
+  const byCode = {
+    Escape: 'escape', Enter: 'return', NumpadEnter: 'return', Tab: 'tab', Space: 'space',
+    Backspace: 'backspace', Delete: 'forward_delete',
+    ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down',
+    Home: 'home', End: 'end', PageUp: 'pageup', PageDown: 'pagedown',
+    // Le système intercepte souvent cette touche avant le navigateur : elle
+    // reste choisissable dans la liste.
+    PrintScreen: 'printscreen',
+  };
+  let key = byCode[event.code] || '';
+  if (!key && /^F([1-9]|1[0-2])$/.test(event.code)) key = event.code.toLowerCase();
+  if (!key && /^Key[A-Z]$/.test(event.code)) key = event.code.slice(3).toLowerCase();
+  if (!key && /^Digit[0-9]$/.test(event.code)) key = event.code.slice(5);
+  if (!key) return '';
+
+  const modifiers = [];
+  if (event.metaKey) modifiers.push('cmd');
+  if (event.ctrlKey) modifiers.push('ctrl');
+  if (event.altKey) modifiers.push('alt');
+  if (event.shiftKey) modifiers.push('shift');
+  return joinHotkey(modifiers, key);
+}
+
 function layoutPicker(page) {
   const listEnabled = page.source === 'windows';
   return `<div class="layout-picker">
@@ -850,6 +972,8 @@ function renderActionArguments(actionValue) {
       input = selectInput(`action.arg.${name}`, value, scripts);
     } else if (argument.type === 'number') {
       input = numberInput(`action.arg.${name}`, value || 50, 0, 100);
+    } else if (argument.type === 'hotkey') {
+      input = hotkeyEditor(`action.arg.${name}`, value);
     } else {
       const isScene = name === 'scene';
       input = textInput(`action.arg.${name}`, value, {
@@ -1212,6 +1336,74 @@ function bindForms() {
   });
   document.querySelectorAll('[data-layout]').forEach((node) => {
     node.addEventListener('click', () => { applyBinding('page.layout', node.dataset.layout); render(); });
+  });
+  bindHotkeyEditor();
+}
+
+function bindHotkeyEditor() {
+  /* Valeur courante lue dans l'état, et non dans le DOM : c'est l'état qui
+   * fait foi, et le rendu en découle. */
+  const currentValue = (binding) => {
+    const button = currentButton();
+    if (!button || !binding.startsWith('action.arg.')) return '';
+    return actionArgs(button.action)[binding.slice('action.arg.'.length)] || '';
+  };
+
+  document.querySelectorAll('[data-hotkey-modifier]').forEach((node) => {
+    node.addEventListener('click', () => {
+      const binding = node.dataset.hotkeyBinding;
+      const { modifiers, key } = splitHotkey(currentValue(binding));
+      const name = node.dataset.hotkeyModifier;
+      const next = modifiers.includes(name)
+        ? modifiers.filter((item) => item !== name)
+        : [...modifiers, name];
+      applyBinding(binding, joinHotkey(next, key));
+      render();
+    });
+  });
+
+  document.querySelectorAll('[data-hotkey-key]').forEach((node) => {
+    node.addEventListener('click', () => {
+      const binding = node.dataset.hotkeyBinding;
+      const { modifiers } = splitHotkey(currentValue(binding));
+      applyBinding(binding, joinHotkey(modifiers, node.dataset.hotkeyKey));
+      render();
+    });
+  });
+
+  document.querySelectorAll('[data-hotkey-capture]').forEach((node) => {
+    node.addEventListener('click', () => {
+      const binding = node.dataset.hotkeyBinding;
+      node.classList.add('listening');
+      node.textContent = t('hotkeyListening');
+
+      const finish = () => {
+        document.removeEventListener('keydown', onKey, true);
+        node.classList.remove('listening');
+        node.textContent = t('hotkeyCapture');
+      };
+
+      const onKey = (event) => {
+        // Le navigateur ne doit pas exécuter son propre raccourci pendant
+        // l'écoute, sinon la fenêtre se fermerait sur cmd+W.
+        event.preventDefault();
+        event.stopPropagation();
+        if (event.key === 'Escape' && !event.metaKey && !event.ctrlKey && !event.altKey) {
+          finish();
+          render();
+          return;
+        }
+        const combination = hotkeyFromEvent(event);
+        // Une frappe ne portant qu'un modificateur est ignorée : l'utilisateur
+        // est probablement en train de composer sa combinaison.
+        if (!combination) return;
+        finish();
+        applyBinding(binding, combination);
+        render();
+      };
+
+      document.addEventListener('keydown', onKey, true);
+    });
   });
 }
 

@@ -16,6 +16,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from .keys import InvalidHotkey, parse_hotkey
+
 #: Bornes alignées sur les limites de l'application 3DS.
 MAX_PAGES = 12
 MAX_BUTTONS_PER_PAGE = 6
@@ -116,6 +118,9 @@ def action_arguments(kind: str) -> list[dict[str, Any]]:
         "page": "page",
         "script": "script",
         "value": "number",
+        # Les raccourcis ont leur propre éditeur : l'utilisateur choisit une
+        # touche du catalogue au lieu d'en deviner l'orthographe.
+        "keys": "hotkey",
     }.get(required, "text")
     return [{"name": required, "type": field_type, "required": True}]
 
@@ -517,6 +522,17 @@ def _parse_action(raw: Any, context: str) -> Action:
         name = argument["name"]
         if argument.get("required") and name not in args:
             raise ConfigError(f"{context}: l'action '{kind}' exige '{name}'")
+
+        # Un raccourci est vérifié ici, et non à l'appui du bouton : sinon
+        # `ctrl+alt+banane` serait accepté par l'éditeur pour n'échouer que sur
+        # la console, à l'endroit le moins propice au diagnostic. La forme
+        # enregistrée est normalisée, afin que `shift+cmd+a` et `cmd+shift+a`
+        # ne produisent pas deux écritures pour un même raccourci.
+        if argument.get("type") == "hotkey" and name in args:
+            try:
+                args[name] = parse_hotkey(args[name]).canonical()
+            except InvalidHotkey as error:
+                raise ConfigError(f"{context}.{name}: {error}") from error
 
     return Action(kind, args)
 
