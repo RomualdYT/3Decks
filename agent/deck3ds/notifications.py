@@ -132,11 +132,13 @@ def _icon_for(name: str) -> str:
 class NotificationReader:
     """Lecture périodique des notifications, avec déduplication.
 
-    Deux mécanismes évitent de saturer la console :
+    Les notifications identiques répétées sont fusionnées : certaines
+    applications en émettent plusieurs d'affilée, ce qui saturerait l'écran de
+    la console.
 
-    - les notifications identiques répétées sont fusionnées, certaines
-      applications en émettant plusieurs d'affilée ;
-    - une liste d'applications peut être exclue par configuration.
+    `ignored` permet d'écarter des applications par nom ou par identifiant de
+    paquet. Aucune clé de configuration ne l'alimente aujourd'hui ; le
+    paramètre existe pour que l'appelant puisse le faire.
     """
 
     def __init__(self, ignored: list[str] | None = None) -> None:
@@ -145,7 +147,7 @@ class NotificationReader:
         #: Vrai après un échec de lecture : on cesse alors d'insister.
         self.broken = False
 
-        # Comparaison en minuscules, pour que la configuration reste tolérante.
+        # Comparaison en minuscules, pour rester tolérant à la casse.
         self._ignored = {name.strip().lower() for name in (ignored or [])}
 
         #: Empreinte de la notification la plus récente déjà vue.

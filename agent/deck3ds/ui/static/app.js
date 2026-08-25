@@ -465,8 +465,14 @@ async function load() {
 
 function ensureConfigShape() {
   state.config.integrations = state.config.integrations || {};
+  // Les défauts viennent du schéma : les recopier ici les ferait diverger
+  // du validateur, seul juge de ce qui est acceptable.
   state.config.integrations.obs = {
-    enabled: false, host: '127.0.0.1', port: 4455, password: '', timeout: 2,
+    enabled: false,
+    host: defaultValue('obs_host', '127.0.0.1'),
+    port: defaultValue('obs_port', 4455),
+    password: '',
+    timeout: defaultValue('obs_timeout', 2),
     ...(state.config.integrations.obs || {}),
   };
   state.config.server = state.config.server || {};
@@ -1010,6 +1016,19 @@ function argumentPlaceholder(name) {
 
 /* Réglages ----------------------------------------------------------------- */
 
+/* Bornes et valeurs par défaut : lues dans le schéma plutôt que recopiées.
+ * Les replis ne servent qu'à un agent plus ancien qui ne les exposerait pas. */
+function limitRange(name, fallbackLow, fallbackHigh) {
+  const range = state.schema.limits?.[name];
+  return Array.isArray(range) ? range : [fallbackLow, fallbackHigh];
+}
+
+function defaultValue(name, fallback) {
+  const value = state.schema.defaults?.[name];
+  return value === undefined ? fallback : value;
+}
+
+
 function renderSettingsWorkspace() {
   if (state.settingsSection === 'preferences') renderPreferences();
   else if (state.settingsSection === 'obs') renderObsSettings();
@@ -1018,7 +1037,7 @@ function renderSettingsWorkspace() {
 
 function renderConnectionSettings() {
   const server = state.config.server;
-  const address = state.status?.hints?.[0] || `127.0.0.1:${server.port || 38123}`;
+  const address = state.status?.hints?.[0] || `127.0.0.1:${server.port || defaultValue('port', 38123)}`;
   const secured = Boolean(server.token);
   el('workspace').innerHTML = `<div class="settings-content">
     <h1>${t('connectionTitle')}</h1><p class="settings-intro">${t('connectionIntro')}</p>
@@ -1035,9 +1054,9 @@ function renderConnectionSettings() {
     <section class="settings-section">
       <button class="disclosure" type="button" data-toggle-advanced><span>${t('advancedSettings')}</span><span>${state.advancedOpen ? '⌃' : '⌄'}</span></button>
       <div class="advanced-fields ${state.advancedOpen ? '' : 'collapsed'}">
-        ${field(t('listenAddress'), textInput('server.host', server.host || '0.0.0.0'))}
-        <div class="form-row">${field(t('port'), numberInput('server.port', server.port || 38123, 1, 65535))}${field(t('refresh'), numberInput('server.poll_interval', server.poll_interval || 1, .2, 30, .1), t('seconds'))}</div>
-        ${field(t('volumeStep'), numberInput('server.volume_step', server.volume_step || 5, 1, 50))}
+        ${field(t('listenAddress'), textInput('server.host', server.host || defaultValue('host', '0.0.0.0')))}
+        <div class="form-row">${field(t('port'), numberInput('server.port', server.port || defaultValue('port', 38123), ...limitRange('port', 1, 65535)))}${field(t('refresh'), numberInput('server.poll_interval', server.poll_interval || defaultValue('poll_interval', 1), ...limitRange('poll_interval', .2, 30), .1), t('seconds'))}</div>
+        ${field(t('volumeStep'), numberInput('server.volume_step', server.volume_step || defaultValue('volume_step', 5), ...limitRange('volume_step', 1, 50)))}
         <p class="field-note">${t('restartNote')}</p>
       </div>
     </section>
@@ -1070,9 +1089,9 @@ function renderObsSettings() {
       <div class="toggle-row"><div><h2>${t('obsEnabled')}</h2><p class="field-note">${t('obsSetupHelp')}</p></div><label class="switch"><input type="checkbox" data-bind-check="obs.enabled" ${obs.enabled ? 'checked' : ''}><span></span></label></div>
     </section>
     <section class="settings-section">
-      <div class="form-row">${field(t('obsHost'), textInput('obs.host', obs.host || '127.0.0.1'))}${field(t('obsPort'), numberInput('obs.port', obs.port || 4455, 1, 65535))}</div>
+      <div class="form-row">${field(t('obsHost'), textInput('obs.host', obs.host || defaultValue('obs_host', '127.0.0.1')))}${field(t('obsPort'), numberInput('obs.port', obs.port || defaultValue('obs_port', 4455), ...limitRange('port', 1, 65535)))}</div>
       ${field(t('obsPassword'), textInput('obs.password', obs.password || '', { type: 'password' }), t('obsPasswordHelp'))}
-      ${field(t('obsTimeout'), numberInput('obs.timeout', obs.timeout || 2, .2, 15, .1), t('seconds'))}
+      ${field(t('obsTimeout'), numberInput('obs.timeout', obs.timeout || defaultValue('obs_timeout', 2), ...limitRange('obs_timeout', .2, 15), .1), t('seconds'))}
       <button class="button primary" type="button" data-test-obs ${state.obsTesting ? 'disabled' : ''}>${iconSvg('video')} ${state.obsTesting ? t('testing') : t('testConnection')}</button>
       ${result}
     </section>

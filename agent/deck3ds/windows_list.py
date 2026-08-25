@@ -36,13 +36,9 @@ _NORMAL_LAYER = 0
 class Window:
     app: str
     title: str
+    #: Identité stable de la fenêtre, utile pour la cibler sans ambiguïté.
     pid: int
     number: int
-
-    @property
-    def label(self) -> str:
-        """Libellé affiché sur la console."""
-        return self.title if self.title else self.app
 
 
 class WindowLister:

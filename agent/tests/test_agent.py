@@ -888,6 +888,61 @@ class TestObsProtocol(unittest.TestCase):
 # --- Sérialisation de l'état ---------------------------------------------------
 
 
+class TestClientSend(unittest.IsolatedAsyncioTestCase):
+    """Distinction entre connexion perdue et message inencodable.
+
+    Les deux cas partageaient une même clause `except` : un message trop
+    volumineux faisait retirer une console dont la socket était pourtant saine,
+    masquant le véritable défaut.
+    """
+
+    class _Writer:
+        def __init__(self, fail=False):
+            self.data = b""
+            self.fail = fail
+
+        def write(self, frame):
+            self.data += frame
+
+        async def drain(self):
+            if self.fail:
+                raise ConnectionResetError("connexion perdue")
+
+    def _client(self, **kwargs):
+        from deck3ds.server import Client
+
+        client = Client.__new__(Client)
+        client.id = 1
+        client.writer = self._Writer(**kwargs)
+        return client
+
+    async def test_message_normal_transmis(self):
+        client = self._client()
+        self.assertTrue(await client.send({"type": "ping"}))
+        self.assertTrue(client.writer.data)
+
+    async def test_connexion_perdue_signalee(self):
+        client = self._client(fail=True)
+        self.assertFalse(await client.send({"type": "ping"}))
+
+    async def test_message_inencodable_conserve_la_console(self):
+        from deck3ds import protocol
+
+        client = self._client()
+        enorme = {"type": "state.update", "x": "a" * (protocol.MAX_MESSAGE + 1)}
+
+        self.assertTrue(
+            await client.send(enorme), "la console est jointe : elle doit rester"
+        )
+        self.assertEqual(client.writer.data, b"", "rien ne doit être émis")
+
+    async def test_charge_binaire_trop_grande_conserve_la_console(self):
+        from deck3ds import protocol
+
+        client = self._client()
+        self.assertTrue(await client.send_raw(b"a" * (protocol.MAX_MESSAGE + 1)))
+
+
 class TestStatePayload(unittest.TestCase):
     def test_valeurs_inconnues_omises(self):
         snapshot = FakePlatform().snapshot()
@@ -1497,6 +1552,27 @@ class TestPalette(unittest.TestCase):
 class TestWindowButtons(unittest.TestCase):
     """Génération des boutons de la page des fenêtres."""
 
+    def test_chaque_application_connue_a_une_couleur(self):
+        """Deux tables séparées laissaient six applications sans couleur.
+
+        Slack, Arc et iTerm avaient une icône mais retombaient sur le gris de
+        repli. Déclarer les deux ensemble rend l'oubli impossible.
+        """
+        from deck3ds.server import _APP_STYLES, _icon_for
+
+        for needle, (icon, colour) in _APP_STYLES.items():
+            self.assertIn(icon, config_module.ICONS, needle)
+            self.assertRegex(colour, r"^#[0-9A-F]{6}$", needle)
+
+        for app in ("Slack", "Arc", "iTerm", "Calendrier"):
+            _, colour = _icon_for(app)
+            self.assertNotEqual(colour, "#64748B", f"{app} sans couleur propre")
+
+    def test_application_inconnue_reste_neutre(self):
+        from deck3ds.server import _DEFAULT_STYLE, _icon_for
+
+        self.assertEqual(_icon_for("Logiciel inconnu"), _DEFAULT_STYLE)
+
     def test_boutons_generes(self):
         from deck3ds.server import _window_buttons
 
@@ -1579,6 +1655,55 @@ class TestMessages(unittest.TestCase):
         from deck3ds import messages
 
         messages.set_language("en")
+
+    def _sources(self):
+        from pathlib import Path
+
+        import deck3ds
+
+        root = Path(deck3ds.__file__).parent
+        return "".join(
+            (root / name).read_text(encoding="utf-8")
+            for name in (
+                "actions.py",
+                "server.py",
+                "obs.py",
+                "platforms/base.py",
+                "platforms/macos.py",
+                "platforms/windows.py",
+            )
+        )
+
+    def test_aucune_traduction_inutilisee(self):
+        """Une clé jamais appelée signale un message écrit en dur ailleurs.
+
+        Quatre clés traduites étaient ignorées, les adaptateurs levant des
+        libellés français littéraux : la console recevait donc du français
+        même lorsqu'elle demandait l'anglais.
+        """
+        import re
+
+        from deck3ds import messages
+
+        used = set(re.findall(r'msg\(\s*"(\w+)"', self._sources()))
+        unused = sorted(set(messages._CATALOGUE["en"]) - used)
+        self.assertEqual(unused, [], f"traductions inutilisées : {unused}")
+
+    def test_aucun_message_utilisateur_en_dur(self):
+        """Les libellés destinés à la console doivent passer par `msg`."""
+        import re
+
+        sources = self._sources()
+        # Ces tournures indiquent un message rédigé pour l'utilisateur.
+        for pattern in (
+            r'ActionFailed\(\s*"[^"]*sortie[^"]*"',
+            r'ActionFailed\(\s*f?"[^"]*introuvable[^"]*"',
+            r'ActionFailed\(\s*"[^"]*invalide[^"]*"',
+        ):
+            self.assertIsNone(
+                re.search(pattern, sources),
+                f"message en dur détecté : {pattern}",
+            )
 
     def test_anglais_par_defaut(self):
         from deck3ds import messages
@@ -2495,6 +2620,103 @@ class TestPollLoop(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Collecte interrompue", journal)
         self.assertIn("panne simulee", journal)
 
+    async def _run_one_wake_cycle(self, slow):
+        """Déroule un unique tour de boucle déclenché par un réveil.
+
+        La boucle est infinie par nature : on l'interrompt à la seconde
+        itération, une fois le comportement observé.
+        """
+        from deck3ds import server as server_module
+
+        loaded = config_module.parse(minimal_config())
+        server = Server(loaded, FakePlatform())
+        server.clients.add(object())  # sans client, la collecte est court-circuitée
+
+        refreshes = []
+
+        async def compter():
+            refreshes.append(len(refreshes))
+
+        server._refresh_state = compter
+        server.reload_config_if_changed = lambda: False
+        server._slow_confirm = slow
+        server._wake().set()
+
+        tours = {"n": 0}
+
+        async def dormir(_delay):
+            # Les délais réels rendraient le test lent sans rien prouver.
+            return None
+
+        async def attendre(awaitable, *_args, **_kwargs):
+            # La coroutine doit être consommée, sinon Python signale un
+            # « coroutine was never awaited » qui masquerait de vrais avertissements.
+            awaitable.close()
+            tours["n"] += 1
+            if tours["n"] > 1:
+                raise asyncio.CancelledError
+            return True
+
+        with patch.object(server_module.asyncio, "sleep", dormir), \
+                patch.object(server_module.asyncio, "wait_for", attendre):
+            with self.assertRaises(asyncio.CancelledError):
+                await server._poll_forever()
+
+        return refreshes
+
+    async def test_effet_lent_declenche_une_seconde_lecture(self):
+        """Régression : le délai d'attente ne relisait pas l'état.
+
+        Le code dormait 2,2 s puis remontait la boucle sans mesurer. L'écran
+        conservait donc l'ancien état, ce que le commentaire prétendait pourtant
+        éviter — le bouton semblait sans effet.
+        """
+        rapides = await self._run_one_wake_cycle(slow=False)
+        lents = await self._run_one_wake_cycle(slow=True)
+
+        # Un effet lent doit provoquer exactement une lecture de plus.
+        self.assertEqual(
+            len(lents),
+            len(rapides) + 1,
+            "l'attente doit être suivie d'une relecture, pas d'un simple sommeil",
+        )
+
+    async def test_indicateur_d_effet_lent_est_consomme(self):
+        """Sans remise à zéro, chaque cycle paierait l'attente."""
+        from deck3ds import server as server_module
+
+        loaded = config_module.parse(minimal_config())
+        server = Server(loaded, FakePlatform())
+        server.clients.add(object())
+        async def rien():
+            return None
+
+        server._refresh_state = rien
+        server.reload_config_if_changed = lambda: False
+        server._slow_confirm = True
+        server._wake().set()
+
+        tours = {"n": 0}
+
+        async def dormir(_delay):
+            return None
+
+        async def attendre(awaitable, *_args, **_kwargs):
+            # La coroutine doit être consommée, sinon Python signale un
+            # « coroutine was never awaited » qui masquerait de vrais avertissements.
+            awaitable.close()
+            tours["n"] += 1
+            if tours["n"] > 1:
+                raise asyncio.CancelledError
+            return True
+
+        with patch.object(server_module.asyncio, "sleep", dormir), \
+                patch.object(server_module.asyncio, "wait_for", attendre):
+            with self.assertRaises(asyncio.CancelledError):
+                await server._poll_forever()
+
+        self.assertFalse(server._slow_confirm)
+
 
 # --- Interface de configuration ------------------------------------------------
 
@@ -2784,6 +3006,167 @@ class TestUiApi(unittest.IsolatedAsyncioTestCase):
         limits = build_schema(Capabilities())["limits"]
         self.assertEqual(limits["buttons_per_page"], config_module.MAX_BUTTONS_PER_PAGE)
         self.assertEqual(limits["pages"], config_module.MAX_PAGES)
+
+    def _editor_source(self):
+        from pathlib import Path
+
+        import deck3ds
+
+        source = Path(deck3ds.__file__).parent / "ui" / "static" / "app.js"
+        return source.read_text(encoding="utf-8")
+
+    async def test_editeur_nomme_toutes_les_actions(self):
+        """Une action sans libellé s'afficherait sous son identifiant brut.
+
+        L'éditeur tire la *liste* du schéma, mais porte ses propres textes.
+        Ce test signale l'oubli au moment de l'ajout, et non à l'usage.
+        """
+        import re
+
+        source = self._editor_source()
+        table = re.search(r"const ACTIONS = \{(.*?)^\};", source, re.S | re.M)
+        self.assertIsNotNone(table, "table ACTIONS introuvable")
+        named = set(re.findall(r"^\s*'([\w.]+)':", table.group(1), re.M))
+
+        missing = sorted(config_module.KNOWN_ACTIONS - named)
+        self.assertEqual(missing, [], f"actions sans libellé : {missing}")
+
+    async def test_editeur_nomme_tous_les_tableaux_de_bord(self):
+        import re
+
+        source = self._editor_source()
+        table = re.search(r"function dashboardLabel.*?\{(.*?)\n\}", source, re.S)
+        named = set(re.findall(r"(\w+):\s*\{", table.group(1)))
+
+        missing = sorted(config_module.DASHBOARDS - named)
+        self.assertEqual(missing, [], f"tableaux de bord sans libellé : {missing}")
+
+    async def test_editeur_nomme_toutes_les_capacites(self):
+        import re
+
+        from deck3ds.platforms.base import Capabilities, fields_of
+
+        source = self._editor_source()
+        table = re.search(r"function capabilityLabel.*?\{(.*?)\n\}", source, re.S)
+        named = set(re.findall(r"(\w+):\s*\{", table.group(1)))
+
+        missing = sorted(set(fields_of(Capabilities())) - named)
+        self.assertEqual(missing, [], f"capacités sans libellé : {missing}")
+
+    async def test_editeur_nomme_toutes_les_icones(self):
+        import re
+
+        source = self._editor_source()
+        table = re.search(r"const ICON_LABELS = \{(.*?)\};", source, re.S)
+        named = set(re.findall(r"'?([\w-]+)'?:\s*\{", table.group(1)))
+
+        missing = sorted(config_module.ICONS - named)
+        self.assertEqual(missing, [], f"icônes sans libellé : {missing}")
+
+    async def test_etat_expose_est_isole_de_l_etat_interne(self):
+        """La copie était superficielle : `media` restait partagé.
+
+        L'interface recevait une référence sur l'état vivant du serveur, que la
+        collecte mute pour y placer le jeton de pochette.
+        """
+        self.server._last_payload = {
+            "type": "state.update",
+            "media": {"title": "Morceau"},
+        }
+
+        copie = self.server.last_state_payload()
+        copie["media"]["art"] = "pollution"
+
+        self.assertNotIn("art", self.server._last_payload["media"])
+
+    async def test_bornes_de_validation_exposees(self):
+        """L'éditeur doit refuser exactement ce que l'agent refuse.
+
+        Les bornes étaient recopiées dans `app.js` ; rien ne garantissait
+        qu'elles suivent une modification du validateur.
+        """
+        from deck3ds.ui.api import build_schema
+        from deck3ds.platforms.base import Capabilities
+
+        limits = build_schema(Capabilities())["limits"]
+
+        self.assertEqual(tuple(limits["port"]), config_module.PORT_RANGE)
+        self.assertEqual(
+            tuple(limits["poll_interval"]), config_module.POLL_INTERVAL_RANGE
+        )
+        self.assertEqual(
+            tuple(limits["volume_step"]), config_module.VOLUME_STEP_RANGE
+        )
+        self.assertEqual(
+            tuple(limits["obs_timeout"]), config_module.OBS_TIMEOUT_RANGE
+        )
+
+    async def test_defauts_exposes_correspondent_aux_dataclasses(self):
+        from deck3ds.ui.api import build_schema
+        from deck3ds.platforms.base import Capabilities
+
+        defaults = build_schema(Capabilities())["defaults"]
+        reference = config_module.Config()
+        obs = config_module.ObsConfig()
+
+        self.assertEqual(defaults["host"], reference.host)
+        self.assertEqual(defaults["port"], reference.port)
+        self.assertEqual(defaults["volume_step"], reference.volume_step)
+        self.assertEqual(defaults["obs_host"], obs.host)
+        self.assertEqual(defaults["obs_port"], obs.port)
+
+    async def test_editeur_lit_les_bornes_du_schema(self):
+        """Les champs de réglage doivent tirer bornes et défauts du schéma.
+
+        Ces valeurs étaient écrites en clair dans l'éditeur : une modification
+        du validateur n'y était pas répercutée. Les littéraux subsistant dans
+        `limitRange(...)` et `defaultValue(...)` ne sont que des replis pour un
+        agent plus ancien.
+        """
+        import re
+
+        source = self._editor_source()
+
+        # Chaque réglage numérique passe par le schéma.
+        for binding, helper in (
+            ("server.port", "limitRange('port'"),
+            ("server.poll_interval", "limitRange('poll_interval'"),
+            ("server.volume_step", "limitRange('volume_step'"),
+            ("obs.timeout", "limitRange('obs_timeout'"),
+        ):
+            ligne = next(
+                line for line in source.splitlines() if f"'{binding}'" in line
+            )
+            self.assertIn(helper, ligne, binding)
+
+        # Aucun littéral ne subsiste hors des appels de repli.
+        nettoye = re.sub(r"(limitRange|defaultValue)\([^)]*\)", "", source)
+        for literal in ("38123", "'0.0.0.0'"):
+            self.assertNotIn(
+                literal, nettoye, f"'{literal}' recopié hors du schéma"
+            )
+
+    async def test_limite_de_liste_respectee_par_les_adaptateurs(self):
+        """Le schéma annonçait 32 entrées, macOS n'en fournissait que 12.
+
+        Une page en mode liste plafonnait donc silencieusement à 12 éléments
+        sur macOS alors que l'interface en promettait 32, et que Windows les
+        fournissait bien.
+        """
+        import inspect
+
+        from deck3ds.platforms.macos import MacPlatform
+        from deck3ds.platforms.windows import WindowsPlatform
+
+        for platform in (MacPlatform, WindowsPlatform):
+            source = inspect.getsource(platform.list_windows)
+            self.assertIn(
+                "MAX_LIST_ENTRIES",
+                source,
+                f"{platform.__name__} doit s'aligner sur la limite annoncée",
+            )
+            # Une borne écrite en clair rouvrirait la divergence.
+            self.assertNotRegex(source, r":\s*\d+\]|limit=\d+")
 
     async def test_schema_expose_le_catalogue_de_touches(self):
         """L'éditeur propose les touches au lieu de laisser l'utilisateur deviner.

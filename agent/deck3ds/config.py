@@ -29,6 +29,14 @@ MAX_DETAIL = 40
 MAX_LABEL = 24
 MAX_ID = 32
 
+#: Bornes des réglages numériques, sous forme `(minimum, maximum)`. Nommées ici
+#: pour que la validation et l'interface partagent la même règle : l'éditeur les
+#: recopiait, et rien ne garantissait qu'elles restent identiques.
+PORT_RANGE = (1, 65535)
+POLL_INTERVAL_RANGE = (0.2, 30.0)
+VOLUME_STEP_RANGE = (1, 50)
+OBS_TIMEOUT_RANGE = (0.2, 15.0)
+
 #: Actions acceptées. Toute autre valeur est rejetée au chargement : la 3DS ne
 #: peut donc pas déclencher d'exécution arbitraire, même si elle était
 #: compromise.
@@ -469,7 +477,8 @@ def _require_int(value: Any, context: str) -> int:
 
 def _require_port(value: Any, context: str) -> int:
     port = _require_int(value, context)
-    if not 1 <= port <= 65535:
+    low, high = PORT_RANGE
+    if not low <= port <= high:
         raise ConfigError(f"{context}: {port} hors bornes")
     return port
 
@@ -686,7 +695,9 @@ def parse_obs(raw: Any) -> ObsConfig:
         raise ConfigError("integrations.obs.password: une chaine est attendue")
 
     timeout = _require_seconds(
-        raw.get("timeout", defaults.timeout), "integrations.obs.timeout", 0.2, 15.0
+        raw.get("timeout", defaults.timeout),
+        "integrations.obs.timeout",
+        *OBS_TIMEOUT_RANGE,
     )
 
     return ObsConfig(
@@ -721,13 +732,17 @@ def parse(raw: Any) -> Config:
         config.poll_interval = _require_seconds(
             server.get("poll_interval", config.poll_interval),
             "server.poll_interval",
-            0.2,
-            30.0,
+            *POLL_INTERVAL_RANGE,
         )
 
         step = server.get("volume_step", config.volume_step)
-        if not isinstance(step, int) or isinstance(step, bool) or not 1 <= step <= 50:
-            raise ConfigError("server.volume_step: entier entre 1 et 50")
+        low, high = VOLUME_STEP_RANGE
+        if (
+            not isinstance(step, int)
+            or isinstance(step, bool)
+            or not low <= step <= high
+        ):
+            raise ConfigError(f"server.volume_step: entier entre {low} et {high}")
         config.volume_step = step
 
     config.revision = _require_int(raw.get("revision", 1), "revision")

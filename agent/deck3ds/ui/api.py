@@ -30,9 +30,15 @@ def build_schema(
 ) -> dict[str, Any]:
     """Décrit ce que l'interface peut proposer, capacités comprises.
 
-    Le schéma est engendré depuis les tables de `config.py` plutôt que recopié
-    dans l'interface : ajouter une action à `KNOWN_ACTIONS` la rend disponible
-    sans toucher au code de l'interface.
+    Le schéma est engendré depuis les tables de `config.py` : la liste des
+    actions, les limites et les capacités ne sont donc jamais recopiées dans
+    l'interface.
+
+    En revanche l'éditeur conserve ses propres libellés et descriptions
+    (`ACTIONS`, `dashboardLabel`, `capabilityLabel` dans `app.js`) : ajouter
+    une action à `KNOWN_ACTIONS` la fait apparaître dans le sélecteur, mais
+    sous son identifiant brut jusqu'à ce qu'un libellé lui soit donné. Un test
+    vérifie que ces tables restent complètes.
     """
     available = capabilities.as_payload()
     # OBS est transversal aux plateformes : son support depend de la
@@ -95,13 +101,28 @@ def build_schema(
         },
         "locales": list(config_module.LOCALES),
         "capabilities": available,
-        "capability_names": list(fields_of(capabilities)),
         "limits": {
             "pages": config_module.MAX_PAGES,
             "buttons_per_page": config_module.MAX_BUTTONS_PER_PAGE,
             "label": config_module.MAX_LABEL,
             "id": config_module.MAX_ID,
             "list_entries": config_module.MAX_LIST_ENTRIES,
+            # Bornes du validateur, exposées pour que l'éditeur refuse les
+            # mêmes valeurs que l'agent au lieu de les recopier.
+            "port": list(config_module.PORT_RANGE),
+            "poll_interval": list(config_module.POLL_INTERVAL_RANGE),
+            "volume_step": list(config_module.VOLUME_STEP_RANGE),
+            "obs_timeout": list(config_module.OBS_TIMEOUT_RANGE),
+        },
+        #: Valeurs par défaut, pour que l'éditeur n'en garde pas de copie.
+        "defaults": {
+            "host": config_module.Config().host,
+            "port": config_module.Config().port,
+            "poll_interval": config_module.Config().poll_interval,
+            "volume_step": config_module.Config().volume_step,
+            "obs_host": config_module.ObsConfig().host,
+            "obs_port": config_module.ObsConfig().port,
+            "obs_timeout": config_module.ObsConfig().timeout,
         },
         "layouts": ["grid", "list"],
         "sources": ["", "windows"],

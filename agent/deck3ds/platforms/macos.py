@@ -18,8 +18,10 @@ from __future__ import annotations
 
 import re
 
+from ..config import MAX_LIST_ENTRIES
 from ..coreaudio import CoreAudio
 from ..keys import InvalidHotkey, parse_hotkey
+from ..messages import msg
 from ..notifications import NotificationReader
 from ..windows_list import WindowLister
 from .base import (
@@ -283,13 +285,13 @@ class MacPlatform(Platform):
     def cycle_audio_output(self) -> str:
         name = self._audio.cycle_output()
         if name is None:
-            raise ActionFailed("une seule sortie disponible")
+            raise ActionFailed(msg("single_output"))
         return name
 
     def select_audio_output(self, needle: str) -> str:
         name = self._audio.select_output(needle)
         if name is None:
-            raise ActionFailed(f"sortie introuvable : {needle}")
+            raise ActionFailed(msg("output_not_found", name=needle))
         return name
 
     # --- Média ----------------------------------------------------------------
@@ -468,8 +470,11 @@ class MacPlatform(Platform):
         return _visible_apps(raw)
 
     def list_windows(self) -> list[tuple[str, str]]:
+        # La borne est celle annoncée à l'interface par le schéma : en retenir
+        # moins ici ferait mentir la limite affichée à l'utilisateur.
         return [
-            (window.app, window.title) for window in self._windows.list(limit=12)
+            (window.app, window.title)
+            for window in self._windows.list(limit=MAX_LIST_ENTRIES)
         ]
 
     def focus_window(self, app: str, title: str) -> str:

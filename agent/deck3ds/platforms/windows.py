@@ -27,7 +27,9 @@ import tempfile
 import threading
 from pathlib import Path
 
+from ..config import MAX_LIST_ENTRIES
 from ..keys import MODIFIER_BY_NAME, InvalidHotkey, parse_hotkey
+from ..messages import msg
 from .base import (
     ActionFailed,
     Capabilities,
@@ -516,7 +518,7 @@ namespace Deck3DS {
             None,
         )
         if match is None:
-            raise ActionFailed(f"sortie introuvable : {needle}")
+            raise ActionFailed(msg("output_not_found", name=needle))
         identifier, name = match
         escaped = identifier.replace("'", "''")
         self._shell.run(
@@ -528,7 +530,7 @@ namespace Deck3DS {
     def cycle_audio_output(self) -> str:
         devices = self._audio_devices()
         if len(devices) < 2:
-            raise ActionFailed("une seule sortie disponible")
+            raise ActionFailed(msg("single_output"))
         current = self.get_audio_output()
         index = next(
             (position for position, (_, name) in enumerate(devices) if name == current),
@@ -740,7 +742,9 @@ if ($s) {
         return records
 
     def list_windows(self) -> list[tuple[str, str]]:
-        return [(app, title) for _, app, title in self._window_records()][:32]
+        return [(app, title) for _, app, title in self._window_records()][
+            :MAX_LIST_ENTRIES
+        ]
 
     def focus_window(self, app: str, title: str) -> str:
         app_needle = app.casefold().removesuffix(".exe")
@@ -755,7 +759,7 @@ if ($s) {
             match = record
             break
         if match is None:
-            raise ActionFailed(f"fenetre introuvable : {title or app}")
+            raise ActionFailed(msg("window_not_found", name=title or app))
 
         handle, candidate_app, candidate_title = match
         self._user32.ShowWindow(handle, SW_RESTORE)
@@ -784,7 +788,7 @@ if ($s) {
         # commande PowerShell.
         safe = re.sub(r"[^A-Za-z0-9_.\- ]", "", name)
         if not safe:
-            raise ActionFailed("nom d'application invalide")
+            raise ActionFailed(msg("invalid_app"))
 
         self._shell.run(
             f"Get-Process -Name '{safe}' -ErrorAction SilentlyContinue | "

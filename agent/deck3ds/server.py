@@ -37,6 +37,24 @@ from .platforms.base import Platform, SystemSnapshot
 
 VERSION = "0.1.0"
 
+#: Délai laissé au système pour appliquer une commande avant de la mesurer.
+#: Sans lui, la relecture immédiate rapporterait encore l'ancienne valeur.
+SETTLE_DELAY = 0.12
+
+#: Attente supplémentaire pour les commandes à effet différé (changement de
+#: piste, bascule de sortie audio). Mesuré sur une diffusion Spotify vers une
+#: enceinte externe : l'état de lecture met environ deux secondes à changer.
+SLOW_CONFIRM_DELAY = 2.2
+
+#: Bornes de troncature du message d'état. La console n'affiche pas davantage,
+#: et chaque valeur transmise coûte de la bande passante à chaque cycle.
+MAX_PAYLOAD_APPS = 8
+MAX_PAYLOAD_AUDIO_OUTPUTS = 6
+#: Aligné sur `MAX_NOTIFICATIONS` de `3ds-app/source/model.h` : la console ne
+#: réserve que quatre emplacements. Le total réel voyage séparément, dans
+#: `notification_count`, qui alimente le badge de l'écran supérieur.
+MAX_PAYLOAD_NOTIFICATIONS = 4
+
 #: Mois en français, pour éviter de dépendre de la locale du système.
 _MONTHS = (
     "janvier",
@@ -63,7 +81,7 @@ def _snapshot_payload(snapshot: SystemSnapshot) -> dict[str, Any]:
         "time": now.strftime("%H:%M"),
         "date": f"{now.day} {_MONTHS[now.month - 1]}",
         "active_app": snapshot.active_app,
-        "apps": snapshot.apps[:8],
+        "apps": snapshot.apps[:MAX_PAYLOAD_APPS],
     }
 
     # Les valeurs inconnues sont omises : la 3DS conserve alors ce qu'elle sait
@@ -79,17 +97,18 @@ def _snapshot_payload(snapshot: SystemSnapshot) -> dict[str, Any]:
     if snapshot.audio_output:
         payload["audio_output"] = snapshot.audio_output
     if snapshot.audio_outputs:
-        payload["audio_outputs"] = snapshot.audio_outputs[:6]
+        payload["audio_outputs"] = snapshot.audio_outputs[:MAX_PAYLOAD_AUDIO_OUTPUTS]
     if snapshot.cpu is not None:
         payload["cpu"] = snapshot.cpu
     if snapshot.memory is not None:
         payload["memory"] = snapshot.memory
 
     if snapshot.notifications:
-        # Quatre suffisent à l'affichage ; en transmettre plus alourdirait
-        # inutilement chaque mise à jour.
+        # Seules les plus récentes sont transmises ; `notification_count`
+        # indique le total, que la console affiche sous forme de compteur.
         payload["notifications"] = [
-            item.as_payload() for item in snapshot.notifications[:4]
+            item.as_payload()
+            for item in snapshot.notifications[:MAX_PAYLOAD_NOTIFICATIONS]
         ]
         payload["notification_count"] = len(snapshot.notifications)
 
@@ -169,58 +188,40 @@ class ArtworkCache:
         return artwork.frame(self._texture, self._token)
 
 
-#: Icônes attribuées aux applications courantes dans la liste des fenêtres.
-_APP_ICONS = {
-    "safari": "browser",
-    "chrome": "browser",
-    "firefox": "browser",
-    "arc": "browser",
-    "spotify": "music",
-    "music": "music",
-    "discord": "chat",
-    "messages": "chat",
-    "slack": "chat",
-    "terminal": "terminal",
-    "iterm": "terminal",
-    "code": "app",
-    "finder": "folder",
-    "notes": "page",
-    "calendrier": "page",
-    "calendar": "page",
+#: Présentation des applications courantes dans la liste des fenêtres :
+#: icône et couleur déclarées ensemble. Deux tables séparées laissaient six
+#: applications avec une icône mais sans couleur — Slack, Arc et iTerm
+#: retombaient sur le gris de repli alors que leur icône était bien définie.
+_APP_STYLES = {
+    "safari": ("browser", "#3B82F6"),
+    "chrome": ("browser", "#F59E0B"),
+    "firefox": ("browser", "#F97316"),
+    "arc": ("browser", "#1D4ED8"),
+    "spotify": ("music", "#1DB954"),
+    "music": ("music", "#FA57C1"),
+    "discord": ("chat", "#5865F2"),
+    "messages": ("chat", "#34D399"),
+    "slack": ("chat", "#611F69"),
+    "terminal": ("terminal", "#94A3B8"),
+    "iterm": ("terminal", "#6B7280"),
+    "code": ("app", "#0EA5E9"),
+    "finder": ("folder", "#FBBF24"),
+    "notes": ("page", "#FCD34D"),
+    "calendrier": ("page", "#EF4444"),
+    "calendar": ("page", "#EF4444"),
 }
 
-#: Couleurs attribuées aux mêmes applications, pour un repérage immédiat.
-_APP_COLORS = {
-    "safari": "#3B82F6",
-    "chrome": "#F59E0B",
-    "firefox": "#F97316",
-    "spotify": "#1DB954",
-    "discord": "#5865F2",
-    "messages": "#34D399",
-    "terminal": "#94A3B8",
-    "code": "#0EA5E9",
-    "finder": "#FBBF24",
-    "notes": "#FCD34D",
-}
+#: Repli lorsqu'aucune correspondance n'est trouvée.
+_DEFAULT_STYLE = ("app", "#64748B")
 
 
 def _icon_for(app: str) -> tuple[str, str]:
     """Icône et couleur d'une application, avec un repli neutre."""
     lowered = app.lower()
-    icon = "app"
-    colour = "#64748B"
-
-    for needle, value in _APP_ICONS.items():
+    for needle, style in _APP_STYLES.items():
         if needle in lowered:
-            icon = value
-            break
-
-    for needle, value in _APP_COLORS.items():
-        if needle in lowered:
-            colour = value
-            break
-
-    return icon, colour
+            return style
+    return _DEFAULT_STYLE
 
 
 def _window_entries(
@@ -331,23 +332,36 @@ class Client:
         if peer:
             self.address = f"{peer[0]}:{peer[1]}"
 
+    async def _write(self, frame: bytes) -> bool:
+        """Écrit une trame déjà encodée.
+
+        Retourne `False` si la connexion est perdue, ce qui conduit l'appelant à
+        retirer cette console.
+        """
+        try:
+            self.writer.write(frame)
+            await self.writer.drain()
+            return True
+        except (ConnectionError, OSError):
+            return False
+
     async def send(self, message: dict[str, Any]) -> bool:
         """Envoie un message. Retourne `False` si la connexion est perdue."""
         try:
-            self.writer.write(protocol.encode(message))
-            await self.writer.drain()
+            frame = protocol.encode(message)
+        except protocol.ProtocolError:
+            # Message impossible à encoder : la faute est de notre côté, la
+            # console reste jointe. La retirer masquerait le vrai défaut.
             return True
-        except (ConnectionError, OSError, protocol.ProtocolError):
-            return False
+        return await self._write(frame)
 
     async def send_raw(self, payload: bytes) -> bool:
         """Envoie une charge utile binaire, en y ajoutant l'en-tête de longueur."""
         try:
-            self.writer.write(protocol.encode_raw(payload))
-            await self.writer.drain()
+            frame = protocol.encode_raw(payload)
+        except protocol.ProtocolError:
             return True
-        except (ConnectionError, OSError, protocol.ProtocolError):
-            return False
+        return await self._write(frame)
 
     async def close(self) -> None:
         try:
@@ -514,8 +528,16 @@ class Server:
 
         L'interface s'en sert pour afficher volume, média et sortie audio sans
         provoquer de nouvelle collecte.
+
+        La copie est profonde d'un niveau : une copie superficielle laisserait
+        `media` partagé avec l'état vivant du serveur, que la collecte mute pour
+        y placer le jeton de pochette.
         """
-        return dict(self._last_payload or {})
+        payload = self._last_payload or {}
+        return {
+            key: dict(value) if isinstance(value, dict) else value
+            for key, value in payload.items()
+        }
 
     # --- Cycle de vie ---------------------------------------------------------
 
@@ -777,13 +799,9 @@ class Server:
         action = None
 
         if page_id == "__direct":
-            """
-            Action demandée par un panneau de la console.
-
-            Elle ne figure dans aucune page : la console envoie directement son
-            nom. Seules les actions de la liste blanche sont acceptées, comme
-            partout ailleurs.
-            """
+            # Action demandée par un panneau de la console. Elle ne figure dans
+            # aucune page : la console envoie directement son nom. Seules les
+            # actions de la liste blanche sont acceptées, comme partout ailleurs.
             if button_id in config_module.KNOWN_ACTIONS:
                 action = Action(button_id, {})
             else:
@@ -893,17 +911,19 @@ class Server:
 
                 # Court délai : laisse le système appliquer le changement avant
                 # de le mesurer, sinon on relirait l'ancienne valeur.
-                await asyncio.sleep(0.12)
+                await asyncio.sleep(SETTLE_DELAY)
                 await self._refresh_state()
 
                 # Certaines commandes mettent bien plus de temps à produire leur
-                # effet. Une diffusion Spotify vers une enceinte externe demande
+                # effet : une diffusion Spotify vers une enceinte externe demande
                 # environ deux secondes avant que l'état de lecture ne change.
-                # Sans cette seconde lecture, l'écran afficherait encore
-                # l'ancien état et le bouton semblerait sans effet.
+                # Une seconde lecture différée est donc nécessaire, faute de quoi
+                # l'écran conserverait l'ancien état et le bouton semblerait sans
+                # effet.
                 if self._slow_confirm:
                     self._slow_confirm = False
-                    await asyncio.sleep(2.2)
+                    await asyncio.sleep(SLOW_CONFIRM_DELAY)
+                    await self._refresh_state()
 
     async def _refresh_state(self) -> None:
         if not self.clients:
