@@ -87,6 +87,22 @@ class NotificationInfo:
         return payload
 
 
+def _as_notification_info(entry: object) -> NotificationInfo:
+    """Traduit une notification lue en base vers le format de l'interface.
+
+    Le lecteur de notifications retient l'identifiant de l'application et une
+    empreinte de déduplication, dont la console n'a pas l'usage : seuls les
+    cinq champs affichés traversent cette frontière.
+    """
+    return NotificationInfo(
+        app=entry.app,
+        title=entry.title,
+        body=entry.body,
+        icon=entry.icon,
+        age=entry.age,
+    )
+
+
 @dataclass(frozen=True)
 class Capabilities:
     """Ce que l'adaptateur sait réellement faire sur cette machine.
@@ -291,6 +307,32 @@ class Platform:
         risque de répétition.
         """
         return None
+
+    # --- Notifications, lecture partagée --------------------------------------
+    #
+    # macOS et Windows lisent tous deux une base SQLite : la conversion vers le
+    # format de l'interface et la détection de nouveauté sont identiques. Les
+    # adaptateurs concernés déclarent `self._notifications` puis délèguent ici,
+    # plutôt que de recopier ces deux méthodes.
+
+    def _read_notifications(self) -> list[NotificationInfo]:
+        """Notifications récentes, converties au format de l'interface.
+
+        La détection de nouveauté est faite ici plutôt qu'à la demande : ainsi
+        une notification arrivée entre deux collectes n'est jamais manquée.
+        """
+        entries = self._notifications.read()
+
+        arrival = self._notifications.take_new(entries)
+        if arrival is not None:
+            self._pending_notification = _as_notification_info(arrival)
+
+        return [_as_notification_info(entry) for entry in entries]
+
+    def _take_pending_notification(self) -> NotificationInfo | None:
+        pending = self._pending_notification
+        self._pending_notification = None
+        return pending
 
     def get_cpu(self) -> int | None:
         return None

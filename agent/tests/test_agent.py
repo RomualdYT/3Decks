@@ -14,9 +14,12 @@ from __future__ import annotations
 import asyncio
 import inspect
 import json
+import shutil
+import sqlite3
 import sys
 import tempfile
 import threading
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -1802,6 +1805,151 @@ class TestNotifications(unittest.TestCase):
         reader = self.reader(ignored=["codex"])
         self.assertTrue(reader._is_ignored("Codex", "com.openai.codex"))
 
+    def test_epoque_macos_appliquee(self):
+        """Les dates de macOS partent de 2001, non de 1970.
+
+        Sans ce décalage, toute notification paraîtrait vieille de trente ans
+        et serait écartée par la limite d'ancienneté.
+        """
+        import time as clock
+
+        from deck3ds.notifications import _APPLE_EPOCH, _MacSource
+
+        source = _MacSource()
+        maintenant = clock.time()
+        brut = maintenant - _APPLE_EPOCH
+
+        self.assertAlmostEqual(source.timestamp(brut), maintenant, delta=1.0)
+        self.assertIsNone(source.timestamp("pas un nombre"))
+        self.assertIsNone(source.timestamp(True), "un booléen n'est pas une date")
+
+    def test_base_illisible_eteint_la_lecture(self):
+        """Un fichier corrompu ne doit pas être relu à chaque cycle."""
+        from deck3ds.notifications import NotificationReader, _MacSource
+
+        directory = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, directory, ignore_errors=True)
+        corrompu = directory / "db"
+        corrompu.write_bytes(b"ceci n'est pas une base SQLite")
+
+        reader = NotificationReader(source=_MacSource(), path=corrompu)
+        self.assertEqual(reader.read(), [])
+        self.assertTrue(reader.broken, "la lecture doit être abandonnée")
+
+    def test_ouverture_impossible_eteint_la_lecture(self):
+        """Si `sqlite3.connect` échoue, la lecture ne doit pas être retentée.
+
+        Le cas se produit lorsque le fichier existe mais reste inaccessible :
+        droits refusés, chemin devenu un dossier, verrou exclusif du système.
+        """
+        from deck3ds import notifications
+
+        directory = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, directory, ignore_errors=True)
+        path = directory / "db"
+        path.write_bytes(b"")
+
+        reader = notifications.NotificationReader(
+            source=notifications._MacSource(), path=path
+        )
+
+        def refuser(*args, **kwargs):
+            raise sqlite3.OperationalError("acces refuse")
+
+        with patch.object(notifications.sqlite3, "connect", refuser):
+            self.assertEqual(reader.read(), [])
+
+        self.assertTrue(reader.broken, "la lecture doit être abandonnée")
+
+    def test_ouverture_en_lecture_seule(self):
+        """La base appartient au système : l'écriture doit être impossible.
+
+        Une ouverture en écriture créerait un journal à côté du fichier et
+        pourrait le verrouiller, gênant le système lui-même.
+        """
+        from deck3ds.notifications import NotificationReader, _MacSource
+
+        directory = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, directory, ignore_errors=True)
+        path = directory / "db"
+        connection = sqlite3.connect(path)
+        connection.execute("CREATE TABLE app (app_id INTEGER, identifier TEXT)")
+        connection.execute(
+            "CREATE TABLE record (app_id INTEGER, delivered_date REAL, data BLOB)"
+        )
+        connection.commit()
+        connection.close()
+
+        reader = NotificationReader(source=_MacSource(), path=path)
+        reader.read()
+
+        # L'URI d'ouverture doit interdire l'écriture. On la reconstruit comme
+        # le fait le lecteur, puis on vérifie qu'une écriture est refusée : une
+        # connexion inscriptible pourrait verrouiller la base du système.
+        connection = sqlite3.connect(
+            f"file:{path}?mode=ro", uri=True, timeout=1.0
+        )
+        try:
+            with self.assertRaises(sqlite3.OperationalError):
+                connection.execute("INSERT INTO app VALUES (1, 'x')")
+        finally:
+            connection.close()
+
+        # Aucun fichier annexe ne doit subsister à côté de la base.
+        annexes = sorted(item.name for item in directory.iterdir())
+        self.assertEqual(annexes, ["db"], f"fichiers créés : {annexes}")
+
+    def test_uri_de_lecture_declaree_en_mode_ro(self):
+        """Le mode est passé par URI : le vérifier fixe cette garantie.
+
+        Sans `mode=ro`, SQLite ouvrirait la base en écriture et pourrait la
+        verrouiller pendant que le système y écrit lui-même.
+        """
+        from deck3ds import notifications
+
+        directory = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, directory, ignore_errors=True)
+        path = directory / "db"
+        path.write_bytes(b"")
+
+        vues = []
+        vraie_connexion = notifications.sqlite3.connect
+
+        def espionner(target, *args, **kwargs):
+            vues.append((target, kwargs.get("uri", False)))
+            raise sqlite3.OperationalError("interrompu volontairement")
+
+        reader = notifications.NotificationReader(
+            source=notifications._MacSource(), path=path
+        )
+        with patch.object(notifications.sqlite3, "connect", espionner):
+            reader.read()
+
+        self.assertEqual(len(vues), 1)
+        target, uri = vues[0]
+        self.assertTrue(uri, "l'ouverture doit passer par une URI")
+        self.assertIn("mode=ro", target)
+
+    def test_source_choisie_selon_le_systeme(self):
+        """Un système non pris en charge doit s'éteindre, pas échouer."""
+        from deck3ds.notifications import _MacSource, _WindowsSource, _source_for
+
+        self.assertIsInstance(_source_for("darwin"), _MacSource)
+        self.assertIsInstance(_source_for("win32"), _WindowsSource)
+        self.assertIsNone(_source_for("linux"))
+
+    def test_systeme_non_pris_en_charge_ne_lit_rien(self):
+        """Sur un système sans adaptateur, la lecture s'éteint proprement."""
+        from deck3ds import notifications
+
+        with patch.object(notifications.sys, "platform", "linux"):
+            reader = notifications.NotificationReader()
+
+        self.assertIsNone(reader._source)
+        self.assertIsNone(reader.path)
+        self.assertFalse(reader.available)
+        self.assertEqual(reader.read(), [])
+
     def test_payload(self):
         from deck3ds.platforms.base import NotificationInfo
 
@@ -1860,6 +2008,285 @@ class TestNotifications(unittest.TestCase):
         reader = self.reader()
         reader.broken = True
         self.assertEqual(reader.read(), [])
+
+
+class TestWindowsNotifications(unittest.TestCase):
+    """Lecture des notifications de Windows, sur une base reconstituée.
+
+    Windows n'est pas disponible ici : la base est fabriquée d'après le schéma
+    documenté de `wpndatabase.db` — tables `Notification` et
+    `NotificationHandler`, dates en FILETIME, charge utile en XML de toast.
+    Ces tests valident le décodage, pas l'emplacement réel du fichier.
+    """
+
+    FILETIME_EPOCH = 11644473600
+    FILETIME_PER_SECOND = 10_000_000
+
+    def _filetime(self, seconds_ago):
+        moment = time.time() - seconds_ago
+        return int((moment + self.FILETIME_EPOCH) * self.FILETIME_PER_SECOND)
+
+    def _database(self, rows, schema=True):
+        """Crée une base temporaire et retourne son chemin.
+
+        `rows` contient des triplets `(aumid, payload, secondes d'ancienneté)`.
+        """
+        directory = Path(tempfile.mkdtemp())
+        path = directory / "wpndatabase.db"
+        connection = sqlite3.connect(path)
+        if schema:
+            connection.execute(
+                "CREATE TABLE NotificationHandler "
+                "(RecordId INTEGER PRIMARY KEY, PrimaryId TEXT)"
+            )
+            connection.execute(
+                "CREATE TABLE Notification (Id INTEGER PRIMARY KEY, "
+                "HandlerId INTEGER, Payload BLOB, ArrivalTime INTEGER)"
+            )
+            handlers = {}
+            for index, (aumid, payload, age) in enumerate(rows, start=1):
+                if aumid not in handlers:
+                    handlers[aumid] = len(handlers) + 1
+                    connection.execute(
+                        "INSERT INTO NotificationHandler VALUES (?, ?)",
+                        (handlers[aumid], aumid),
+                    )
+                blob = payload.encode("utf-8") if isinstance(payload, str) else payload
+                connection.execute(
+                    "INSERT INTO Notification VALUES (?, ?, ?, ?)",
+                    (index, handlers[aumid], blob, self._filetime(age)),
+                )
+        else:
+            connection.execute("CREATE TABLE Autre (x INTEGER)")
+        connection.commit()
+        connection.close()
+        self.addCleanup(shutil.rmtree, directory, ignore_errors=True)
+        return path
+
+    def _reader(self, rows, schema=True, ignored=None):
+        from deck3ds.notifications import NotificationReader, _WindowsSource
+
+        return NotificationReader(
+            ignored=ignored,
+            source=_WindowsSource(),
+            path=self._database(rows, schema=schema),
+        )
+
+    def _toast(self, *blocks):
+        texts = "".join(f"<text>{block}</text>" for block in blocks)
+        return (
+            '<toast><visual><binding template="ToastGeneric">'
+            f"{texts}</binding></visual></toast>"
+        )
+
+    def test_aumid_du_store_reduit_au_paquet(self):
+        """Un AUMID du Store porte un point d'entrée et un suffixe d'éditeur.
+
+        `Microsoft.WindowsStore_8wekyb3d8bbwe!App` doit se réduire au paquet,
+        sans quoi la table des noms ne correspondrait jamais.
+        """
+        from deck3ds.notifications import _readable_windows_name
+
+        self.assertEqual(
+            _readable_windows_name("Microsoft.WindowsStore_8wekyb3d8bbwe!App"),
+            "Store",
+        )
+        self.assertEqual(
+            _readable_windows_name("Microsoft.Teams_8wekyb3d8bbwe!Teams"), "Teams"
+        )
+        # Sans suffixe d'éditeur, seul le découpage sur « ! » retire le point
+        # d'entrée : ce cas distingue les deux traitements.
+        self.assertEqual(_readable_windows_name("chrome!Default"), "Chrome")
+
+    def test_aumid_de_raccourci_reduit_au_nom(self):
+        from deck3ds.notifications import _readable_windows_name
+
+        self.assertEqual(
+            _readable_windows_name("{6D809377}\\Programs\\Discord.lnk"), "Discord"
+        )
+        self.assertEqual(_readable_windows_name("Spotify.exe"), "Spotify")
+
+    def test_aumid_systeme_derive_du_dernier_segment(self):
+        """Une notification système inconnue doit rester lisible."""
+        from deck3ds.notifications import _readable_windows_name
+
+        self.assertEqual(
+            _readable_windows_name("Windows.SystemToast.WindowsUpdate"),
+            "Mise à jour",
+        )
+        self.assertEqual(
+            _readable_windows_name("Windows.SystemToast.Inconnu"), "Inconnu"
+        )
+
+    def test_aumid_vide_reste_vide(self):
+        from deck3ds.notifications import _readable_windows_name
+
+        self.assertEqual(_readable_windows_name("   "), "")
+
+    def test_titre_et_corps_extraits(self):
+        reader = self._reader([("Discord.lnk", self._toast("Antoine", "Salut"), 30)])
+        items = reader.read()
+
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0].app, "Discord")
+        self.assertEqual(items[0].title, "Antoine")
+        self.assertEqual(items[0].body, "Salut")
+
+    def test_lignes_supplementaires_reunies_dans_le_corps(self):
+        """Un toast peut porter plusieurs lignes : aucune ne doit être perdue."""
+        reader = self._reader(
+            [("chrome", self._toast("Titre", "Ligne un", "Ligne deux"), 10)]
+        )
+        self.assertEqual(reader.read()[0].body, "Ligne un Ligne deux")
+
+    def test_date_filetime_convertie(self):
+        reader = self._reader([("chrome", self._toast("T", "C"), 120)])
+        age = reader.read()[0].age
+
+        # La conversion FILETIME doit tomber à la seconde près.
+        self.assertGreaterEqual(age, 119)
+        self.assertLessEqual(age, 122)
+
+    def test_notification_trop_ancienne_ecartee(self):
+        from deck3ds.notifications import MAX_AGE_SECONDS
+
+        reader = self._reader(
+            [("chrome", self._toast("Vieux", "Corps"), MAX_AGE_SECONDS + 600)]
+        )
+        self.assertEqual(reader.read(), [])
+
+    def test_date_anterieure_a_1970_ecartee(self):
+        """Un `ArrivalTime` proche de zéro daterait la notification de 1601."""
+        path = self._database([("chrome", self._toast("T", "C"), 10)])
+        connection = sqlite3.connect(path)
+        connection.execute("UPDATE Notification SET ArrivalTime = 1")
+        connection.commit()
+        connection.close()
+
+        from deck3ds.notifications import NotificationReader, _WindowsSource
+
+        reader = NotificationReader(source=_WindowsSource(), path=path)
+        self.assertEqual(reader.read(), [])
+
+    def test_date_future_ecartee(self):
+        """Une date à venir ferait passer l'entrée pour la plus récente.
+
+        L'ancienneté serait ramenée à zéro, et la notification annoncée comme
+        venant d'arriver alors qu'elle est illisible.
+        """
+        reader = self._reader([("chrome", self._toast("Futur", "C"), -7200)])
+        self.assertEqual(reader.read(), [])
+
+    def test_legere_avance_toleree(self):
+        """Les deux horloges ne sont pas lues au même instant."""
+        reader = self._reader([("chrome", self._toast("Presque", "C"), -2)])
+        items = reader.read()
+
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0].age, 0)
+
+    def test_vignette_ignoree(self):
+        """Une vignette de menu Démarrer n'est pas une alerte à l'écran."""
+        tile = (
+            '<tile><visual><binding template="TileMedium">'
+            "<text>Pas une alerte</text></binding></visual></tile>"
+        )
+        reader = self._reader([("chrome", tile, 10)])
+        self.assertEqual(reader.read(), [])
+
+    def test_xml_illisible_ignore(self):
+        reader = self._reader([
+            ("chrome", "<toast><visual>", 10),
+            ("discord", self._toast("Bon", "Corps"), 20),
+        ])
+        items = reader.read()
+
+        self.assertEqual(len(items), 1, "seule la notification lisible subsiste")
+        self.assertEqual(items[0].title, "Bon")
+
+    def test_toast_sans_texte_ignore(self):
+        reader = self._reader([("chrome", self._toast(), 10)])
+        self.assertEqual(reader.read(), [])
+
+    def test_doublons_fusionnes(self):
+        """Certaines applications répètent la même notification."""
+        même = self._toast("Antoine", "Salut")
+        reader = self._reader([
+            ("discord", même, 10),
+            ("discord", même, 20),
+            ("discord", même, 30),
+        ])
+        self.assertEqual(len(reader.read()), 1)
+
+    def test_ordre_du_plus_recent_au_plus_ancien(self):
+        reader = self._reader([
+            ("chrome", self._toast("Ancien", "x"), 300),
+            ("discord", self._toast("Recent", "y"), 5),
+        ])
+        self.assertEqual([i.title for i in reader.read()], ["Recent", "Ancien"])
+
+    def test_limite_respectee(self):
+        from deck3ds.notifications import MAX_NOTIFICATIONS
+
+        rows = [
+            (f"app{index}", self._toast(f"T{index}", "corps"), index)
+            for index in range(MAX_NOTIFICATIONS + 5)
+        ]
+        self.assertEqual(len(self._reader(rows).read()), MAX_NOTIFICATIONS)
+
+    def test_application_filtree(self):
+        reader = self._reader(
+            [("discord", self._toast("Antoine", "Salut"), 10)], ignored=["Discord"]
+        )
+        self.assertEqual(reader.read(), [])
+
+    def test_schema_inattendu_eteint_la_lecture(self):
+        """Le schéma peut changer : la fonctionnalité s'éteint sans échouer."""
+        reader = self._reader([], schema=False)
+
+        self.assertEqual(reader.read(), [])
+        self.assertTrue(reader.broken, "la lecture ne doit pas être retentée")
+
+    def test_base_absente_ne_leve_pas(self):
+        from deck3ds.notifications import NotificationReader, _WindowsSource
+
+        reader = NotificationReader(
+            source=_WindowsSource(), path=Path("/introuvable/wpndatabase.db")
+        )
+        self.assertFalse(reader.available)
+        self.assertEqual(reader.read(), [])
+
+    def test_icones_valides(self):
+        reader = self._reader([
+            ("discord", self._toast("A", "b"), 10),
+            ("app-inconnue", self._toast("C", "d"), 20),
+        ])
+        for item in reader.read():
+            self.assertIn(item.icon, config_module.ICONS)
+
+    def test_lecture_ne_modifie_pas_la_base(self):
+        """La base appartient au système : elle doit rester intacte."""
+        path = self._database([("chrome", self._toast("T", "C"), 10)])
+        before = path.read_bytes()
+
+        from deck3ds.notifications import NotificationReader, _WindowsSource
+
+        NotificationReader(source=_WindowsSource(), path=path).read()
+
+        self.assertEqual(path.read_bytes(), before)
+
+    def test_nouveaute_signalee_une_seule_fois(self):
+        premier = self._reader([("discord", self._toast("A", "un"), 10)])
+        items = premier.read()
+        self.assertIsNone(premier.take_new(items), "pas d'annonce au démarrage")
+
+        suivant = [
+            item for item in self._reader(
+                [("discord", self._toast("B", "deux"), 5)]
+            ).read()
+        ]
+        self.assertIsNotNone(premier.take_new(suivant))
+        self.assertIsNone(premier.take_new(suivant))
 
 
 class TestPalette(unittest.TestCase):
@@ -2685,12 +3112,13 @@ class TestCapabilities(unittest.TestCase):
         capabilities = WindowsPlatform.capabilities(None)
         self.assertTrue(capabilities.windows)
         self.assertTrue(capabilities.audio_output)
+        # Le volume par application exigerait `IAudioSessionManager2`.
         self.assertFalse(capabilities.app_volume)
-        self.assertFalse(capabilities.notifications)
         self.assertTrue(capabilities.media_artwork)
         # Ce qui fonctionne doit rester déclaré.
         self.assertTrue(capabilities.volume)
         self.assertTrue(capabilities.media)
+        self.assertTrue(capabilities.notifications)
 
 
 class TestWindowsAdapter(unittest.TestCase):

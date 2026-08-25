@@ -1,13 +1,24 @@
-"""Lecture des notifications de macOS.
+"""Lecture des notifications du système.
 
-macOS conserve les notifications du centre de notifications dans une base
-SQLite, dont le contenu est un plist binaire. Les deux formats sont pris en
-charge par la bibliothèque standard : aucune dépendance n'est nécessaire.
+macOS et Windows conservent tous deux leurs notifications dans une base SQLite,
+lisible sans dépendance : seuls le chemin, la requête, l'origine des dates et le
+format de la charge utile diffèrent. Un lecteur commun porte la logique partagée
+— déduplication, filtrage par ancienneté, détection des nouveautés — et délègue
+ces quatre différences à un adaptateur par système.
 
-Réserve importante : cette base est un détail d'implémentation du système, non
-documenté par Apple. Son schéma peut changer lors d'une mise à jour majeure de
-macOS. Le décodage est donc volontairement défensif : en cas de structure
-inattendue, la fonctionnalité se désactive au lieu de faire échouer l'agent.
+- macOS : `~/Library/Group Containers/group.com.apple.usernoted/db2/db`,
+  charge utile en plist binaire, dates comptées depuis 2001.
+- Windows : `%LOCALAPPDATA%/Microsoft/Windows/Notifications/wpndatabase.db`,
+  charge utile en XML de toast, dates en FILETIME comptées depuis 1601.
+
+Réserve importante : ces bases sont des détails d'implémentation, non documentés
+par leurs éditeurs. Leur schéma peut changer lors d'une mise à jour majeure. Le
+décodage est donc volontairement défensif : devant une structure inattendue, la
+fonctionnalité se désactive au lieu de faire échouer l'agent.
+
+Sur Windows, l'API `UserNotificationListener` aurait été plus propre, mais elle
+exige une identité de paquet et un appel depuis un fil d'interface : un agent
+lancé depuis un dossier ne peut pas y prétendre.
 """
 
 # Deck3DS — Copyright (C) 2026 Romuald (@RomualdYT)
@@ -18,23 +29,39 @@ from __future__ import annotations
 import os
 import plistlib
 import sqlite3
+import sys
 import time
+import xml.etree.ElementTree as ElementTree
 from dataclasses import dataclass
 from pathlib import Path
 
-#: Emplacement de la base du centre de notifications.
-_DB_PATH = (
-    "~/Library/Group Containers/group.com.apple.usernoted/db2/db"
+#: Base du centre de notifications de macOS.
+_MAC_DB_PATH = "~/Library/Group Containers/group.com.apple.usernoted/db2/db"
+
+#: Base des notifications poussées de Windows, depuis la version 1607. Les
+#: éditions antérieures utilisaient `appdb.dat`, dans un format propriétaire :
+#: elles ne sont pas prises en charge.
+_WINDOWS_DB_PATH = (
+    "~/AppData/Local/Microsoft/Windows/Notifications/wpndatabase.db"
 )
 
-#: Les dates sont comptées depuis le 1er janvier 2001, référence d'Apple.
+#: Les dates de macOS sont comptées depuis le 1er janvier 2001.
 _APPLE_EPOCH = 978307200
+
+#: Un FILETIME Windows compte les intervalles de 100 ns depuis le
+#: 1er janvier 1601. Cette constante est l'écart avec l'époque Unix.
+_FILETIME_EPOCH = 11644473600
+_FILETIME_PER_SECOND = 10_000_000
 
 #: Notifications conservées et transmises à la console.
 MAX_NOTIFICATIONS = 8
 
 #: Au-delà, une notification n'a plus d'intérêt immédiat.
 MAX_AGE_SECONDS = 6 * 3600
+
+#: Avance tolérée sur l'horloge, la date de la base et l'heure courante n'étant
+#: pas lues au même instant. Au-delà, la date est jugée aberrante.
+_CLOCK_TOLERANCE = 60.0
 
 #: Noms lisibles pour les applications courantes. L'identifiant de paquet est
 #: illisible sur un petit écran.
@@ -59,6 +86,34 @@ _APP_NAMES = {
     "com.google.Chrome": "Chrome",
     "com.docker.docker": "Docker",
     "com.github.GitHubClient": "GitHub",
+}
+
+#: Noms lisibles des applications Windows. L'identifiant y est un AUMID, dont la
+#: forme varie : identifiant de paquet du Microsoft Store, ou chemin du
+#: raccourci pour une application installée classiquement.
+_WINDOWS_APP_NAMES = {
+    "microsoft.windowscommunicationsapps": "Courrier",
+    "microsoft.windowsstore": "Store",
+    "microsoft.skypeapp": "Skype",
+    "microsoft.outlook": "Outlook",
+    "microsoft.teams": "Teams",
+    "microsoft.office.outlook": "Outlook",
+    "microsoft.windows.explorer": "Explorateur",
+    "microsoft.windowsterminal": "Terminal",
+    "windows.systemtoast.securityandmaintenance": "Sécurité",
+    "windows.systemtoast.windowsupdate": "Mise à jour",
+    "windows.systemtoast.bthquickpair": "Bluetooth",
+    "chrome": "Chrome",
+    "firefox": "Firefox",
+    "msedge": "Edge",
+    "discord": "Discord",
+    "slack": "Slack",
+    "spotify": "Spotify",
+    "code": "VS Code",
+    "steam": "Steam",
+    "thunderbird": "Thunderbird",
+    "whatsapp": "WhatsApp",
+    "telegram": "Telegram",
 }
 
 #: Icônes de l'interface associées aux applications connues.
@@ -125,8 +180,176 @@ def _readable_name(bundle: str) -> str:
     return tail[:1].upper() + tail[1:] if tail else cleaned
 
 
+def _readable_windows_name(aumid: str) -> str:
+    """Nom lisible d'une application Windows à partir de son AUMID.
+
+    Trois formes se présentent : un identifiant de paquet du Store
+    (`Microsoft.WindowsStore_8wekyb3d8bbwe!App`), un identifiant de notification
+    système (`Windows.SystemToast.WindowsUpdate`), ou le chemin d'un raccourci
+    (`{...}\Programs\Discord.lnk`). Chacune est réduite au fragment porteur de
+    sens avant d'être confrontée à la table.
+    """
+    cleaned = aumid.strip()
+    if not cleaned:
+        return ""
+
+    # Un AUMID du Store sépare le paquet du point d'entrée par « ! ».
+    package = cleaned.split("!")[0]
+    # Le suffixe d'éditeur (`_8wekyb3d8bbwe`) n'apporte rien.
+    package = package.split("_")[0]
+
+    # Forme « chemin de raccourci » : seul le nom du fichier compte.
+    if "\\" in package or "/" in package:
+        package = package.replace("\\", "/").rsplit("/", 1)[-1]
+    if package.lower().endswith(".lnk"):
+        package = package[: -len(".lnk")]
+    if package.lower().endswith(".exe"):
+        package = package[: -len(".exe")]
+
+    known = _WINDOWS_APP_NAMES.get(package.lower())
+    if known:
+        return known
+
+    # Les notifications système annoncent leur origine dans le dernier segment.
+    tail = package.rsplit(".", 1)[-1] if "." in package else package
+    return tail[:1].upper() + tail[1:] if tail else package
+
+
 def _icon_for(name: str) -> str:
     return _APP_ICONS.get(name, "star")
+
+
+class _Source:
+    """Différences d'un système : où lire, quoi lire, comment décoder.
+
+    Un adaptateur ne connaît rien de la déduplication ni du filtrage : il
+    traduit une ligne de la base en notification, ou rend `None` si la ligne
+    n'est pas exploitable.
+    """
+
+    #: Emplacement de la base, avant expansion du dossier personnel.
+    path = ""
+
+    #: Requête retournant `(date, application, charge utile)`, la plus récente
+    #: d'abord. La limite est large : beaucoup de lignes sont écartées ensuite.
+    query = ""
+
+    def timestamp(self, raw: object) -> float | None:
+        """Convertit la date de la base en secondes depuis l'époque Unix."""
+        raise NotImplementedError
+
+    def texts(self, payload: object) -> tuple[str, str, str]:
+        """Extrait `(titre, sous-titre, corps)` de la charge utile."""
+        raise NotImplementedError
+
+    def app_name(self, identifier: str) -> str:
+        """Nom lisible de l'application émettrice."""
+        raise NotImplementedError
+
+
+class _MacSource(_Source):
+    """Centre de notifications de macOS : plist binaire, époque 2001."""
+
+    path = _MAC_DB_PATH
+    query = (
+        "SELECT rec.delivered_date, app.identifier, rec.data "
+        "FROM record rec JOIN app ON rec.app_id = app.app_id "
+        "WHERE rec.delivered_date IS NOT NULL "
+        "ORDER BY rec.delivered_date DESC LIMIT 40"
+    )
+
+    def timestamp(self, raw: object) -> float | None:
+        if not isinstance(raw, (int, float)) or isinstance(raw, bool):
+            return None
+        return float(raw) + _APPLE_EPOCH
+
+    def texts(self, payload: object) -> tuple[str, str, str]:
+        if not isinstance(payload, (bytes, bytearray)):
+            return "", "", ""
+        try:
+            decoded = plistlib.loads(bytes(payload))
+        except Exception:
+            # Contenu illisible : cette entrée est ignorée, sans rien rompre.
+            return "", "", ""
+
+        if not isinstance(decoded, dict):
+            return "", "", ""
+        request = decoded.get("req")
+        if not isinstance(request, dict):
+            return "", "", ""
+
+        def text(field: str) -> str:
+            value = request.get(field)
+            return value.strip() if isinstance(value, str) else ""
+
+        return text("titl"), text("subt"), text("body")
+
+    def app_name(self, identifier: str) -> str:
+        return _readable_name(identifier)
+
+
+class _WindowsSource(_Source):
+    """Notifications poussées de Windows : XML de toast, dates en FILETIME."""
+
+    path = _WINDOWS_DB_PATH
+    # `NotificationHandler` porte le nom de l'application, `Notification` la
+    # charge utile : la jointure relie les deux.
+    query = (
+        "SELECT n.ArrivalTime, h.PrimaryId, n.Payload "
+        "FROM Notification n "
+        "JOIN NotificationHandler h ON n.HandlerId = h.RecordId "
+        "WHERE n.ArrivalTime IS NOT NULL AND n.ArrivalTime > 0 "
+        "ORDER BY n.ArrivalTime DESC LIMIT 40"
+    )
+
+    def timestamp(self, raw: object) -> float | None:
+        if not isinstance(raw, (int, float)) or isinstance(raw, bool):
+            return None
+        return float(raw) / _FILETIME_PER_SECOND - _FILETIME_EPOCH
+
+    def texts(self, payload: object) -> tuple[str, str, str]:
+        if isinstance(payload, (bytes, bytearray)):
+            try:
+                raw = bytes(payload).decode("utf-8")
+            except UnicodeDecodeError:
+                return "", "", ""
+        elif isinstance(payload, str):
+            raw = payload
+        else:
+            return "", "", ""
+
+        try:
+            root = ElementTree.fromstring(raw)
+        except ElementTree.ParseError:
+            return "", "", ""
+
+        # Seules les notifications d'écran nous intéressent : une vignette de
+        # menu Démarrer (`tile`) ou un badge ne s'affiche pas comme une alerte.
+        if root.tag != "toast":
+            return "", "", ""
+
+        # Un toast expose ses lignes dans l'ordre d'affichage : titre en
+        # premier, puis corps. L'attribut `id` est facultatif et parfois absent.
+        blocks = [(node.text or "").strip() for node in root.iter("text")]
+        blocks = [block for block in blocks if block]
+        if not blocks:
+            return "", "", ""
+
+        title = blocks[0]
+        body = " ".join(blocks[1:]) if len(blocks) > 1 else ""
+        return title, "", body
+
+    def app_name(self, identifier: str) -> str:
+        return _readable_windows_name(identifier)
+
+
+def _source_for(platform: str) -> _Source | None:
+    """Adaptateur correspondant au système, `None` s'il n'est pas pris en charge."""
+    if platform == "darwin":
+        return _MacSource()
+    if platform == "win32":
+        return _WindowsSource()
+    return None
 
 
 class NotificationReader:
@@ -136,14 +359,29 @@ class NotificationReader:
     applications en émettent plusieurs d'affilée, ce qui saturerait l'écran de
     la console.
 
-    `ignored` permet d'écarter des applications par nom ou par identifiant de
-    paquet. Aucune clé de configuration ne l'alimente aujourd'hui ; le
-    paramètre existe pour que l'appelant puisse le faire.
+    `ignored` permet d'écarter des applications par nom ou par identifiant.
+    Aucune clé de configuration ne l'alimente aujourd'hui ; le paramètre existe
+    pour que l'appelant puisse le faire.
+
+    `source` sert aux tests, qui fournissent un adaptateur et une base
+    synthétiques. Par défaut, le système courant décide.
     """
 
-    def __init__(self, ignored: list[str] | None = None) -> None:
-        self.path = Path(os.path.expanduser(_DB_PATH))
-        self.available = self.path.is_file()
+    def __init__(
+        self,
+        ignored: list[str] | None = None,
+        source: _Source | None = None,
+        path: Path | None = None,
+    ) -> None:
+        self._source = source if source is not None else _source_for(sys.platform)
+        if path is not None:
+            self.path = path
+        elif self._source is not None:
+            self.path = Path(os.path.expanduser(self._source.path))
+        else:
+            self.path = None
+
+        self.available = self.path is not None and self.path.is_file()
         #: Vrai après un échec de lecture : on cesse alors d'insister.
         self.broken = False
 
@@ -162,40 +400,19 @@ class NotificationReader:
 
     def read(self) -> list[Notification]:
         """Notifications récentes, de la plus récente à la plus ancienne."""
-        if not self.available or self.broken:
+        if not self.available or self.broken or self._source is None:
             return []
 
-        try:
-            # Ouverture en lecture seule : la base appartient au système et ne
-            # doit sous aucun prétexte être modifiée.
-            connection = sqlite3.connect(
-                f"file:{self.path}?mode=ro", uri=True, timeout=1.0
-            )
-        except sqlite3.Error:
-            self.broken = True
+        rows = self._rows()
+        if rows is None:
             return []
-
-        try:
-            rows = connection.execute(
-                "SELECT rec.delivered_date, app.identifier, rec.data "
-                "FROM record rec JOIN app ON rec.app_id = app.app_id "
-                "WHERE rec.delivered_date IS NOT NULL "
-                "ORDER BY rec.delivered_date DESC LIMIT 40"
-            ).fetchall()
-        except sqlite3.Error:
-            # Schéma inattendu : la fonctionnalité s'éteint proprement plutôt
-            # que de réessayer indéfiniment.
-            self.broken = True
-            return []
-        finally:
-            connection.close()
 
         now = time.time()
         results: list[Notification] = []
         seen: set[str] = set()
 
-        for delivered, bundle, blob in rows:
-            notification = self._decode(delivered, bundle or "", blob, now)
+        for delivered, identifier, payload in rows:
+            notification = self._decode(delivered, identifier or "", payload, now)
             if notification is None:
                 continue
 
@@ -211,46 +428,55 @@ class NotificationReader:
 
         return results
 
-    def _decode(
-        self, delivered: float, bundle: str, blob: bytes, now: float
-    ) -> Notification | None:
-        """Convertit une ligne de la base en notification affichable."""
-        if not isinstance(delivered, (int, float)) or not blob:
+    def _rows(self) -> list[tuple] | None:
+        """Lignes brutes de la base, ou `None` si elle est illisible."""
+        try:
+            # Ouverture en lecture seule : la base appartient au système et ne
+            # doit sous aucun prétexte être modifiée.
+            connection = sqlite3.connect(
+                f"file:{self.path}?mode=ro", uri=True, timeout=1.0
+            )
+        except sqlite3.Error:
+            self.broken = True
             return None
 
-        age = now - (float(delivered) + _APPLE_EPOCH)
+        try:
+            return connection.execute(self._source.query).fetchall()
+        except sqlite3.Error:
+            # Schéma inattendu : la fonctionnalité s'éteint proprement plutôt
+            # que de réessayer indéfiniment.
+            self.broken = True
+            return None
+        finally:
+            connection.close()
+
+    def _decode(
+        self, delivered: object, identifier: str, payload: object, now: float
+    ) -> Notification | None:
+        """Convertit une ligne de la base en notification affichable."""
+        moment = self._source.timestamp(delivered)
+        if moment is None:
+            return None
+
+        age = now - moment
+        # Une date future trahit une horloge décalée ou une valeur illisible :
+        # la garder ferait passer l'entrée pour la plus récente de toutes. Une
+        # légère avance reste tolérée, le temps n'étant pas lu au même instant.
+        if age < -_CLOCK_TOLERANCE:
+            return None
         if age < 0.0:
             age = 0.0
         if age > MAX_AGE_SECONDS:
             return None
 
-        try:
-            decoded = plistlib.loads(blob)
-        except Exception:
-            # Contenu illisible : on ignore cette entrée sans rien interrompre.
-            return None
-
-        if not isinstance(decoded, dict):
-            return None
-
-        request = decoded.get("req")
-        if not isinstance(request, dict):
-            return None
-
-        def text(field: str) -> str:
-            value = request.get(field)
-            return value.strip() if isinstance(value, str) else ""
-
-        title = text("titl")
-        subtitle = text("subt")
-        body = text("body")
+        title, subtitle, body = self._source.texts(payload)
 
         # Une notification sans titre ni corps n'apporte rien.
         if not title and not body:
             return None
 
-        app = _readable_name(bundle)
-        if self._is_ignored(app, bundle):
+        app = self._source.app_name(identifier)
+        if self._is_ignored(app, identifier):
             return None
 
         # Le sous-titre précise souvent le titre : on les réunit plutôt que de
@@ -264,8 +490,8 @@ class NotificationReader:
             body=body,
             icon=_icon_for(app),
             age=int(age),
-            bundle=bundle,
-            key=f"{bundle}|{title}|{body}",
+            bundle=identifier,
+            key=f"{identifier}|{title}|{body}",
         )
 
     def take_new(self, notifications: list[Notification]) -> Notification | None:

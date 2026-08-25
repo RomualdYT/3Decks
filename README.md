@@ -17,7 +17,7 @@ see what is currently playing — album artwork included.
 <img src="https://img.shields.io/badge/console-3DS%20%7C%202DS%20%7C%20New%203DS-6EE7B7?style=flat-square" alt="Consoles: 3DS, 2DS, New 3DS">
 <img src="https://img.shields.io/badge/python-3.9%2B-34D399?style=flat-square" alt="Python 3.9 or newer">
 <img src="https://img.shields.io/badge/dependencies-none-34D399?style=flat-square" alt="No dependencies">
-<img src="https://img.shields.io/badge/tests-284%20passing-34D399?style=flat-square" alt="284 tests passing">
+<img src="https://img.shields.io/badge/tests-314%20passing-34D399?style=flat-square" alt="314 tests passing">
 <img src="https://img.shields.io/badge/licence-GPL--3.0-F59E0B?style=flat-square" alt="Licence GPL-3.0">
 </p>
 
@@ -484,10 +484,13 @@ enumeration/focus uses Win32 directly. A persistent PowerShell process carries
 the Core Audio and WinRT calls; scripts are sent atomically and every response
 has a real timeout so a blocked Windows API cannot freeze the agent.
 
-Two capabilities are not ported yet: per-application volume and notification
-history. Output switching uses Core Audio and `IPolicyConfig`; Spotify artwork
-is read through WinRT and converted locally with System.Drawing. The adapter
-declares the remaining gaps in `capabilities()`, so `--ui` greys out the
+One capability is not ported yet: per-application volume, which would require
+`IAudioSessionManager2`. Output switching uses Core Audio and `IPolicyConfig`;
+Spotify artwork is read through WinRT and converted locally with System.Drawing.
+Notification history is read from `wpndatabase.db`, the push-notification store,
+opened read-only; `UserNotificationListener` would be cleaner but requires a
+package identity that an agent launched from a folder cannot claim. The adapter
+declares the remaining gap in `capabilities()`, so `--ui` greys out the
 corresponding actions and dashboards instead of offering inert buttons.
 
 **Discord voice channels.** Reading participants requires an OAuth scope granted

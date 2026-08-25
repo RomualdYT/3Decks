@@ -235,38 +235,10 @@ class MacPlatform(Platform):
     # --- Notifications --------------------------------------------------------
 
     def list_notifications(self) -> list[NotificationInfo]:
-        """Notifications récentes, converties au format de l'interface.
-
-        La détection de nouveauté est faite ici plutôt qu'à la demande : ainsi
-        une notification arrivée entre deux collectes n'est jamais manquée.
-        """
-        entries = self._notifications.read()
-
-        arrival = self._notifications.take_new(entries)
-        if arrival is not None:
-            self._pending_notification = NotificationInfo(
-                app=arrival.app,
-                title=arrival.title,
-                body=arrival.body,
-                icon=arrival.icon,
-                age=arrival.age,
-            )
-
-        return [
-            NotificationInfo(
-                app=entry.app,
-                title=entry.title,
-                body=entry.body,
-                icon=entry.icon,
-                age=entry.age,
-            )
-            for entry in entries
-        ]
+        return self._read_notifications()
 
     def take_new_notification(self) -> NotificationInfo | None:
-        pending = self._pending_notification
-        self._pending_notification = None
-        return pending
+        return self._take_pending_notification()
 
     # --- Sortie audio ---------------------------------------------------------
 

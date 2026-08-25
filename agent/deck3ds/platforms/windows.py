@@ -29,11 +29,13 @@ from pathlib import Path
 
 from ..config import MAX_LIST_ENTRIES
 from ..keys import MODIFIER_BY_NAME, InvalidHotkey, parse_hotkey
+from ..notifications import NotificationReader
 from ..messages import msg
 from .base import (
     ActionFailed,
     Capabilities,
     MediaInfo,
+    NotificationInfo,
     Platform,
     SystemSnapshot,
     Unsupported,
@@ -172,6 +174,10 @@ class WindowsPlatform(Platform):
 
     def __init__(self) -> None:
         self._shell = _PowerShellSession()
+        # Lecture du centre de notifications, dans la base des notifications
+        # poussées. Le lecteur choisit son adaptateur selon le système.
+        self._notifications = NotificationReader()
+        self._pending_notification: NotificationInfo | None = None
         self._mic_muted: bool | None = None
         self._user32 = ctypes.WinDLL("user32", use_last_error=True)
         self._user32.GetForegroundWindow.restype = ctypes.c_void_p
@@ -201,11 +207,9 @@ class WindowsPlatform(Platform):
     def capabilities(self) -> Capabilities:
         """Capacités réelles de cet adaptateur, y compris ses manques.
 
-        Deux familles restent non portées : le volume par application, qui
-        exigerait `IAudioSessionManager2`, et les notifications, dont Windows
-        n'expose pas d'historique lisible sans paquet signé. Les déclarer
-        fausses vaut mieux que de laisser l'interface proposer des boutons qui
-        resteraient sans effet.
+        Une seule famille reste non portée : le volume par application, qui
+        exigerait `IAudioSessionManager2`. La déclarer fausse vaut mieux que de
+        laisser l'interface proposer des boutons qui resteraient sans effet.
         """
         return Capabilities(
             volume=True,
@@ -221,7 +225,7 @@ class WindowsPlatform(Platform):
             open_url=True,
             open_path=True,
             lock=True,
-            notifications=False,
+            notifications=True,
             system_stats=True,
         )
 
@@ -465,6 +469,14 @@ namespace Deck3DS {
             self._audio_script(f"[Deck3DS.Audio]::SetMicMute({flag})"), timeout=12.0
         )
         self._mic_muted = muted
+
+    # --- Notifications --------------------------------------------------------
+
+    def list_notifications(self) -> list[NotificationInfo]:
+        return self._read_notifications()
+
+    def take_new_notification(self) -> NotificationInfo | None:
+        return self._take_pending_notification()
 
     # --- Sorties audio -------------------------------------------------------
 
