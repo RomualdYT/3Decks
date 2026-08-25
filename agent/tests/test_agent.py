@@ -33,7 +33,7 @@ from deck3ds.platforms.base import (  # noqa: E402
     Platform,
     Unsupported,
 )
-from deck3ds.server import Server, _snapshot_payload  # noqa: E402
+from deck3ds.server import Options as ServerOptions, Server, _snapshot_payload  # noqa: E402
 
 
 class FakePlatform(Platform):
@@ -886,6 +886,368 @@ class TestObsProtocol(unittest.TestCase):
 
 
 # --- Sérialisation de l'état ---------------------------------------------------
+
+
+class TestBroadcast(unittest.IsolatedAsyncioTestCase):
+    """Diffusion aux consoles, éviction comprise.
+
+    La même boucle était recopiée à quatre endroits ; ces tests fixent le
+    comportement attendu de la version factorisée.
+    """
+
+    class _FakeClient:
+        def __init__(self, authenticated=True, alive=True):
+            self.authenticated = authenticated
+            self.alive = alive
+            self.sent = []
+            self.raw = []
+            self.closed = False
+
+        async def send(self, message):
+            if not self.alive:
+                return False
+            self.sent.append(message)
+            return True
+
+        async def send_raw(self, payload):
+            self.raw.append(payload)
+            return True
+
+        async def close(self):
+            self.closed = True
+
+    def _server(self, *clients):
+        loaded = config_module.parse(minimal_config())
+        server = Server(loaded, FakePlatform())
+        server.log = lambda message: None
+        for client in clients:
+            server.clients.add(client)
+        return server
+
+    async def test_seules_les_consoles_authentifiees_recoivent(self):
+        connectee = self._FakeClient(authenticated=True)
+        en_attente = self._FakeClient(authenticated=False)
+        server = self._server(connectee, en_attente)
+
+        await server._broadcast({"type": "config.update"})
+
+        self.assertEqual(len(connectee.sent), 1)
+        self.assertEqual(en_attente.sent, [], "un message avant handshake fuiterait")
+
+    async def test_console_injoignable_est_retiree(self):
+        """Sans éviction, chaque cycle réécrirait dans une socket fermée."""
+        morte = self._FakeClient(alive=False)
+        vivante = self._FakeClient()
+        server = self._server(morte, vivante)
+
+        await server._broadcast({"type": "config.update"})
+
+        self.assertNotIn(morte, server.clients)
+        self.assertTrue(morte.closed)
+        self.assertIn(vivante, server.clients)
+
+    async def test_pochette_transmise_apres_l_etat(self):
+        client = self._FakeClient()
+        server = self._server(client)
+
+        await server._publish({"type": "state.update", "volume": 5}, b"IMG")
+
+        self.assertEqual(len(client.sent), 1)
+        self.assertEqual(client.raw, [b"IMG"])
+
+    async def test_pochette_seule_est_transmise(self):
+        """Une console qui vient d'arriver n'a aucune image, même sans delta."""
+        client = self._FakeClient()
+        server = self._server(client)
+
+        await server._publish({"type": "state.update"}, b"IMG")
+
+        self.assertEqual(client.sent, [], "aucun changement d'état à annoncer")
+        self.assertEqual(client.raw, [b"IMG"])
+
+    async def test_rien_a_dire_n_emet_rien(self):
+        client = self._FakeClient()
+        server = self._server(client)
+
+        await server._publish({"type": "state.update"}, None)
+
+        self.assertEqual(client.sent, [])
+        self.assertEqual(client.raw, [])
+
+
+class TestArtworkRefresh(unittest.IsolatedAsyncioTestCase):
+    """Pochette : jeton, teinte et transmission."""
+
+    class _Cache:
+        def __init__(self, changed, token="tok", accent="#112233"):
+            self._changed = changed
+            self.token = token
+            self.accent = accent
+
+        def update(self, url):
+            return self._changed
+
+        def payload(self):
+            return b"IMG"
+
+    def _server(self, cache):
+        loaded = config_module.parse(minimal_config())
+        server = Server(loaded, FakePlatform())
+        server._artwork = cache
+        return server
+
+    async def test_pochette_transmise_quand_elle_change(self):
+        server = self._server(self._Cache(changed=True))
+        snapshot = FakePlatform().snapshot()
+
+        art = await server._refresh_artwork(snapshot, {"media": {}})
+
+        self.assertEqual(art, b"IMG")
+
+    async def test_pochette_inchangee_n_est_pas_retransmise(self):
+        """La renvoyer à chaque cycle saturerait la liaison de la console."""
+        server = self._server(self._Cache(changed=False))
+        snapshot = FakePlatform().snapshot()
+
+        self.assertIsNone(await server._refresh_artwork(snapshot, {"media": {}}))
+
+    async def test_jeton_et_teinte_completent_le_media(self):
+        server = self._server(self._Cache(changed=True))
+        snapshot = FakePlatform().snapshot()
+        payload = {"media": {"title": "T"}}
+
+        await server._refresh_artwork(snapshot, payload)
+
+        self.assertEqual(payload["media"]["art"], "tok")
+        self.assertEqual(payload["media"]["accent"], "#112233")
+
+    async def test_media_absent_reste_intact(self):
+        server = self._server(self._Cache(changed=True))
+        snapshot = FakePlatform().snapshot()
+        snapshot.media = None
+        payload = {"media": None}
+
+        await server._refresh_artwork(snapshot, payload)
+
+        self.assertIsNone(payload["media"])
+
+
+class TestDynamicRepublish(unittest.IsolatedAsyncioTestCase):
+    """Pages alimentées automatiquement : republier n'est pas gratuit."""
+
+    async def _server(self):
+        raw = minimal_config()
+        raw["pages"][0]["source"] = "windows"
+        raw["pages"][0]["layout"] = "list"
+        raw["pages"][0]["buttons"] = []
+        loaded = config_module.parse(raw)
+        server = Server(loaded, FakePlatform())
+        server.log = lambda message: None
+        self.diffusions = []
+        server._broadcast = lambda message: self._note(message)
+        return server
+
+    async def _note(self, message):
+        self.diffusions.append(message)
+
+    async def test_liste_inchangee_ne_republie_pas(self):
+        """Republier à chaque seconde ferait clignoter l'écran de la console."""
+        server = await self._server()
+        await server._republish_windows("Safari")
+        premier = len(self.diffusions)
+
+        await server._republish_windows("Safari")
+
+        self.assertEqual(premier, 1, "la première publication est attendue")
+        self.assertEqual(len(self.diffusions), 1, "la seconde est inutile")
+
+    async def test_liste_modifiee_republie(self):
+        server = await self._server()
+        await server._republish_windows("Safari")
+        server.platform.list_windows = lambda: [("Notes", "Autre")]
+
+        await server._republish_windows("Notes")
+
+        self.assertEqual(len(self.diffusions), 2)
+
+
+class TestDirectAction(unittest.IsolatedAsyncioTestCase):
+    """Actions envoyées directement par un panneau de la console.
+
+    Elles ne figurent dans aucune page : la console transmet un nom d'action.
+    C'est le seul chemin où un identifiant venu du réseau désigne du code à
+    exécuter, d'où le contrôle par liste blanche.
+    """
+
+    class _FakeClient:
+        id = 1
+        authenticated = True
+
+        def __init__(self):
+            self.sent = []
+
+        async def send(self, message):
+            self.sent.append(message)
+            return True
+
+        async def close(self):
+            pass
+
+    def _server(self):
+        loaded = config_module.parse(minimal_config())
+        server = Server(loaded, FakePlatform())
+        server.log = lambda message: None
+        return server
+
+    async def test_action_de_la_liste_blanche_acceptee(self):
+        server = self._server()
+        client = self._FakeClient()
+
+        cible = await server._resolve_target(client, 1, "__direct", "volume.up")
+
+        self.assertIsNotNone(cible)
+        _, action = cible
+        self.assertEqual(action.kind, "volume.up")
+
+    async def test_action_hors_liste_blanche_refusee(self):
+        """Sans ce contrôle, la console pourrait faire exécuter n'importe quoi."""
+        server = self._server()
+        client = self._FakeClient()
+
+        cible = await server._resolve_target(client, 1, "__direct", "rm.tout")
+
+        self.assertIsNone(cible, "la demande doit être rejetée")
+        self.assertFalse(client.sent[0]["ok"])
+
+    async def test_bouton_de_la_configuration_resolu(self):
+        """Un bouton déclaré doit être trouvé par sa page et son identifiant."""
+        server = self._server()
+        client = self._FakeClient()
+
+        cible = await server._resolve_target(client, 1, "main", "b1")
+
+        self.assertIsNotNone(cible)
+        button, action = cible
+        self.assertIsNotNone(button, "le bouton de la page doit être retourné")
+        self.assertIsNone(action)
+        self.assertEqual(button.id, "b1")
+        self.assertEqual(client.sent, [], "aucun refus ne doit être émis")
+
+    async def test_bouton_absent_refuse(self):
+        server = self._server()
+        client = self._FakeClient()
+
+        cible = await server._resolve_target(client, 1, "main", "fantome")
+
+        self.assertIsNone(cible)
+        self.assertFalse(client.sent[0]["ok"])
+
+
+class TestCollectGuards(unittest.IsolatedAsyncioTestCase):
+    """Gardes de la boucle de collecte."""
+
+    async def test_aucune_collecte_sans_console(self):
+        """Interroger le système sans auditeur gaspillerait des appels coûteux.
+
+        Sur macOS, une collecte demande plusieurs centaines de millisecondes
+        d'AppleScript : la faire à vide serait un coût pur.
+        """
+        loaded = config_module.parse(minimal_config())
+        platform = FakePlatform()
+        collectes = []
+        original = platform.snapshot
+
+        def compter():
+            collectes.append(1)
+            return original()
+
+        platform.snapshot = compter
+        server = Server(loaded, platform)
+
+        await server._refresh_state()
+        self.assertEqual(collectes, [], "aucune collecte sans console")
+
+        # Avec une console, la collecte doit bien avoir lieu.
+        server.clients.add(object())
+        server._republish_windows = lambda active: asyncio.sleep(0)
+        server._refresh_artwork = lambda snapshot, payload: asyncio.sleep(0)
+        server._publish = lambda delta, art: asyncio.sleep(0)
+        await server._refresh_state()
+        self.assertEqual(len(collectes), 1)
+
+    async def test_relecture_suit_l_attente_apres_action(self):
+        """Le délai seul ne suffit pas : il faut relire pour voir l'effet."""
+        from deck3ds import server as server_module
+
+        loaded = config_module.parse(minimal_config())
+        server = Server(loaded, FakePlatform())
+        lectures = []
+
+        async def compter():
+            lectures.append(1)
+
+        server._refresh_state = compter
+        server._slow_confirm = False
+
+        async def dormir(_delay):
+            return None
+
+        with patch.object(server_module.asyncio, "sleep", dormir):
+            await server._confirm_after_action()
+
+        self.assertEqual(len(lectures), 1)
+
+    async def test_effet_lent_provoque_une_lecture_supplementaire(self):
+        from deck3ds import server as server_module
+
+        loaded = config_module.parse(minimal_config())
+        server = Server(loaded, FakePlatform())
+        lectures = []
+
+        async def compter():
+            lectures.append(1)
+
+        server._refresh_state = compter
+        server._slow_confirm = True
+
+        async def dormir(_delay):
+            return None
+
+        with patch.object(server_module.asyncio, "sleep", dormir):
+            await server._confirm_after_action()
+
+        self.assertEqual(len(lectures), 2)
+        self.assertFalse(server._slow_confirm, "l'indicateur doit être consommé")
+
+
+class TestFrameErrors(unittest.IsolatedAsyncioTestCase):
+    """Une trame illisible désynchronise le flux : la connexion doit tomber."""
+
+    class _Client:
+        id = 1
+        authenticated = True
+
+        def __init__(self, error):
+            self.reader_state = self._Broken(error)
+
+        class _Broken:
+            def __init__(self, error):
+                self._error = error
+
+            def __iter__(self):
+                raise self._error
+
+    async def test_trame_invalide_coupe_la_connexion(self):
+        loaded = config_module.parse(minimal_config())
+        server = Server(loaded, FakePlatform())
+        server.log = lambda message: None
+        client = self._Client(protocol.ProtocolError("longueur invalide"))
+
+        poursuivre = await server._dispatch_available(client)
+
+        self.assertFalse(
+            poursuivre, "rien ne permet de se resynchroniser sur le flux"
+        )
 
 
 class TestClientSend(unittest.IsolatedAsyncioTestCase):
@@ -2743,7 +3105,7 @@ class TestUiSecurity(unittest.IsolatedAsyncioTestCase):
         self.path.write_text(json.dumps(raw), encoding="utf-8")
 
         loaded = config_module.load(self.path)
-        self.server = Server(loaded, FakePlatform(), config_path=self.path)
+        self.server = Server(loaded, FakePlatform(), ServerOptions(config_path=self.path))
 
         api = Api(self.server)
         self.ui = UiServer(api.routes(), port=0, log=lambda message: None)
@@ -2915,7 +3277,7 @@ class TestUiApi(unittest.IsolatedAsyncioTestCase):
         self.path.write_text(json.dumps(minimal_config()), encoding="utf-8")
 
         loaded = config_module.load(self.path)
-        self.server = Server(loaded, FakePlatform(), config_path=self.path)
+        self.server = Server(loaded, FakePlatform(), ServerOptions(config_path=self.path))
         self.api = Api(self.server)
 
     def fake_request(self, body: object = None):

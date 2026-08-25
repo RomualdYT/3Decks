@@ -16,6 +16,7 @@ import platform as platform_module
 import socket
 import time
 from collections import deque
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
@@ -72,6 +73,11 @@ _MONTHS = (
 )
 
 
+#: Champs omis lorsqu'ils valent `None`. La console conserve alors ce qu'elle
+#: sait déjà, plutôt que d'afficher une donnée fausse.
+_OPTIONAL_FIELDS = ("volume", "muted", "mic_muted", "app_volume", "cpu", "memory")
+
+
 def _snapshot_payload(snapshot: SystemSnapshot) -> dict[str, Any]:
     """Traduit une photographie du poste en message `state.update`."""
     now = datetime.now()
@@ -84,24 +90,17 @@ def _snapshot_payload(snapshot: SystemSnapshot) -> dict[str, Any]:
         "apps": snapshot.apps[:MAX_PAYLOAD_APPS],
     }
 
-    # Les valeurs inconnues sont omises : la 3DS conserve alors ce qu'elle sait
-    # déjà plutôt que d'afficher une donnée fausse.
-    if snapshot.volume is not None:
-        payload["volume"] = snapshot.volume
-    if snapshot.muted is not None:
-        payload["muted"] = snapshot.muted
-    if snapshot.mic_muted is not None:
-        payload["mic_muted"] = snapshot.mic_muted
-    if snapshot.app_volume is not None:
-        payload["app_volume"] = snapshot.app_volume
+    for field_name in _OPTIONAL_FIELDS:
+        value = getattr(snapshot, field_name)
+        if value is not None:
+            payload[field_name] = value
+
+    # La sortie audio est omise lorsqu'elle est vide, et non lorsqu'elle est
+    # nulle : une chaîne vide ne désigne aucun périphérique.
     if snapshot.audio_output:
         payload["audio_output"] = snapshot.audio_output
     if snapshot.audio_outputs:
         payload["audio_outputs"] = snapshot.audio_outputs[:MAX_PAYLOAD_AUDIO_OUTPUTS]
-    if snapshot.cpu is not None:
-        payload["cpu"] = snapshot.cpu
-    if snapshot.memory is not None:
-        payload["memory"] = snapshot.memory
 
     if snapshot.notifications:
         # Seules les plus récentes sont transmises ; `notification_count`
@@ -116,12 +115,11 @@ def _snapshot_payload(snapshot: SystemSnapshot) -> dict[str, Any]:
         # Signalée à part : la console l'annonce, quelle que soit la page.
         payload["notification_new"] = snapshot.new_notification.as_payload()
 
-    if snapshot.media is not None:
-        media = snapshot.media.as_payload()
-        payload["media"] = media if media is not None else None
-    else:
-        payload["media"] = None
-
+    # Une absence de média doit être annoncée : la console efface alors sa fiche
+    # au lieu de conserver le morceau précédent.
+    payload["media"] = (
+        snapshot.media.as_payload() if snapshot.media is not None else None
+    )
     return payload
 
 
@@ -371,22 +369,38 @@ class Client:
             pass
 
 
+@dataclass
+class Options:
+    """Réglages de déploiement du serveur.
+
+    Ils décrivent la façon de lancer l'agent, non son comportement vis-à-vis de
+    la console : les regrouper évite d'allonger la signature du constructeur à
+    chaque nouvelle option, et permet de les transmettre d'un bloc.
+    """
+
+    #: Journalisation détaillée sur la sortie standard.
+    verbose: bool = False
+    #: Fichier surveillé pour le rechargement à chaud. `None` le désactive.
+    config_path: Path | None = None
+    #: Port de l'interface de configuration. `None` la désactive.
+    ui_port: int | None = None
+
+
 class Server:
     def __init__(
         self,
         config: Config,
         platform: Platform,
-        verbose: bool = False,
-        config_path: Path | None = None,
-        ui_port: int | None = None,
+        options: Options | None = None,
     ):
+        options = options or Options()
         self.config = config
         #: Fichier de configuration surveillé, pour un rechargement à chaud.
-        self.config_path = config_path
+        self.config_path = options.config_path
         self._config_mtime = self._config_stamp()
         self.platform = platform
         self.dispatcher = Dispatcher(platform, config)
-        self.verbose = verbose
+        self.verbose = options.verbose
 
         self.clients: set[Client] = set()
         self._last_payload: dict[str, Any] | None = None
@@ -412,7 +426,7 @@ class Server:
         #: Version exposée à l'interface, sans qu'elle importe ce module.
         self.version = VERSION
         #: Port de l'interface de configuration, `None` si désactivée.
-        self.ui_port = ui_port
+        self.ui_port = options.ui_port
         self._ui: Any | None = None
         #: Appelée avec l'URL de l'interface dès qu'elle écoute. Permet au point
         #: d'entrée d'ouvrir le navigateur sans que le serveur en dépende.
@@ -623,6 +637,31 @@ class Server:
             pass
         return found
 
+    # --- Diffusion ------------------------------------------------------------
+
+    def _audience(self) -> list[Client]:
+        """Consoles autorisées à recevoir un message.
+
+        La liste est copiée : une console peut être retirée pendant l'envoi,
+        ce qui invaliderait un parcours direct de l'ensemble.
+        """
+        return [client for client in list(self.clients) if client.authenticated]
+
+    async def _broadcast(self, message: dict[str, Any]) -> None:
+        """Envoie un message à toutes les consoles authentifiées.
+
+        Une console injoignable est retirée : sans cela, chaque cycle
+        réessaierait indéfiniment d'écrire dans une socket fermée.
+        """
+        for client in self._audience():
+            if not await client.send(message):
+                await self._drop(client)
+
+    async def _drop(self, client: Client) -> None:
+        """Retire une console dont la connexion est perdue."""
+        self.clients.discard(client)
+        await client.close()
+
     # --- Connexions -----------------------------------------------------------
 
     async def _handle_client(
@@ -633,25 +672,54 @@ class Server:
         self.log(f"Console #{client.id} connectee depuis {client.address}")
 
         try:
-            while True:
-                data = await reader.read(8192)
-                if not data:
-                    break
-
-                client.reader_state.feed(data)
-
-                try:
-                    for message in client.reader_state:
-                        await self._handle_message(client, message)
-                except protocol.ProtocolError as error:
-                    self.log(f"Console #{client.id}: trame invalide ({error})")
-                    break
+            await self._read_messages(client, reader)
         except (ConnectionError, OSError):
             pass
         finally:
             self.clients.discard(client)
             await client.close()
             self.log(f"Console #{client.id} deconnectee")
+
+    async def _dispatch_available(self, client: Client) -> bool:
+        """Traite les messages complets déjà reçus.
+
+        Retourne `False` si une trame invalide impose de couper la connexion :
+        le flux est alors désynchronisé et rien ne permet de s'y resynchroniser.
+        """
+        try:
+            for message in client.reader_state:
+                await self._handle_message(client, message)
+        except protocol.ProtocolError as error:
+            self.log(f"Console #{client.id}: trame invalide ({error})")
+            return False
+        return True
+
+    async def _read_messages(
+        self, client: Client, reader: asyncio.StreamReader
+    ) -> None:
+        """Lit le flux d'une console jusqu'à sa fermeture."""
+        while True:
+            data = await reader.read(8192)
+            if not data:
+                return
+
+            client.reader_state.feed(data)
+            if not await self._dispatch_available(client):
+                return
+
+    async def _handle_config_request(
+        self, client: Client, message: dict[str, Any]
+    ) -> None:
+        """Renvoie la mise en page, puis l'état courant s'il existe."""
+        await client.send(self._config_message())
+        if self._last_payload is not None:
+            await client.send(self._last_payload)
+
+    async def _handle_ping(self, client: Client, message: dict[str, Any]) -> None:
+        request_id = message.get("id")
+        await client.send(
+            protocol.pong(request_id if isinstance(request_id, int) else 0)
+        )
 
     async def _handle_message(self, client: Client, message: dict[str, Any]) -> None:
         kind = message.get("type")
@@ -665,52 +733,77 @@ class Server:
             self.debug(f"Console #{client.id}: message avant handshake ({kind})")
             return
 
-        if kind == "button.press":
-            await self._handle_button(client, message)
-        elif kind == "value.set":
-            await self._handle_value(client, message)
-        elif kind == "config.request":
-            await client.send(self._config_message())
-            if self._last_payload is not None:
-                await client.send(self._last_payload)
-        elif kind == "ping":
-            request_id = message.get("id")
-            await client.send(
-                protocol.pong(request_id if isinstance(request_id, int) else 0)
-            )
-        else:
+        # Table de routage plutôt qu'une chaîne de comparaisons : ajouter un
+        # message se voit d'un coup d'œil, et un type inconnu ne peut pas être
+        # confondu avec un oubli de branche.
+        handlers = {
+            "button.press": self._handle_button,
+            "value.set": self._handle_value,
+            "config.request": self._handle_config_request,
+            "ping": self._handle_ping,
+        }
+        handler = handlers.get(kind)
+        if handler is None:
             self.debug(f"Console #{client.id}: type ignore ({kind})")
+            return
+        await handler(client, message)
 
-    async def _handle_hello(self, client: Client, message: dict[str, Any]) -> None:
+    async def _reject_handshake(self, client: Client, reason: str, note: str) -> None:
+        """Refuse une console et ferme la connexion."""
+        await client.send(protocol.hello_error(reason))
+        self.log(f"Console #{client.id}: {note}")
+        await client.close()
+
+    async def _accept_handshake(self, client: Client, message: dict[str, Any]) -> bool:
+        """Vérifie la version du protocole et le jeton.
+
+        Retourne `False` si la console a été refusée ; la réponse est alors déjà
+        émise et la connexion fermée.
+        """
         version = message.get("protocol")
         if version != protocol.PROTOCOL_VERSION:
-            await client.send(
-                protocol.hello_error(
-                    f"protocole {version}, attendu {protocol.PROTOCOL_VERSION}"
-                )
+            await self._reject_handshake(
+                client,
+                f"protocole {version}, attendu {protocol.PROTOCOL_VERSION}",
+                "version de protocole incompatible",
             )
-            self.log(f"Console #{client.id}: version de protocole incompatible")
-            await client.close()
+            return False
+
+        # Comparaison simple : le jeton protège d'un usage accidentel sur le
+        # réseau local, il ne prétend pas résister à une analyse temporelle.
+        if self.config.token and message.get("token") != self.config.token:
+            await self._reject_handshake(client, "jeton invalide", "jeton refuse")
+            return False
+
+        return True
+
+    async def _send_initial_state(self, client: Client) -> None:
+        """Met la console à niveau juste après son acceptation.
+
+        Une console qui vient d'arriver ne possède aucune pochette : celle en
+        cours lui est transmise même si elle n'a pas changé.
+        """
+        if self._last_payload is None:
+            # Première console connectée : une collecte immédiate évite de
+            # laisser le tableau de bord vide.
+            self._wake().set()
             return
 
-        if self.config.token:
-            provided = message.get("token")
-            # Comparaison simple : le jeton protège d'un usage accidentel sur le
-            # réseau local, il ne prétend pas résister à une analyse temporelle.
-            if provided != self.config.token:
-                await client.send(protocol.hello_error("jeton invalide"))
-                self.log(f"Console #{client.id}: jeton refuse")
-                await client.close()
-                return
+        await client.send(self._last_payload)
+        art = self._artwork.payload()
+        if art is not None:
+            await client.send_raw(art)
+
+    async def _handle_hello(self, client: Client, message: dict[str, Any]) -> None:
+        if not await self._accept_handshake(client, message):
+            return
 
         # La console indique sa langue : les notifications renvoyées suivront.
         messages.set_language(str(message.get("language", "en")))
-
         client.authenticated = True
 
-        # Première console : les pages dynamiques ne sont pas encore remplies,
-        # on les alimente avant d'envoyer la configuration pour éviter une page
-        # vide au démarrage.
+        # Première console : les pages dynamiques ne sont pas encore remplies.
+        # Les alimenter avant d'envoyer la configuration évite une page vide.
         if self._has_dynamic_pages() and not self._published_windows:
             windows = await asyncio.to_thread(self.platform.list_windows)
             active = await asyncio.to_thread(self.platform.get_active_app)
@@ -722,19 +815,7 @@ class Server:
             )
         )
         await client.send(self._config_message())
-
-        if self._last_payload is not None:
-            await client.send(self._last_payload)
-
-            # La console vient d'arriver : elle ne possède aucune pochette, il
-            # faut donc lui envoyer celle en cours même si elle n'a pas changé.
-            art = self._artwork.payload()
-            if art is not None:
-                await client.send_raw(art)
-        else:
-            # Première console connectée : on déclenche une collecte immédiate
-            # pour ne pas laisser le tableau de bord vide.
-            self._wake().set()
+        await self._send_initial_state(client)
 
         self.log(f"Console #{client.id}: handshake accepte")
 
@@ -780,6 +861,69 @@ class Server:
         if outcome.state_changed:
             self._wake().set()
 
+    async def _resolve_target(
+        self, client: Client, request_id: int, page_id: str, button_id: str
+    ):
+        """Retrouve ce qu'un appui désigne, ou refuse la demande.
+
+        Trois provenances sont possibles : un bouton de la configuration, un
+        élément de liste — qui emprunte le même message que la grille — ou un
+        panneau de la console, qui envoie directement un nom d'action.
+
+        Retourne `(bouton, action)` dont au plus un est renseigné, ou `None` si
+        la demande a été refusée et la réponse déjà émise.
+        """
+        if page_id == "__direct":
+            # La console transmet le nom de l'action. Seules celles de la liste
+            # blanche sont acceptées, comme partout ailleurs.
+            if button_id not in config_module.KNOWN_ACTIONS:
+                await client.send(
+                    protocol.action_result(request_id, False, "action inconnue")
+                )
+                self.log(f"Console #{client.id}: action refusee {button_id}")
+                return None
+            return None, Action(button_id, {})
+
+        button = self.config.find_button(page_id, button_id)
+        if button is not None:
+            return button, None
+
+        action = self.config.find_action(page_id, button_id)
+        if action is None:
+            await client.send(
+                protocol.action_result(request_id, False, "bouton inconnu")
+            )
+            self.log(f"Console #{client.id}: element inconnu {page_id}/{button_id}")
+            return None
+        return None, action
+
+    async def _run_action(self, button, action, hold: bool):
+        """Exécute l'action demandée et mesure sa durée.
+
+        L'exécution peut appeler AppleScript ou PowerShell : elle est déportée
+        dans un fil pour que la boucle d'événements reste réactive.
+        """
+        started = time.monotonic()
+        if button is not None:
+            outcome = await asyncio.to_thread(
+                self.dispatcher.run_button, button, hold
+            )
+        else:
+            outcome = await asyncio.to_thread(self.dispatcher.run, action)
+        return outcome, (time.monotonic() - started) * 1000.0
+
+    def _schedule_confirmation(self, outcome) -> None:
+        """Provoque une collecte immédiate lorsque l'action a modifié le poste.
+
+        Sans elle, l'écran conserverait l'ancien état jusqu'au cycle suivant et
+        le bouton semblerait sans effet.
+        """
+        if not outcome.state_changed:
+            return
+        if outcome.slow_effect:
+            self._slow_confirm = True
+        self._wake().set()
+
     async def _handle_button(self, client: Client, message: dict[str, Any]) -> None:
         request_id = message.get("id")
         if not isinstance(request_id, int):
@@ -795,50 +939,13 @@ class Server:
             )
             return
 
-        button = self.config.find_button(page_id, button_id)
-        action = None
+        target = await self._resolve_target(client, request_id, page_id, button_id)
+        if target is None:
+            return
 
-        if page_id == "__direct":
-            # Action demandée par un panneau de la console. Elle ne figure dans
-            # aucune page : la console envoie directement son nom. Seules les
-            # actions de la liste blanche sont acceptées, comme partout ailleurs.
-            if button_id in config_module.KNOWN_ACTIONS:
-                action = Action(button_id, {})
-            else:
-                await client.send(
-                    protocol.action_result(
-                        request_id, False, "action inconnue"
-                    )
-                )
-                self.log(f"Console #{client.id}: action refusee {button_id}")
-                return
+        button, action = target
+        outcome, elapsed = await self._run_action(button, action, hold)
 
-        elif button is None:
-            # L'appui provient peut-être d'un élément de liste, qui utilise le
-            # même message que la grille.
-            action = self.config.find_action(page_id, button_id)
-
-            if action is None:
-                await client.send(
-                    protocol.action_result(request_id, False, "bouton inconnu")
-                )
-                self.log(
-                    f"Console #{client.id}: element inconnu {page_id}/{button_id}"
-                )
-                return
-
-        started = time.monotonic()
-
-        # L'exécution peut appeler AppleScript ou PowerShell : on la déporte
-        # dans un fil pour que la boucle d'événements reste réactive.
-        if button is not None:
-            outcome = await asyncio.to_thread(
-                self.dispatcher.run_button, button, hold
-            )
-        else:
-            outcome = await asyncio.to_thread(self.dispatcher.run, action)
-
-        elapsed = (time.monotonic() - started) * 1000.0
         status = "ok" if outcome.ok else "echec"
         self.log(
             f"Console #{client.id}: {page_id}/{button_id}"
@@ -858,15 +965,7 @@ class Server:
                 outcome.toggle_frame,
             )
         )
-
-        if outcome.state_changed:
-            # L'action a modifié le poste : on rafraîchit sans attendre le
-            # prochain cycle, pour que l'écran reflète le résultat aussitôt.
-            if outcome.slow_effect:
-                self._slow_confirm = True
-            self._wake().set()
-
-    # --- Collecte d'état ------------------------------------------------------
+        self._schedule_confirmation(outcome)
 
     async def _poll_loop(self) -> None:
         try:
@@ -884,48 +983,67 @@ class Server:
             )
             raise
 
+    async def _collect_safely(self) -> None:
+        """Collecte l'état sans jamais laisser une panne arrêter la boucle."""
+        try:
+            await self._refresh_state()
+        except Exception as error:  # la boucle ne doit jamais s'arrêter
+            self.debug(f"collecte en echec: {type(error).__name__}: {error}")
+
+    async def _wait_for_wake(self) -> bool:
+        """Attend un réveil ou l'expiration de l'intervalle de collecte.
+
+        Retourne `True` si une action a demandé un rafraîchissement immédiat.
+        """
+        try:
+            await asyncio.wait_for(
+                self._wake().wait(), timeout=self.config.poll_interval
+            )
+        except asyncio.TimeoutError:
+            return False
+        self._wake().clear()
+        return True
+
+    async def _confirm_after_action(self) -> None:
+        """Relit l'état après une action, une fois le système stabilisé.
+
+        Une lecture immédiate rapporterait encore l'ancienne valeur. Certaines
+        commandes demandent bien davantage : une diffusion Spotify vers une
+        enceinte externe met environ deux secondes à changer l'état de lecture,
+        d'où la seconde relecture différée.
+
+        Ces relectures ne sont pas protégées, contrairement à la collecte
+        périodique : une panne survenant ici doit remonter jusqu'à `_poll_loop`,
+        qui la journalise. La masquer priverait du diagnostic.
+        """
+        await asyncio.sleep(SETTLE_DELAY)
+        await self._refresh_state()
+
+        if not self._slow_confirm:
+            return
+        self._slow_confirm = False
+        await asyncio.sleep(SLOW_CONFIRM_DELAY)
+        await self._refresh_state()
+
     async def _poll_forever(self) -> None:
         while True:
             # Le fichier de configuration est relu si nécessaire avant chaque
             # collecte : une modification est ainsi appliquée en quelques
             # secondes, sans redémarrer l'agent.
             if self.reload_config_if_changed():
-                message = self._config_message()
-                for client in list(self.clients):
-                    if client.authenticated:
-                        await client.send(message)
+                await self._broadcast(self._config_message())
 
-            try:
-                await self._refresh_state()
-            except Exception as error:  # la boucle ne doit jamais s'arrêter
-                self.debug(f"collecte en echec: {type(error).__name__}: {error}")
+            await self._collect_safely()
 
-            try:
-                await asyncio.wait_for(
-                    self._wake().wait(), timeout=self.config.poll_interval
-                )
-            except asyncio.TimeoutError:
-                pass
-            else:
-                self._wake().clear()
-
-                # Court délai : laisse le système appliquer le changement avant
-                # de le mesurer, sinon on relirait l'ancienne valeur.
-                await asyncio.sleep(SETTLE_DELAY)
-                await self._refresh_state()
-
-                # Certaines commandes mettent bien plus de temps à produire leur
-                # effet : une diffusion Spotify vers une enceinte externe demande
-                # environ deux secondes avant que l'état de lecture ne change.
-                # Une seconde lecture différée est donc nécessaire, faute de quoi
-                # l'écran conserverait l'ancien état et le bouton semblerait sans
-                # effet.
-                if self._slow_confirm:
-                    self._slow_confirm = False
-                    await asyncio.sleep(SLOW_CONFIRM_DELAY)
-                    await self._refresh_state()
+            if await self._wait_for_wake():
+                await self._confirm_after_action()
 
     async def _refresh_state(self) -> None:
+        """Collecte l'état du poste et diffuse ce qui a changé.
+
+        Chaque étape est isolée : la collecte, la remise à jour des pages
+        dynamiques, la pochette, puis la diffusion du différentiel.
+        """
         if not self.clients:
             # Personne n'écoute : inutile de solliciter le système.
             return
@@ -933,62 +1051,76 @@ class Server:
         snapshot = await asyncio.to_thread(self.platform.snapshot)
         payload = _snapshot_payload(snapshot)
 
-        # Pages alimentées automatiquement : on ne renvoie la configuration que
-        # si la liste des fenêtres a réellement changé, pour ne pas reconstruire
-        # l'interface de la console à chaque seconde.
-        if self._has_dynamic_pages():
-            windows = await asyncio.to_thread(self.platform.list_windows)
+        await self._republish_windows(snapshot.active_app)
+        art = await self._refresh_artwork(snapshot, payload)
+        await self._publish(self._delta_since_last(payload), art)
 
-            if windows != self._published_windows:
-                self._fill_dynamic_pages(windows, snapshot.active_app)
-                message = self._config_message()
+    async def _republish_windows(self, active_app: str) -> None:
+        """Reconstruit les pages alimentées automatiquement, si nécessaire.
 
-                for client in list(self.clients):
-                    if client.authenticated:
-                        await client.send(message)
+        La configuration n'est renvoyée que lorsque la liste des fenêtres a
+        réellement changé : sinon la console rebâtirait son interface à chaque
+        seconde.
+        """
+        if not self._has_dynamic_pages():
+            return
 
-        # Préparation de la pochette, dans un fil : téléchargement et conversion
-        # ne doivent pas retarder la boucle d'événements.
+        windows = await asyncio.to_thread(self.platform.list_windows)
+        if windows == self._published_windows:
+            return
+
+        self._fill_dynamic_pages(windows, active_app)
+        await self._broadcast(self._config_message())
+
+    async def _refresh_artwork(
+        self, snapshot: SystemSnapshot, payload: dict[str, Any]
+    ) -> bytes | None:
+        """Prépare la pochette et complète le message d'état.
+
+        Téléchargement et conversion se font dans un fil : ils ne doivent pas
+        retarder la boucle d'événements. Le jeton permet à la console d'ignorer
+        une image qu'elle possède déjà.
+
+        Retourne la charge binaire à transmettre, ou `None` si rien n'a changé.
+        """
         art_url = snapshot.media.art_url if snapshot.media is not None else ""
-        art_changed = await asyncio.to_thread(self._artwork.update, art_url)
+        changed = await asyncio.to_thread(self._artwork.update, art_url)
 
-        # Le jeton informe la console qu'une image est disponible, et lui permet
-        # d'ignorer celle qu'elle possède déjà.
-        if isinstance(payload.get("media"), dict) and self._artwork.token:
-            payload["media"]["art"] = self._artwork.token
+        media = payload.get("media")
+        if isinstance(media, dict) and self._artwork.token:
+            media["art"] = self._artwork.token
             if self._artwork.accent:
-                payload["media"]["accent"] = self._artwork.accent
+                media["accent"] = self._artwork.accent
 
+        return self._artwork.payload() if changed else None
+
+    def _delta_since_last(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Champs modifiés depuis la dernière diffusion.
+
+        N'émettre que les différences limite le trafic et le travail de la
+        console. Le type est toujours conservé : il identifie le message.
+        """
         previous = self._last_payload
         self._last_payload = payload
 
-        # On n'envoie que ce qui a changé, afin de limiter le trafic et le
-        # travail de la console.
         if previous is None:
-            delta = payload
-        else:
-            delta = {
-                key: value
-                for key, value in payload.items()
-                if key == "type" or previous.get(key) != value
-            }
+            return payload
+        return {
+            key: value
+            for key, value in payload.items()
+            if key == "type" or previous.get(key) != value
+        }
 
-        art = self._artwork.payload() if art_changed else None
-
-        # Rien de neuf à annoncer : on s'abstient d'émettre, sauf si une
-        # pochette doit être transmise.
-        has_state_change = len(delta) > 1
-        if not has_state_change and art is None:
+    async def _publish(self, delta: dict[str, Any], art: bytes | None) -> None:
+        """Transmet le différentiel, puis la pochette si elle a changé."""
+        # Un différentiel réduit au seul type n'annonce aucun changement.
+        has_change = len(delta) > 1
+        if not has_change and art is None:
             return
 
-        for client in list(self.clients):
-            if not client.authenticated:
+        for client in self._audience():
+            if has_change and not await client.send(delta):
+                await self._drop(client)
                 continue
-
-            if has_state_change and not await client.send(delta):
-                self.clients.discard(client)
-                await client.close()
-                continue
-
             if art is not None:
                 await client.send_raw(art)

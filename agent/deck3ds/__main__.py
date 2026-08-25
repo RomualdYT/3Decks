@@ -20,7 +20,7 @@ from pathlib import Path
 
 from . import config as config_module
 from .platforms.base import Platform
-from .server import VERSION, Server
+from .server import VERSION, Options as ServerOptions, Server
 
 #: Port de l'interface locale. Voisin de celui de la console (38123) pour rester
 #: mémorisable, tout en restant distinct : l'interface n'écoute que sur la
@@ -242,9 +242,11 @@ def main(argv: list[str] | None = None) -> int:
     server = Server(
         loaded,
         platform,
-        verbose=args.verbose,
-        config_path=args.config,
-        ui_port=args.ui_port if args.ui else None,
+        ServerOptions(
+            verbose=args.verbose,
+            config_path=args.config,
+            ui_port=args.ui_port if args.ui else None,
+        ),
     )
 
     if args.ui:
