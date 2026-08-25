@@ -12,6 +12,7 @@ système hôte : une plateforme simulée enregistre les appels reçus.
 from __future__ import annotations
 
 import asyncio
+import inspect
 import json
 import sys
 import tempfile
@@ -1632,6 +1633,303 @@ class TestKeyNames(unittest.TestCase):
         self.assertEqual(ecart, set(), f"touches absentes de Windows : {sorted(ecart)}")
 
 
+# --- Adaptateur macOS ----------------------------------------------------------
+
+
+def _mac_platform(player_running=True, **scripts):
+    """Instancie `MacPlatform` sans toucher au système.
+
+    `__init__` construit des objets CoreAudio et lit le centre de
+    notifications : on l'évite avec `__new__` puis on injecte le strict
+    nécessaire. Les scripts AppleScript ne sont jamais exécutés : ils sont
+    interceptés et confrontés à un dictionnaire de réponses, dont les clés
+    sont des fragments recherchés dans le source du script.
+
+    `player_running` répond au test de présence que `get_media` effectue
+    avant d'interroger un lecteur.
+    """
+    from deck3ds.platforms.macos import MacPlatform
+
+    platform = MacPlatform.__new__(MacPlatform)
+    platform._preferred_player = ""
+    platform._blocked = set()
+    platform._mic_muted = None
+    platform._mic_restore = 75
+    platform._cpu_count = 4
+    platform.scripts = []
+
+    def run_script(source, timeout=None):
+        platform.scripts.append(source)
+        # Le script porte sa propre garde de présence : un lecteur arrêté
+        # renvoie une chaîne vide sans que le reste ne s'exécute. Le simuler
+        # fidèlement permet aux tests de détecter la perte de cette garde.
+        if "is not running" in source and not player_running:
+            return ""
+        for fragment, reply in scripts.items():
+            if fragment in source:
+                if isinstance(reply, BaseException):
+                    raise reply
+                return reply
+        if "is running" in source:
+            return "true" if player_running else "false"
+        return ""
+
+    def quiet(source, *args):
+        # Le vrai `_script_quiet` avale les erreurs et retourne None.
+        try:
+            return run_script(source)
+        except (Unsupported, ActionFailed):
+            return None
+
+    platform._script = run_script
+    platform._script_quiet = quiet
+    return platform
+
+
+class TestMacMedia(unittest.TestCase):
+    """Lecture du média courant sur macOS.
+
+    Ce code n'avait aucun test alors qu'il porte la majeure partie du coût du
+    cycle de collecte. Ces tests fixent le comportement observable avant toute
+    optimisation, pour qu'une régression soit visible.
+    """
+
+    def test_lecteur_arrete_est_ignore(self):
+        platform = _mac_platform()  # tout script répond "" -> aucun lecteur actif
+        self.assertIsNone(platform.get_media())
+
+    def test_titre_et_artiste_sont_extraits(self):
+        platform = _mac_platform(**{
+            "player state": "playing\nSuch a Shame\nTalk Talk\nIt's My Life\n\n12,5\n230",
+        })
+        media = platform.get_media()
+
+        self.assertIsNotNone(media)
+        self.assertEqual(media.title, "Such a Shame")
+        self.assertEqual(media.artist, "Talk Talk")
+        self.assertEqual(media.album, "It's My Life")
+        self.assertTrue(media.playing)
+
+    def test_titre_vide_ne_produit_pas_de_media(self):
+        """Un lecteur ouvert sans morceau chargé ne doit rien afficher."""
+        platform = _mac_platform(**{"player state": "paused\n\n\n\n\n\n"})
+        self.assertIsNone(platform.get_media())
+
+    def test_duree_spotify_en_millisecondes_est_convertie(self):
+        """Spotify renvoie des millisecondes, Musique des secondes.
+
+        Sans conversion, la console afficherait une durée de plusieurs heures.
+        """
+        platform = _mac_platform(**{
+            "player state": "playing\nTitre\nArtiste\nAlbum\n\n30\n210000",
+        })
+        self.assertAlmostEqual(platform.get_media().duration, 210.0)
+
+    def test_duree_en_secondes_est_conservee(self):
+        platform = _mac_platform(**{
+            "player state": "playing\nTitre\nArtiste\nAlbum\n\n30\n215",
+        })
+        self.assertAlmostEqual(platform.get_media().duration, 215.0)
+
+    def test_virgule_decimale_est_acceptee(self):
+        """AppleScript suit la locale : la position peut contenir une virgule."""
+        platform = _mac_platform(**{
+            "player state": "playing\nTitre\nArtiste\nAlbum\n\n12,5\n215",
+        })
+        self.assertAlmostEqual(platform.get_media().position, 12.5)
+
+    def test_lecteur_qui_refuse_l_automatisation_est_ecarte(self):
+        """Un refus doit être mémorisé, sinon chaque cycle paierait le délai."""
+        from deck3ds.platforms.macos import MEDIA_PLAYERS
+
+        platform = _mac_platform(**{"player state": ActionFailed("refus")})
+        self.assertIsNone(platform.get_media())
+        self.assertTrue(platform._blocked)
+        for player in platform._blocked:
+            self.assertIn(player, MEDIA_PLAYERS)
+
+    def test_lecteur_actif_devient_prioritaire(self):
+        """Mémoriser le lecteur trouvé évite de sonder l'autre au cycle suivant."""
+        platform = _mac_platform(**{
+            "player state": "playing\nTitre\nArtiste\nAlbum\n\n1\n2",
+        })
+        media = platform.get_media()
+        self.assertEqual(platform._preferred_player, media.app)
+
+    def test_script_garde_le_test_de_presence(self):
+        """Sans garde, `tell application` LANCE le lecteur au lieu de l'interroger.
+
+        Vérifié sur macOS : un `tell` visant une application fermée la démarre.
+        La collecte s'exécutant chaque seconde, sa perte ouvrirait Spotify tout
+        seul. La garde doit donc précéder le `tell` dans le script.
+        """
+        platform = _mac_platform(**{
+            "player state": "playing\nTitre\nArtiste\nAlbum\n\n1\n2\n40",
+        })
+        platform.get_media()
+
+        script = platform.scripts[0]
+        self.assertIn("is not running", script)
+        self.assertLess(
+            script.index("is not running"),
+            script.index("tell application"),
+            "la garde doit précéder le tell, sinon le lecteur est démarré",
+        )
+
+    def test_un_seul_appel_applescript_par_lecteur(self):
+        """Lancer `osascript` coûte ~170 ms quelle que soit la taille du script.
+
+        Le test de présence, l'état du morceau et le volume du lecteur doivent
+        donc tenir dans une seule requête. Ce test échouera si un appel
+        supplémentaire est réintroduit, ce qui dégraderait la collecte.
+        """
+        platform = _mac_platform(**{
+            "player state": "playing\nTitre\nArtiste\nAlbum\n\n1\n2\n40",
+        })
+        platform.get_media()
+        self.assertEqual(len(platform.scripts), 1, platform.scripts)
+
+    def test_volume_du_lecteur_est_releve_au_passage(self):
+        platform = _mac_platform(**{
+            "player state": "playing\nTitre\nArtiste\nAlbum\n\n1\n2\n40",
+        })
+        platform.get_media()
+        self.assertEqual(platform._player_volume, 40)
+
+    def test_volume_absent_reste_indetermine(self):
+        """Musique n'expose pas `sound volume` : zéro serait un mensonge."""
+        platform = _mac_platform(**{
+            "player state": "playing\nTitre\nArtiste\nAlbum\n\n1\n2\n",
+        })
+        platform.get_media()
+        self.assertIsNone(platform._player_volume)
+
+    def test_volume_du_lecteur_reste_dans_les_bornes(self):
+        """La console attend un pourcentage : une valeur hors bornes la casserait."""
+        platform = _mac_platform(**{
+            "player state": "playing\nTitre\nArtiste\nAlbum\n\n1\n2\n250",
+        })
+        platform.get_media()
+        self.assertEqual(platform._player_volume, 100)
+
+    def test_volume_memorise_est_oublie_sans_lecteur(self):
+        """Une valeur périmée afficherait un volume qui n'existe plus."""
+        platform = _mac_platform(player_running=False)
+        platform._player_volume = 40
+        self.assertIsNone(platform.get_media())
+        self.assertIsNone(platform._player_volume)
+
+
+class TestMacSnapshot(unittest.TestCase):
+    """Collecte groupée : c'est le chemin exécuté à chaque seconde."""
+
+    def _snapshot(self, platform):
+        platform._audio = type("A", (), {"outputs": staticmethod(lambda: [])})()
+        platform._notifications = type(
+            "N", (), {"read": staticmethod(lambda: []),
+                      "take_new": staticmethod(lambda entries: None)}
+        )()
+        platform._pending_notification = None
+        platform.get_cpu = lambda: None
+        platform.get_memory = lambda: None
+        return platform.snapshot()
+
+    def test_champs_groupes_sont_repartis(self):
+        platform = _mac_platform(**{
+            "get volume settings": "42|false|60|Safari|Safari,Dock,Finder",
+        })
+        snapshot = self._snapshot(platform)
+
+        self.assertEqual(snapshot.volume, 42)
+        self.assertFalse(snapshot.muted)
+        self.assertFalse(snapshot.mic_muted)
+        self.assertEqual(snapshot.active_app, "Safari")
+
+    def test_processus_techniques_sont_masques(self):
+        """`Dock` ou `SystemUIServer` ne sont pas des applications utiles."""
+        platform = _mac_platform(**{
+            "get volume settings":
+                "10|false|50|Safari|Safari,Dock,SystemUIServer,FolderActionsDispatcher,Notes",
+        })
+        snapshot = self._snapshot(platform)
+        self.assertEqual(snapshot.apps, ["Safari", "Notes"])
+
+    def test_micro_a_zero_est_signale_coupe(self):
+        platform = _mac_platform(**{
+            "get volume settings": "10|false|0|Safari|Safari",
+        })
+        self.assertTrue(self._snapshot(platform).mic_muted)
+
+    def test_micro_illisible_retombe_sur_l_etat_suivi(self):
+        """Retourner une valeur inventée afficherait un état faux sur la console."""
+        platform = _mac_platform(**{
+            "get volume settings": "10|false|inconnu|Safari|Safari",
+        })
+        platform._mic_muted = True
+        self.assertTrue(self._snapshot(platform).mic_muted)
+
+    def test_volume_hors_bornes_est_ramene_dans_l_intervalle(self):
+        platform = _mac_platform(**{
+            "get volume settings": "250|false|50|Safari|Safari",
+        })
+        self.assertLessEqual(self._snapshot(platform).volume, 100)
+
+    def test_volume_du_lecteur_est_reutilise_sans_appel_supplementaire(self):
+        """`get_media` a déjà relevé le volume : le redemander coûtait ~100 ms."""
+        platform = _mac_platform(**{
+            "get volume settings": "10|false|50|Spotify|Spotify",
+            "player state": "playing\nTitre\nArtiste\nAlbum\n\n1\n2\n35",
+        })
+        snapshot = self._snapshot(platform)
+
+        self.assertEqual(snapshot.app_volume, 35)
+        # Deux scripts au maximum : la collecte groupée et le lecteur.
+        self.assertLessEqual(len(platform.scripts), 2, platform.scripts)
+
+    def test_list_apps_masque_aussi_les_processus_techniques(self):
+        """`list_apps` filtre la même liste que `snapshot`.
+
+        Les deux chemins doivent produire le même résultat, sinon le repli
+        afficherait des processus que la collecte groupée masque.
+        """
+        platform = _mac_platform(**{
+            "background only": "Safari, Dock, SystemUIServer, Notes",
+        })
+        self.assertEqual(platform.list_apps(), ["Safari", "Notes"])
+
+
+class TestMacHotkey(unittest.TestCase):
+    """Raccourcis clavier : la traduction vers AppleScript doit rester stable."""
+
+    def test_touche_speciale_utilise_son_code(self):
+        platform = _mac_platform()
+        platform.send_hotkey("echap")
+        self.assertIn("key code 53", platform.scripts[-1])
+
+    def test_modificateurs_sont_traduits(self):
+        platform = _mac_platform()
+        platform.send_hotkey("cmd+shift+4")
+        script = platform.scripts[-1]
+        self.assertIn("command down", script)
+        self.assertIn("shift down", script)
+
+    def test_guillemet_est_echappe(self):
+        """Un caractère non échappé casserait le script AppleScript."""
+        platform = _mac_platform()
+        platform.send_hotkey('"')
+        self.assertIn('\\"', platform.scripts[-1])
+
+    def test_combinaison_vide_refusee(self):
+        platform = _mac_platform()
+        with self.assertRaises(ActionFailed):
+            platform.send_hotkey("")
+
+    def test_touche_inconnue_refusee(self):
+        platform = _mac_platform()
+        with self.assertRaises(ActionFailed):
+            platform.send_hotkey("touche-qui-nexiste-pas")
+
+
 # --- Capacités de plateforme ---------------------------------------------------
 
 
@@ -1765,6 +2063,79 @@ class TestWindowsAdapter(unittest.TestCase):
 
         pressed = [code for code, flags in platform._user32.events if flags == 0]
         self.assertEqual(pressed, [0x5B, 0x10, ord("S")])
+
+    def test_scripts_powershell_sont_syntaxiquement_equilibres(self):
+        """Windows n'est pas testable ici : ces invariants tiennent lieu de garde.
+
+        Un déséquilibre d'accolades ou de parenthèses dans le C# embarqué ne se
+        verrait qu'à l'exécution sur la console d'un utilisateur.
+        """
+        from deck3ds.platforms.windows import WindowsPlatform
+
+        platform = WindowsPlatform.__new__(WindowsPlatform)
+        for script in (
+            platform._audio_script("$corps"),
+            platform._device_script("$corps"),
+        ):
+            self.assertEqual(script.count("{"), script.count("}"), script[:80])
+            self.assertEqual(script.count("("), script.count(")"), script[:80])
+            # Le here-string C# doit être ouvert et refermé.
+            self.assertEqual(script.count("@'\n"), script.count("\n'@"))
+            self.assertTrue(script.rstrip().endswith("$corps"))
+
+    def test_helper_asynchrone_est_defini_avant_ses_appels(self):
+        """PowerShell exige que la fonction précède son premier appel.
+
+        Le motif `AsTask` était recopié trois fois ; il est désormais factorisé.
+        Ce test vérifie que la factorisation reste correcte.
+        """
+        import re
+
+        from deck3ds.platforms.windows import WindowsPlatform
+
+        source = inspect.getsource(WindowsPlatform.get_media)
+        script = eval(re.search(r"script = (r'''.*?''')", source, re.S).group(1))
+        lines = script.strip().splitlines()
+
+        definition = next(
+            index
+            for index, line in enumerate(lines)
+            if line.startswith("function Wait-Deck3DSAsync")
+        )
+        calls = [
+            index
+            for index, line in enumerate(lines)
+            if "Wait-Deck3DSAsync " in line and not line.startswith("function")
+        ]
+
+        self.assertEqual(len(calls), 3, "les trois attentes WinRT doivent subsister")
+        for call in calls:
+            self.assertGreater(call, definition)
+            # En mode commande, un appel de méthode passé en argument doit être
+            # parenthésé, sinon PowerShell le traite comme une chaîne.
+            self.assertRegex(lines[call], r"Wait-Deck3DSAsync \(")
+
+    def test_script_media_conserve_les_champs_attendus(self):
+        """Le serveur lit ces clés : en perdre une viderait l'affichage."""
+        import re
+
+        from deck3ds.platforms.windows import WindowsPlatform
+
+        source = inspect.getsource(WindowsPlatform.get_media)
+        script = eval(re.search(r"script = (r'''.*?''')", source, re.S).group(1))
+
+        for field in (
+            "title", "artist", "album", "app", "playing",
+            "position", "duration", "key", "art",
+        ):
+            self.assertIn(f"{field}=", script)
+        # Les trois types WinRT spécialisés restent nécessaires.
+        for winrt_type in (
+            "GlobalSystemMediaTransportControlsSessionManager",
+            "GlobalSystemMediaTransportControlsSessionMediaProperties",
+            "IRandomAccessStreamWithContentType",
+        ):
+            self.assertIn(winrt_type, script)
 
     def test_sorties_audio_du_registre_sont_parsees(self):
         from deck3ds.platforms.windows import WindowsPlatform

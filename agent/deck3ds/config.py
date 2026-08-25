@@ -450,6 +450,46 @@ def _require_str(value: Any, context: str, max_length: int) -> str:
     return text
 
 
+def _require_int(value: Any, context: str) -> int:
+    """Entier strict.
+
+    `isinstance(True, int)` vaut vrai en Python : sans la garde explicite, un
+    booléen passerait pour un entier et `true` serait accepté comme numéro de
+    port.
+    """
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise ConfigError(f"{context}: un entier est attendu")
+    return value
+
+
+def _require_port(value: Any, context: str) -> int:
+    port = _require_int(value, context)
+    if not 1 <= port <= 65535:
+        raise ConfigError(f"{context}: {port} hors bornes")
+    return port
+
+
+def _require_host(value: Any, context: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise ConfigError(f"{context}: adresse invalide")
+    return value.strip()
+
+
+def _require_seconds(value: Any, context: str, low: float, high: float) -> float:
+    """Durée en secondes, bornée."""
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        raise ConfigError(f"{context}: un nombre est attendu")
+    seconds = float(value)
+    if not low <= seconds <= high:
+        raise ConfigError(f"{context}: entre {low} et {high:g} secondes")
+    return seconds
+
+
+def _duplicates(values: list[Any]) -> list[Any]:
+    """Valeurs apparaissant plus d'une fois, triées pour un message stable."""
+    return sorted({value for value in values if values.count(value) > 1})
+
+
 def _parse_action(raw: Any, context: str) -> Action:
     if raw is None:
         return Action("noop")
@@ -591,17 +631,13 @@ def _parse_page(raw: Any, index: int) -> PageConfig:
         for position, item in enumerate(raw_buttons)
     ]
 
-    used_slots = [button.slot for button in buttons]
-    duplicates = {slot for slot in used_slots if used_slots.count(slot) > 1}
+    duplicates = _duplicates([button.slot for button in buttons])
     if duplicates:
-        raise ConfigError(
-            f"{context}: emplacements en double: {sorted(duplicates)}"
-        )
+        raise ConfigError(f"{context}: emplacements en double: {duplicates}")
 
-    used_ids = [button.id for button in buttons]
-    duplicate_ids = {item for item in used_ids if used_ids.count(item) > 1}
+    duplicate_ids = _duplicates([button.id for button in buttons])
     if duplicate_ids:
-        raise ConfigError(f"{context}: identifiants en double: {sorted(duplicate_ids)}")
+        raise ConfigError(f"{context}: identifiants en double: {duplicate_ids}")
 
     return PageConfig(
         id=page_id,
@@ -626,32 +662,23 @@ def parse_obs(raw: Any) -> ObsConfig:
     if not isinstance(enabled, bool):
         raise ConfigError("integrations.obs.enabled: un booleen est attendu")
 
-    host = raw.get("host", defaults.host)
-    if not isinstance(host, str) or not host.strip():
-        raise ConfigError("integrations.obs.host: adresse invalide")
-
-    port = raw.get("port", defaults.port)
-    if not isinstance(port, int) or isinstance(port, bool):
-        raise ConfigError("integrations.obs.port: un entier est attendu")
-    if not 1 <= port <= 65535:
-        raise ConfigError(f"integrations.obs.port: {port} hors bornes")
+    host = _require_host(raw.get("host", defaults.host), "integrations.obs.host")
+    port = _require_port(raw.get("port", defaults.port), "integrations.obs.port")
 
     password = raw.get("password", defaults.password)
     if not isinstance(password, str):
         raise ConfigError("integrations.obs.password: une chaine est attendue")
 
-    timeout = raw.get("timeout", defaults.timeout)
-    if not isinstance(timeout, (int, float)) or isinstance(timeout, bool):
-        raise ConfigError("integrations.obs.timeout: un nombre est attendu")
-    if not 0.2 <= float(timeout) <= 15.0:
-        raise ConfigError("integrations.obs.timeout: entre 0.2 et 15 secondes")
+    timeout = _require_seconds(
+        raw.get("timeout", defaults.timeout), "integrations.obs.timeout", 0.2, 15.0
+    )
 
     return ObsConfig(
         enabled=enabled,
-        host=host.strip(),
+        host=host,
         port=port,
         password=password,
-        timeout=float(timeout),
+        timeout=timeout,
     )
 
 
@@ -667,39 +694,27 @@ def parse(raw: Any) -> Config:
         if not isinstance(server, dict):
             raise ConfigError("server: un objet est attendu")
 
-        host = server.get("host", config.host)
-        if not isinstance(host, str) or not host.strip():
-            raise ConfigError("server.host: adresse invalide")
-        config.host = host.strip()
-
-        port = server.get("port", config.port)
-        if not isinstance(port, int) or isinstance(port, bool):
-            raise ConfigError("server.port: un entier est attendu")
-        if not 1 <= port <= 65535:
-            raise ConfigError(f"server.port: {port} hors bornes")
-        config.port = port
+        config.host = _require_host(server.get("host", config.host), "server.host")
+        config.port = _require_port(server.get("port", config.port), "server.port")
 
         token = server.get("token", "")
         if not isinstance(token, str):
             raise ConfigError("server.token: une chaine est attendue")
         config.token = token.strip()
 
-        interval = server.get("poll_interval", config.poll_interval)
-        if not isinstance(interval, (int, float)) or isinstance(interval, bool):
-            raise ConfigError("server.poll_interval: un nombre est attendu")
-        if not 0.2 <= float(interval) <= 30.0:
-            raise ConfigError("server.poll_interval: entre 0.2 et 30 secondes")
-        config.poll_interval = float(interval)
+        config.poll_interval = _require_seconds(
+            server.get("poll_interval", config.poll_interval),
+            "server.poll_interval",
+            0.2,
+            30.0,
+        )
 
         step = server.get("volume_step", config.volume_step)
         if not isinstance(step, int) or isinstance(step, bool) or not 1 <= step <= 50:
             raise ConfigError("server.volume_step: entier entre 1 et 50")
         config.volume_step = step
 
-    revision = raw.get("revision", 1)
-    if not isinstance(revision, int) or isinstance(revision, bool):
-        raise ConfigError("revision: un entier est attendu")
-    config.revision = revision
+    config.revision = _require_int(raw.get("revision", 1), "revision")
 
     integrations = raw.get("integrations", {})
     if integrations:
@@ -731,9 +746,9 @@ def parse(raw: Any) -> Config:
     config.pages = [_parse_page(item, index) for index, item in enumerate(raw_pages)]
 
     page_ids = [page.id for page in config.pages]
-    duplicates = {item for item in page_ids if page_ids.count(item) > 1}
+    duplicates = _duplicates(page_ids)
     if duplicates:
-        raise ConfigError(f"pages: identifiants en double: {sorted(duplicates)}")
+        raise ConfigError(f"pages: identifiants en double: {duplicates}")
 
     # Vérification croisée : une navigation ne doit pas pointer dans le vide.
     for page in config.pages:

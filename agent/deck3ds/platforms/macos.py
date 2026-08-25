@@ -38,6 +38,13 @@ SCRIPT_TIMEOUT = 2.5
 #: Lecteurs interrogés, dans l'ordre de préférence.
 MEDIA_PLAYERS = ("Spotify", "Music")
 
+#: Processus présents dans la liste des applications sans en être : les afficher
+#: sur la console n'aurait aucun intérêt. Le filtrage sert à deux endroits
+#: (`list_apps` et la collecte groupée), qui doivent rester cohérents.
+_HIDDEN_PROCESSES = frozenset(
+    {"FolderActionsDispatcher", "Dock", "SystemUIServer", ""}
+)
+
 #: Codes des touches multimédia (F7/F8/F9 sur les claviers Apple).
 KEY_PREVIOUS = 98
 KEY_PLAY_PAUSE = 100
@@ -122,6 +129,20 @@ def _parse_number(text: str) -> float | None:
         return None
 
 
+def _visible_apps(raw: str) -> list[str]:
+    """Découpe une liste d'applications AppleScript en masquant les processus
+    techniques.
+
+    Deux chemins produisent cette liste — la collecte groupée et son repli
+    `list_apps` — et doivent filtrer à l'identique.
+    """
+    return [
+        name.strip()
+        for name in raw.split(",")
+        if name.strip() not in _HIDDEN_PROCESSES
+    ]
+
+
 class MacPlatform(Platform):
     name = "darwin"
 
@@ -139,6 +160,9 @@ class MacPlatform(Platform):
         self._mic_restore = 75
         # Lecteur ayant répondu en dernier : on l'interroge en premier.
         self._preferred_player: str | None = None
+        # Volume interne du lecteur, relevé par `get_media` lors de la même
+        # requête AppleScript. Évite un second appel dans `snapshot`.
+        self._player_volume: int | None = None
         # Applications dont l'automatisation est refusée ou bloquée.
         self._blocked: set[str] = set()
         self._cpu_count: int | None = None
@@ -342,17 +366,19 @@ class MacPlatform(Platform):
 
     def get_media(self) -> MediaInfo | None:
         for player in self._players_to_try():
-            running = self._script_quiet(f'application "{player}" is running')
-            if running != "true":
-                continue
-
-            # Un seul appel récupère tout, pour limiter les allers-retours.
+            # Lancer `osascript` coûte environ 170 ms, quelle que soit la
+            # taille du script : le nombre d'appels compte, pas leur contenu.
+            # Le test de présence, l'état du morceau et le volume du lecteur
+            # sont donc réunis en une seule requête. Les mesurer séparément
+            # triplait le coût de la collecte, qui s'exécute chaque seconde.
+            #
             # Les champs facultatifs sont protégés individuellement : Musique
             # n'expose pas d'adresse de pochette, contrairement à Spotify.
             # Les noms de variables sont préfixés : AppleScript réserve de
             # nombreux mots courts et `st` ou `du` provoquent une erreur de
             # syntaxe dans ce contexte.
             script = (
+                f'if application "{player}" is not running then return ""\n'
                 f'tell application "{player}"\n'
                 "  set deckState to player state as text\n"
                 '  set deckTitle to ""\n'
@@ -361,6 +387,7 @@ class MacPlatform(Platform):
                 '  set deckArt to ""\n'
                 '  set deckPos to ""\n'
                 '  set deckDur to ""\n'
+                '  set deckVol to ""\n'
                 "  try\n"
                 "    set deckTrack to current track\n"
                 "    set deckTitle to name of deckTrack\n"
@@ -374,9 +401,12 @@ class MacPlatform(Platform):
                 "  try\n"
                 "    set deckPos to (player position) as text\n"
                 "  end try\n"
+                "  try\n"
+                "    set deckVol to (sound volume) as text\n"
+                "  end try\n"
                 '  return deckState & "\\n" & deckTitle & "\\n" & deckArtist'
                 ' & "\\n" & deckAlbum & "\\n" & deckArt & "\\n" & deckPos'
-                ' & "\\n" & deckDur\n'
+                ' & "\\n" & deckDur & "\\n" & deckVol\n'
                 "end tell"
             )
 
@@ -389,6 +419,7 @@ class MacPlatform(Platform):
 
             lines = raw.split("\n")
             if not lines or not lines[0]:
+                # Lecteur absent, ou arrêté sans morceau chargé.
                 continue
 
             def field(index: int) -> str:
@@ -408,6 +439,14 @@ class MacPlatform(Platform):
             if duration is not None and duration > 10000:
                 duration /= 1000.0
 
+            # Volume du lecteur relevé au passage : `snapshot` le réutilise
+            # sans payer un second appel. `None` signifie « non exposé par ce
+            # lecteur », ce que la console affiche différemment de zéro.
+            volume = _parse_number(field(7))
+            self._player_volume = (
+                None if volume is None else max(0, min(100, int(volume)))
+            )
+
             self._preferred_player = player
             return MediaInfo(
                 title=title,
@@ -420,6 +459,8 @@ class MacPlatform(Platform):
                 duration=duration,
             )
 
+        # Aucun lecteur : le volume mémorisé serait périmé.
+        self._player_volume = None
         return None
 
     def _media_key(self, key_code: int) -> None:
@@ -468,8 +509,6 @@ class MacPlatform(Platform):
         self._media_command("next track", KEY_NEXT)
 
     def media_previous(self) -> None:
-        # Spotify place la piste précédente au début plutôt que de reculer :
-        # deux appels garantissent un retour effectif au morceau antérieur.
         self._media_command("previous track", KEY_PREVIOUS)
 
     # --- Applications ---------------------------------------------------------
@@ -489,12 +528,7 @@ class MacPlatform(Platform):
         if not raw:
             return []
 
-        names = [name.strip() for name in raw.split(",")]
-
-        # Certains processus système apparaissent alors qu'ils n'intéressent
-        # pas l'utilisateur.
-        ignored = {"FolderActionsDispatcher", "Dock", "SystemUIServer", ""}
-        return [name for name in names if name not in ignored]
+        return _visible_apps(raw)
 
     def list_windows(self) -> list[tuple[str, str]]:
         return [
@@ -615,9 +649,8 @@ class MacPlatform(Platform):
         if not match:
             return None
 
-        try:
-            load = float(match.group(1).replace(",", "."))
-        except ValueError:
+        load = _parse_number(match.group(1))
+        if load is None:
             return None
 
         return max(0, min(100, int(round(load * 100.0 / self._cpu_count))))
@@ -628,13 +661,14 @@ class MacPlatform(Platform):
         except (Unsupported, ActionFailed):
             return None
 
-    def snapshot(self):
+    def snapshot(self) -> SystemSnapshot:
         """Collecte optimisée.
 
         Volume, sourdine, micro, application active et liste des applications
-        sont obtenus par une seule requête AppleScript. Quatre appels séparés
-        coûtaient environ deux fois plus de temps, ce qui se ressentait sur la
-        fluidité du tableau de bord.
+        sont obtenus par une seule requête AppleScript. Ces cinq valeurs
+        demandaient autant d'appels séparés, chacun payant environ 170 ms de
+        lancement de processus, ce qui se ressentait sur la fluidité du tableau
+        de bord.
         """
         snapshot = SystemSnapshot()
 
@@ -671,12 +705,7 @@ class MacPlatform(Platform):
 
                 snapshot.active_app = fields[3].strip()
 
-                ignored = {"FolderActionsDispatcher", "Dock", "SystemUIServer", ""}
-                snapshot.apps = [
-                    name.strip()
-                    for name in fields[4].split(",")
-                    if name.strip() not in ignored
-                ]
+                snapshot.apps = _visible_apps(fields[4])
         else:
             # Repli sur les accesseurs unitaires si la requête groupée échoue.
             snapshot.volume = self.get_volume()
@@ -690,13 +719,10 @@ class MacPlatform(Platform):
         except Exception:
             snapshot.media = None
 
-        # Le volume du lecteur n'est demandé que si un morceau est présent :
-        # inutile d'interroger Spotify quand il ne joue rien.
+        # Le volume du lecteur a déjà été relevé par `get_media`, dans la même
+        # requête AppleScript : aucun appel supplémentaire n'est nécessaire.
         if snapshot.media is not None:
-            try:
-                snapshot.app_volume = self.get_app_volume()
-            except Exception:
-                snapshot.app_volume = None
+            snapshot.app_volume = self._player_volume
 
         # CoreAudio répond en quelques millisecondes : la liste peut être
         # collectée à chaque cycle sans coût notable.

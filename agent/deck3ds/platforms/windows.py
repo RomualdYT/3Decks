@@ -286,84 +286,74 @@ class WindowsPlatform(Platform):
         on la déclare en C# compilé à la volée. Le type n'est ajouté qu'une fois
         par session grâce au test d'existence.
         """
-        return (
-            "if (-not ([System.Management.Automation.PSTypeName]"
-            "'Deck3DS.Audio').Type) {\n"
-            "Add-Type -TypeDefinition @'\n"
-            "using System;\n"
-            "using System.Runtime.InteropServices;\n"
-            "namespace Deck3DS {\n"
-            '  [Guid("5CDF2C82-841E-4546-9722-0CF74078229A"),'
-            " InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]\n"
-            "  interface IAudioEndpointVolume {\n"
-            "    int f(); int g(); int h(); int i();\n"
-            "    int SetMasterVolumeLevelScalar(float v, Guid ctx);\n"
-            "    int j();\n"
-            "    int GetMasterVolumeLevelScalar(out float v);\n"
-            "    int k(); int l();\n"
-            "    int SetMute([MarshalAs(UnmanagedType.Bool)] bool m, Guid ctx);\n"
-            "    int GetMute([MarshalAs(UnmanagedType.Bool)] out bool m);\n"
-            "  }\n"
-            '  [Guid("D666063F-1587-4E43-81F1-B948E807363F"),'
-            " InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]\n"
-            "  interface IMMDevice {\n"
-            "    int Activate(ref Guid id, int clsCtx, IntPtr p,"
-            " [MarshalAs(UnmanagedType.IUnknown)] out object i);\n"
-            "    int OpenPropertyStore(int access, out IntPtr properties);\n"
-            "    int GetId([MarshalAs(UnmanagedType.LPWStr)] out string id);\n"
-            "    int GetState(out int state);\n"
-            "  }\n"
-            '  [Guid("A95664D2-9614-4F35-A746-DE8DB63617E6"),'
-            " InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]\n"
-            "  interface IMMDeviceEnumerator {\n"
-            "    int f();\n"
-            "    int GetDefaultAudioEndpoint(int dataFlow, int role,"
-            " out IMMDevice dev);\n"
-            "  }\n"
-            '  [ComImport, Guid("BCDE0395-E52F-467C-8E3D-C4579291692E")]\n'
-            "  class MMDeviceEnumeratorComObject { }\n"
-            "  public class Audio {\n"
-            "    static IAudioEndpointVolume Endpoint(int flow) {\n"
-            "      IMMDeviceEnumerator e ="
-            " (IMMDeviceEnumerator)(new MMDeviceEnumeratorComObject());\n"
-            "      IMMDevice dev;\n"
-            "      Marshal.ThrowExceptionForHR("
-            "e.GetDefaultAudioEndpoint(flow, 1, out dev));\n"
-            "      Guid iid = typeof(IAudioEndpointVolume).GUID;\n"
-            "      object o;\n"
-            "      Marshal.ThrowExceptionForHR("
-            "dev.Activate(ref iid, 23, IntPtr.Zero, out o));\n"
-            "      return (IAudioEndpointVolume)o;\n"
-            "    }\n"
-            "    public static float GetVolume() {\n"
-            "      float v; Endpoint(0).GetMasterVolumeLevelScalar(out v);"
-            " return v * 100f;\n"
-            "    }\n"
-            "    public static void SetVolume(float v) {\n"
-            "      Endpoint(0).SetMasterVolumeLevelScalar(v / 100f, Guid.Empty);\n"
-            "    }\n"
-            "    public static bool GetMute() {\n"
-            "      bool m; Endpoint(0).GetMute(out m); return m;\n"
-            "    }\n"
-            "    public static void SetMute(bool m) {\n"
-            "      Endpoint(0).SetMute(m, Guid.Empty);\n"
-            "    }\n"
-            "    public static bool GetMicMute() {\n"
-            "      bool m; Endpoint(1).GetMute(out m); return m;\n"
-            "    }\n"
-            "    public static void SetMicMute(bool m) {\n"
-            "      Endpoint(1).SetMute(m, Guid.Empty);\n"
-            "    }\n"
-            "    public static string GetDefaultOutputId() {\n"
-            "      IMMDeviceEnumerator e = (IMMDeviceEnumerator)(new MMDeviceEnumeratorComObject());\n"
-            "      IMMDevice dev; Marshal.ThrowExceptionForHR(e.GetDefaultAudioEndpoint(0, 1, out dev));\n"
-            "      string id; Marshal.ThrowExceptionForHR(dev.GetId(out id)); return id;\n"
-            "    }\n"
-            "  }\n"
-            "}\n"
-            "'@\n"
-            "}\n" + body
-        )
+        return r'''
+if (-not ([System.Management.Automation.PSTypeName]'Deck3DS.Audio').Type) {
+Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+namespace Deck3DS {
+  [Guid("5CDF2C82-841E-4546-9722-0CF74078229A"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+  interface IAudioEndpointVolume {
+    int f(); int g(); int h(); int i();
+    int SetMasterVolumeLevelScalar(float v, Guid ctx);
+    int j();
+    int GetMasterVolumeLevelScalar(out float v);
+    int k(); int l();
+    int SetMute([MarshalAs(UnmanagedType.Bool)] bool m, Guid ctx);
+    int GetMute([MarshalAs(UnmanagedType.Bool)] out bool m);
+  }
+  [Guid("D666063F-1587-4E43-81F1-B948E807363F"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+  interface IMMDevice {
+    int Activate(ref Guid id, int clsCtx, IntPtr p, [MarshalAs(UnmanagedType.IUnknown)] out object i);
+    int OpenPropertyStore(int access, out IntPtr properties);
+    int GetId([MarshalAs(UnmanagedType.LPWStr)] out string id);
+    int GetState(out int state);
+  }
+  [Guid("A95664D2-9614-4F35-A746-DE8DB63617E6"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+  interface IMMDeviceEnumerator {
+    int f();
+    int GetDefaultAudioEndpoint(int dataFlow, int role, out IMMDevice dev);
+  }
+  [ComImport, Guid("BCDE0395-E52F-467C-8E3D-C4579291692E")]
+  class MMDeviceEnumeratorComObject { }
+  public class Audio {
+    static IAudioEndpointVolume Endpoint(int flow) {
+      IMMDeviceEnumerator e = (IMMDeviceEnumerator)(new MMDeviceEnumeratorComObject());
+      IMMDevice dev;
+      Marshal.ThrowExceptionForHR(e.GetDefaultAudioEndpoint(flow, 1, out dev));
+      Guid iid = typeof(IAudioEndpointVolume).GUID;
+      object o;
+      Marshal.ThrowExceptionForHR(dev.Activate(ref iid, 23, IntPtr.Zero, out o));
+      return (IAudioEndpointVolume)o;
+    }
+    public static float GetVolume() {
+      float v; Endpoint(0).GetMasterVolumeLevelScalar(out v); return v * 100f;
+    }
+    public static void SetVolume(float v) {
+      Endpoint(0).SetMasterVolumeLevelScalar(v / 100f, Guid.Empty);
+    }
+    public static bool GetMute() {
+      bool m; Endpoint(0).GetMute(out m); return m;
+    }
+    public static void SetMute(bool m) {
+      Endpoint(0).SetMute(m, Guid.Empty);
+    }
+    public static bool GetMicMute() {
+      bool m; Endpoint(1).GetMute(out m); return m;
+    }
+    public static void SetMicMute(bool m) {
+      Endpoint(1).SetMute(m, Guid.Empty);
+    }
+    public static string GetDefaultOutputId() {
+      IMMDeviceEnumerator e = (IMMDeviceEnumerator)(new MMDeviceEnumeratorComObject());
+      IMMDevice dev; Marshal.ThrowExceptionForHR(e.GetDefaultAudioEndpoint(0, 1, out dev));
+      string id; Marshal.ThrowExceptionForHR(dev.GetId(out id)); return id;
+    }
+  }
+}
+'@
+}
+''' + body
 
     def _device_script(self, body: str) -> str:
         """Interfaces COM d'énumération et de sélection des sorties audio."""
@@ -607,68 +597,44 @@ namespace Deck3DS {
         joue n'importe quelle application compatible, navigateurs inclus. Elle
         n'est disponible qu'à partir de Windows 10.
         """
-        script = (
-            "try {\n"
-            "Add-Type -AssemblyName System.Runtime.WindowsRuntime "
-            "-ErrorAction Stop\n"
-            "$T = [Windows.Media.Control."
-            "GlobalSystemMediaTransportControlsSessionManager,"
-            "Windows.Media.Control,ContentType=WindowsRuntime]\n"
-            "$op = $T::RequestAsync()\n"
-            "$m = ([System.WindowsRuntimeSystemExtensions].GetMethods() | "
-            "Where-Object { $_.Name -eq 'AsTask' -and $_.IsGenericMethod "
-            "-and $_.GetParameters().Count -eq 1 } | Select-Object -First 1)."
-            "MakeGenericMethod([Windows.Media.Control."
-            "GlobalSystemMediaTransportControlsSessionManager,"
-            "Windows.Media.Control,ContentType=WindowsRuntime])\n"
-            "$task = $m.Invoke($null, @($op))\n"
-            "$task.Wait()\n"
-            "$mgr = $task.Result\n"
-            "$s = $mgr.GetCurrentSession()\n"
-            "if ($s) {\n"
-            "  $pop = $s.TryGetMediaPropertiesAsync()\n"
-            "  $pm = ([System.WindowsRuntimeSystemExtensions].GetMethods() | "
-            "Where-Object { $_.Name -eq 'AsTask' -and $_.IsGenericMethod "
-            "-and $_.GetParameters().Count -eq 1 } | Select-Object -First 1)."
-            "MakeGenericMethod([Windows.Media.Control."
-            "GlobalSystemMediaTransportControlsSessionMediaProperties,"
-            "Windows.Media.Control,ContentType=WindowsRuntime])\n"
-            "  $ptask = $pm.Invoke($null, @($pop))\n"
-            "  $ptask.Wait()\n"
-            "  $p = $ptask.Result\n"
-            "  $st = $s.GetPlaybackInfo().PlaybackStatus\n"
-            "  $tl = $s.GetTimelineProperties()\n"
-            "  $mediaKey = $p.Title + '|' + $p.Artist + '|' + $p.AlbumTitle\n"
-            "  $art = ''\n"
-            "  if ($p.Thumbnail -and $global:Deck3DSArtKey -ne $mediaKey) {\n"
-            "    $top = $p.Thumbnail.OpenReadAsync()\n"
-            "    $tm = ([System.WindowsRuntimeSystemExtensions].GetMethods() | "
-            "Where-Object { $_.Name -eq 'AsTask' -and $_.IsGenericMethod "
-            "-and $_.GetParameters().Count -eq 1 } | Select-Object -First 1)."
-            "MakeGenericMethod([Windows.Storage.Streams."
-            "IRandomAccessStreamWithContentType,Windows.Storage.Streams,"
-            "ContentType=WindowsRuntime])\n"
-            "    $ttask = $tm.Invoke($null, @($top))\n"
-            "    $ttask.Wait()\n"
-            "    $sm = [System.IO.WindowsRuntimeStreamExtensions].GetMethods() | "
-            "Where-Object { $_.Name -eq 'AsStreamForRead' -and "
-            "$_.GetParameters().Count -eq 1 } | Select-Object -First 1\n"
-            "    $net = $sm.Invoke($null, @($ttask.Result))\n"
-            "    $memory = New-Object System.IO.MemoryStream\n"
-            "    $net.CopyTo($memory)\n"
-            "    $art = [Convert]::ToBase64String($memory.ToArray())\n"
-            "    $global:Deck3DSArtKey = $mediaKey\n"
-            "  }\n"
-            "  [PSCustomObject]@{"
-            "title=$p.Title; artist=$p.Artist; album=$p.AlbumTitle; "
-            "app=$s.SourceAppUserModelId; playing=($st -eq 'Playing'); "
-            "position=[math]::Max(0,$tl.Position.TotalSeconds); "
-            "duration=[math]::Max(0,($tl.EndTime-$tl.StartTime).TotalSeconds); "
-            "key=$mediaKey; art=$art"
-            "} | ConvertTo-Json -Compress\n"
-            "}\n"
-            "} catch { Write-Output ('DECK3DS_ERROR ' + $_.Exception.ToString()) }"
-        )
+        # Les API WinRT sont asynchrones et PowerShell ne sait pas les attendre
+        # directement : il faut retrouver la surcharge générique de `AsTask` par
+        # réflexion, puis la spécialiser pour chaque type de résultat. Le motif
+        # était recopié trois fois ; une fonction locale le porte désormais une
+        # seule fois, ce qui évite qu'une correction n'en oublie une copie.
+        script = r'''
+try {
+Add-Type -AssemblyName System.Runtime.WindowsRuntime -ErrorAction Stop
+function Wait-Deck3DSAsync($operation, $resultType) {
+  $asTask = [System.WindowsRuntimeSystemExtensions].GetMethods() | Where-Object { $_.Name -eq 'AsTask' -and $_.IsGenericMethod -and $_.GetParameters().Count -eq 1 } | Select-Object -First 1
+  $task = $asTask.MakeGenericMethod($resultType).Invoke($null, @($operation))
+  $task.Wait()
+  return $task.Result
+}
+$sessionType = [Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager,Windows.Media.Control,ContentType=WindowsRuntime]
+$mgr = Wait-Deck3DSAsync ($sessionType::RequestAsync()) $sessionType
+$s = $mgr.GetCurrentSession()
+if ($s) {
+  $propertiesType = [Windows.Media.Control.GlobalSystemMediaTransportControlsSessionMediaProperties,Windows.Media.Control,ContentType=WindowsRuntime]
+  $p = Wait-Deck3DSAsync ($s.TryGetMediaPropertiesAsync()) $propertiesType
+  $st = $s.GetPlaybackInfo().PlaybackStatus
+  $tl = $s.GetTimelineProperties()
+  $mediaKey = $p.Title + '|' + $p.Artist + '|' + $p.AlbumTitle
+  $art = ''
+  if ($p.Thumbnail -and $global:Deck3DSArtKey -ne $mediaKey) {
+    $streamType = [Windows.Storage.Streams.IRandomAccessStreamWithContentType,Windows.Storage.Streams,ContentType=WindowsRuntime]
+    $stream = Wait-Deck3DSAsync ($p.Thumbnail.OpenReadAsync()) $streamType
+    $asStream = [System.IO.WindowsRuntimeStreamExtensions].GetMethods() | Where-Object { $_.Name -eq 'AsStreamForRead' -and $_.GetParameters().Count -eq 1 } | Select-Object -First 1
+    $net = $asStream.Invoke($null, @($stream))
+    $memory = New-Object System.IO.MemoryStream
+    $net.CopyTo($memory)
+    $art = [Convert]::ToBase64String($memory.ToArray())
+    $global:Deck3DSArtKey = $mediaKey
+  }
+  [PSCustomObject]@{title=$p.Title; artist=$p.Artist; album=$p.AlbumTitle; app=$s.SourceAppUserModelId; playing=($st -eq 'Playing'); position=[math]::Max(0,$tl.Position.TotalSeconds); duration=[math]::Max(0,($tl.EndTime-$tl.StartTime).TotalSeconds); key=$mediaKey; art=$art} | ConvertTo-Json -Compress
+}
+} catch { Write-Output ('DECK3DS_ERROR ' + $_.Exception.ToString()) }
+'''
 
         try:
             raw = self._shell.run(script, timeout=10.0)
