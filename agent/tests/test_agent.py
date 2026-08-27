@@ -1135,6 +1135,43 @@ class TestBroadcast(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(client.sent, [])
         self.assertEqual(client.raw, [])
 
+    async def test_age_des_notifications_ne_declenche_pas_un_envoi(self):
+        """La 3DS vieillit les entrées localement, sans patch JSON par seconde."""
+        server = self._server()
+        first = {
+            "type": "state.update",
+            "notifications": [
+                {"app": "Mail", "title": "Message", "icon": "mail", "age": 4}
+            ],
+        }
+        second = {
+            "type": "state.update",
+            "notifications": [
+                {"app": "Mail", "title": "Message", "icon": "mail", "age": 5}
+            ],
+        }
+
+        self.assertEqual(server._delta_since_last(first), first)
+        self.assertEqual(server._delta_since_last(second), {"type": "state.update"})
+
+    async def test_changement_de_notification_reste_transmis(self):
+        server = self._server()
+        server._delta_since_last(
+            {
+                "type": "state.update",
+                "notifications": [{"title": "A", "age": 4}],
+            }
+        )
+
+        delta = server._delta_since_last(
+            {
+                "type": "state.update",
+                "notifications": [{"title": "B", "age": 5}],
+            }
+        )
+
+        self.assertEqual(delta["notifications"][0]["title"], "B")
+
 
 class TestArtworkRefresh(unittest.IsolatedAsyncioTestCase):
     """Pochette : jeton, teinte et transmission."""
@@ -2145,7 +2182,8 @@ class TestNotifications(unittest.TestCase):
         from deck3ds.server import _snapshot_payload
 
         payload = _snapshot_payload(FakePlatform().snapshot())
-        self.assertNotIn("notifications", payload)
+        self.assertEqual(payload["notifications"], [])
+        self.assertEqual(payload["notification_count"], 0)
         self.assertNotIn("notification_new", payload)
 
     def test_nouvelle_notification_transmise(self):
@@ -2223,6 +2261,17 @@ class TestWindowsNotifications(unittest.TestCase):
         self.assertIn("GetNotificationsAsync", script)
         self.assertNotIn("wpndatabase", script.lower())
         self.assertNotIn("sqlite", script.lower())
+
+    def test_manifeste_msix_declare_la_capacite_sans_fallback(self):
+        manifest = (
+            Path(__file__).resolve().parent.parent
+            / "windows"
+            / "Package.appxmanifest.template"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn('uap3:Capability Name="userNotificationListener"', manifest)
+        self.assertNotIn("SQLite", manifest)
+        self.assertIn("ne lit volontairement jamais wpndatabase.db", manifest)
 
     def test_permission_est_demandee_au_premier_demarrage(self):
         reader, calls = self._reader(self._payload())
@@ -4154,6 +4203,8 @@ class TestUiApi(unittest.IsolatedAsyncioTestCase):
         payload = json.loads(response.body)
 
         self.assertIn("capabilities", payload)
+        self.assertEqual(payload["notifications"]["provider"], "none")
+        self.assertFalse(payload["notifications"]["available"])
         self.assertIn("ligne de test", "\n".join(payload["logs"]))
         self.assertEqual(payload["platform"], self.server.platform.name)
 

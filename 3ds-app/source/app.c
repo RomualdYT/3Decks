@@ -7,6 +7,7 @@
 
 #include <3ds.h>
 #include <arpa/inet.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -814,6 +815,21 @@ void app_update(App *app, float dt)
 	app->uptime += dt;
 	app->idle_time += dt;
 	update_local_clock(app);
+
+	/*
+	 * L'agent n'envoie plus la liste entière uniquement parce que son âge a
+	 * avancé. Une horloge locale garde donc les libellés « il y a … » justes,
+	 * sans trafic ni analyse JSON supplémentaires à chaque seconde.
+	 */
+	app->notification_age_timer += dt;
+	while (app->notification_age_timer >= 1.0f) {
+		app->notification_age_timer -= 1.0f;
+		for (int i = 0; i < app->state.notification_count; i++) {
+			if (app->state.notifications[i].age < INT_MAX) {
+				app->state.notifications[i].age++;
+			}
+		}
+	}
 
 	/*
 	 * Batterie relevée une fois par seconde : la valeur ne change que très

@@ -134,6 +134,20 @@ class MacPlatform(Platform):
             system_stats=True,
         )
 
+    def notification_status(self) -> dict[str, object]:
+        """État du lecteur historique macOS, faute d'API publique équivalente."""
+        available = self._notifications.available and not self._notifications.broken
+        return {
+            "provider": "macos_notification_database",
+            "available": available,
+            "access": "Allowed" if available else "Unavailable",
+            "error": (
+                "Centre de notifications inaccessible"
+                if self._notifications.broken
+                else ""
+            ),
+        }
+
     # --- AppleScript ----------------------------------------------------------
 
     def _script(self, source: str, timeout: float = SCRIPT_TIMEOUT) -> str:

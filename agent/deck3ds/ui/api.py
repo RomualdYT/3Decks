@@ -269,6 +269,7 @@ class Api:
                     if client.authenticated
                 ],
                 "capabilities": available,
+                "notifications": server.platform.notification_status(),
                 "snapshot": server.last_state_payload(),
                 "logs": server.recent_logs(),
             }

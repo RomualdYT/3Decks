@@ -66,6 +66,8 @@ typedef struct {
 	char local_time[8];
 
 	float uptime;
+	/** Fraction de seconde accumulée pour vieillir l'historique localement. */
+	float notification_age_timer;
 	/** Secondes depuis la dernière interaction, pour la mise en veille. */
 	float idle_time;
 	bool dimmed;

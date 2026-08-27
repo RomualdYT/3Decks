@@ -192,6 +192,20 @@ class Platform:
         """
         return Capabilities()
 
+    def notification_status(self) -> dict[str, object]:
+        """État détaillé du fournisseur de notifications.
+
+        Ce diagnostic complète le booléen de capacité : l'interface peut ainsi
+        expliquer pourquoi les notifications sont absentes, sans exposer de
+        détail propre à une plateforme dans son code.
+        """
+        return {
+            "provider": "none",
+            "available": False,
+            "access": "Unavailable",
+            "error": "",
+        }
+
     # --- Volume ---------------------------------------------------------------
 
     def get_volume(self) -> int | None:

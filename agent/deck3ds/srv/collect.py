@@ -133,11 +133,37 @@ class CollectMixin:
 
         if previous is None:
             return payload
-        return {
-            key: value
-            for key, value in payload.items()
-            if key == "type" or previous.get(key) != value
-        }
+
+        delta: dict[str, Any] = {}
+        for key, value in payload.items():
+            if key == "type":
+                delta[key] = value
+                continue
+
+            previous_value = previous.get(key)
+            if key == "notifications" and isinstance(value, list):
+                # L'âge évolue toutes les secondes alors que le contenu reste
+                # identique. La 3DS le fait progresser localement ; réémettre
+                # toute la liste ne ferait que réveiller son parseur JSON.
+                current_content = [
+                    {field: item for field, item in entry.items() if field != "age"}
+                    if isinstance(entry, dict)
+                    else entry
+                    for entry in value
+                ]
+                previous_content = [
+                    {field: item for field, item in entry.items() if field != "age"}
+                    if isinstance(entry, dict)
+                    else entry
+                    for entry in previous_value
+                ] if isinstance(previous_value, list) else previous_value
+                if current_content == previous_content:
+                    continue
+
+            if previous_value != value:
+                delta[key] = value
+
+        return delta
     def last_state_payload(self) -> dict[str, Any]:
         """Dernier état diffusé, ou un objet vide si rien n'a encore circulé.
 

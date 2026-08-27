@@ -215,15 +215,24 @@ fonctionnent malgré tout.
 les touches média du système ne l'atteignent pas. L'agent pilote Spotify
 directement et laisse environ deux secondes à l'état pour se stabiliser.
 
-**Windows.** Un processus PowerShell est maintenu ouvert, son démarrage coûtant
-près d'une seconde. **Cet adaptateur n'a pas encore été éprouvé sur une machine
-réelle** et mérite des tests.
+**Windows.** Volume, microphone et média passent par les API Core Audio et
+WinRT ; fenêtres et focus utilisent Win32. Un processus PowerShell persistant
+évite de payer son démarrage à chaque collecte et chaque appel possède un délai
+maximal.
 
-Quatre fonctions ne sont pas encore portées : sélection de fenêtre, bascule de
-sortie audio, volume par application et notifications. La pochette est également
-absente, l'API média de Windows n'exposant aucune adresse d'image. L'adaptateur
-déclare ces manques dans `capabilities()` : `--ui` grise donc les actions et
-tableaux de bord concernés au lieu de proposer des boutons sans effet.
+Les notifications passent exclusivement par l'API officielle
+`UserNotificationListener`. L'installation Windows doit donc être empaquetée en
+MSIX avec la capacité `userNotificationListener`, puis l'utilisateur autorise
+l'accès lors de la première ouverture. Le modèle de manifeste se trouve dans
+`agent/windows/Package.appxmanifest.template`. Une installation portable laisse
+la fonction indisponible : il n'existe volontairement aucun repli vers la base
+privée `wpndatabase.db`. `python -m deck3ds --probe` affiche l'état réel de la
+permission.
+
+Le volume par application est la seule capacité Windows encore absente. Sur
+macOS, Apple ne fournit pas d'API publique équivalente pour lire l'historique
+des autres applications : le lecteur SQLite en lecture seule reste donc isolé
+derrière la même interface de fournisseur.
 
 **Salons vocaux Discord.** Lire les participants exige une autorisation OAuth
 accordée au cas par cas par Discord : ce n'est donc pas implémenté. Couper votre

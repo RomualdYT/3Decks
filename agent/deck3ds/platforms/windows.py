@@ -79,6 +79,7 @@ class _PowerShellSession:
             self._process = subprocess.Popen(
                 [
                     "powershell.exe",
+                    "-Sta",
                     "-NoLogo",
                     "-NoProfile",
                     "-NonInteractive",
@@ -228,6 +229,15 @@ class WindowsPlatform(Platform):
             notifications=self._notifications.available,
             system_stats=True,
         )
+
+    def notification_status(self) -> dict[str, object]:
+        """Permission et disponibilité de UserNotificationListener."""
+        return {
+            "provider": "windows_user_notification_listener",
+            "available": self._notifications.available,
+            "access": self._notifications.access_status,
+            "error": self._notifications.last_error,
+        }
 
     # --- Touches --------------------------------------------------------------
 

@@ -66,14 +66,14 @@ def _snapshot_payload(snapshot: SystemSnapshot) -> dict[str, Any]:
     if snapshot.audio_outputs:
         payload["audio_outputs"] = snapshot.audio_outputs[:MAX_PAYLOAD_AUDIO_OUTPUTS]
 
-    if snapshot.notifications:
-        # Seules les plus récentes sont transmises ; `notification_count`
-        # indique le total, que la console affiche sous forme de compteur.
-        payload["notifications"] = [
-            item.as_payload()
-            for item in snapshot.notifications[:MAX_PAYLOAD_NOTIFICATIONS]
-        ]
-        payload["notification_count"] = len(snapshot.notifications)
+    # La liste vide est significative : elle efface l'historique de la console
+    # lorsque la dernière notification expire. Seules les entrées visibles sont
+    # transmises ; le compteur conserve le total.
+    payload["notifications"] = [
+        item.as_payload()
+        for item in snapshot.notifications[:MAX_PAYLOAD_NOTIFICATIONS]
+    ]
+    payload["notification_count"] = len(snapshot.notifications)
 
     if snapshot.new_notification is not None:
         # Signalée à part : la console l'annonce, quelle que soit la page.

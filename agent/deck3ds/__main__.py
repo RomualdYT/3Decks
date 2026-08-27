@@ -92,6 +92,13 @@ def command_probe() -> int:
     show("memoire", snapshot.memory, " %")
     show("application active", snapshot.active_app)
     show("applications", len(snapshot.apps) or None)
+    notification_status = platform.notification_status()
+    show(
+        "notifications",
+        notification_status["access"]
+        if notification_status["available"]
+        else None,
+    )
 
     if snapshot.media is not None:
         show("media", f"{snapshot.media.title} — {snapshot.media.artist}")
@@ -124,6 +131,14 @@ def command_probe() -> int:
                 "Note : aucun media detecte. Lancez une lecture dans une application\n"
                 "       compatible avec les controles media de Windows."
             )
+    if sys.platform in ("win32", "cygwin") and not notification_status["available"]:
+        print(
+            "Note : les notifications Windows exigent l'installation MSIX et\n"
+            "       l'autorisation UserNotificationListener. Aucun acces de\n"
+            "       secours a la base SQLite de Windows n'est utilise."
+        )
+        if notification_status["error"]:
+            print(f"       Detail : {notification_status['error']}")
     close = getattr(platform, "close", None)
     if callable(close):
         close()

@@ -437,6 +437,8 @@ agent/              companion agent
     artwork.py      album art conversion
     palette.py      dominant colour extraction
     coreaudio.py    audio outputs (macOS)
+    notifications.py macOS notification history
+    windows_notifications.py Windows UserNotificationListener provider
     windows_list.py window enumeration (macOS)
     messages.py     translated notifications
     platforms/      macOS and Windows adapters
@@ -487,11 +489,17 @@ has a real timeout so a blocked Windows API cannot freeze the agent.
 One capability is not ported yet: per-application volume, which would require
 `IAudioSessionManager2`. Output switching uses Core Audio and `IPolicyConfig`;
 Spotify artwork is read through WinRT and converted locally with System.Drawing.
-Notification history is read from `wpndatabase.db`, the push-notification store,
-opened read-only; `UserNotificationListener` would be cleaner but requires a
-package identity that an agent launched from a folder cannot claim. The adapter
-declares the remaining gap in `capabilities()`, so `--ui` greys out the
-corresponding actions and dashboards instead of offering inert buttons.
+Notifications use the official WinRT `UserNotificationListener`. Windows asks
+for consent on first use, and the distributed agent must have an MSIX package
+identity carrying the `userNotificationListener` capability. The manifest
+template lives in `agent/windows/Package.appxmanifest.template`. A portable
+folder install reports notifications as unavailable: it never falls back to
+the private `wpndatabase.db` SQLite store. Run `--probe` to see the effective
+permission and provider status.
+
+macOS does not expose an equivalent public API for reading another app's
+notification history. Its adapter therefore keeps the read-only Notification
+Center database reader, isolated behind the same provider interface.
 
 **Discord voice channels.** Reading participants requires an OAuth scope granted
 per application by Discord, so it is not implemented. Muting your system
