@@ -54,8 +54,8 @@ class LifecycleMixin:
 
         # Import différé : l'agent démarre sans l'interface si elle n'est pas
         # utilisée, et le module d'interface peut importer le serveur.
-        from .ui.api import Api
-        from .ui.http import UiServer
+        from ..ui.api import Api
+        from ..ui.http import UiServer
 
         api = Api(self)
         ui = UiServer(api.routes(), port=self.ui_port, log=self.log)
