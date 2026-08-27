@@ -310,10 +310,9 @@ class Platform:
 
     # --- Notifications, lecture partagée --------------------------------------
     #
-    # macOS et Windows lisent tous deux une base SQLite : la conversion vers le
-    # format de l'interface et la détection de nouveauté sont identiques. Les
-    # adaptateurs concernés déclarent `self._notifications` puis délèguent ici,
-    # plutôt que de recopier ces deux méthodes.
+    # Chaque plateforme choisit sa source (SQLite sur macOS, WinRT sur Windows)
+    # mais partage la conversion vers le format de la console et la détection
+    # d'une nouveauté à annoncer.
 
     def _read_notifications(self) -> list[NotificationInfo]:
         """Notifications récentes, converties au format de l'interface.
@@ -362,6 +361,8 @@ class Platform:
         snapshot.media = safe(self.get_media)
         snapshot.active_app = safe(self.get_active_app, "") or ""
         snapshot.apps = safe(self.list_apps, []) or []
+        snapshot.notifications = safe(self.list_notifications, []) or []
+        snapshot.new_notification = safe(self.take_new_notification)
         snapshot.cpu = safe(self.get_cpu)
         snapshot.memory = safe(self.get_memory)
         return snapshot

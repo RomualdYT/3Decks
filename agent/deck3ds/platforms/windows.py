@@ -29,8 +29,8 @@ from pathlib import Path
 
 from ..config import MAX_LIST_ENTRIES
 from ..keys import MODIFIER_BY_NAME, InvalidHotkey, parse_hotkey
-from ..notifications import NotificationReader
 from ..messages import msg
+from ..windows_notifications import WindowsNotificationReader
 from .base import (
     ActionFailed,
     Capabilities,
@@ -174,9 +174,9 @@ class WindowsPlatform(Platform):
 
     def __init__(self) -> None:
         self._shell = _PowerShellSession()
-        # Lecture du centre de notifications, dans la base des notifications
-        # poussées. Le lecteur choisit son adaptateur selon le système.
-        self._notifications = NotificationReader()
+        # API officielle Windows. L'absence d'identité de paquet ou le refus de
+        # permission désactive la capacité ; aucun repli SQLite n'est utilisé.
+        self._notifications = WindowsNotificationReader(self._shell.run)
         self._pending_notification: NotificationInfo | None = None
         self._mic_muted: bool | None = None
         self._user32 = ctypes.WinDLL("user32", use_last_error=True)
@@ -225,7 +225,7 @@ class WindowsPlatform(Platform):
             open_url=True,
             open_path=True,
             lock=True,
-            notifications=True,
+            notifications=self._notifications.available,
             system_stats=True,
         )
 

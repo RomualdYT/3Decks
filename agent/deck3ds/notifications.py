@@ -1,24 +1,16 @@
-"""Lecture des notifications du système.
+"""Lecture des notifications du système sur macOS.
 
-macOS et Windows conservent tous deux leurs notifications dans une base SQLite,
-lisible sans dépendance : seuls le chemin, la requête, l'origine des dates et le
-format de la charge utile diffèrent. Un lecteur commun porte la logique partagée
-— déduplication, filtrage par ancienneté, détection des nouveautés — et délègue
-ces quatre différences à un adaptateur par système.
-
-- macOS : `~/Library/Group Containers/group.com.apple.usernoted/db2/db`,
-  charge utile en plist binaire, dates comptées depuis 2001.
-- Windows : `%LOCALAPPDATA%/Microsoft/Windows/Notifications/wpndatabase.db`,
-  charge utile en XML de toast, dates en FILETIME comptées depuis 1601.
+macOS conserve son centre de notifications dans une base SQLite interne :
+`~/Library/Group Containers/group.com.apple.usernoted/db2/db`. Sa charge utile
+est une plist binaire et ses dates sont comptées depuis 2001.
 
 Réserve importante : ces bases sont des détails d'implémentation, non documentés
 par leurs éditeurs. Leur schéma peut changer lors d'une mise à jour majeure. Le
 décodage est donc volontairement défensif : devant une structure inattendue, la
 fonctionnalité se désactive au lieu de faire échouer l'agent.
 
-Sur Windows, l'API `UserNotificationListener` aurait été plus propre, mais elle
-exige une identité de paquet et un appel depuis un fil d'interface : un agent
-lancé depuis un dossier ne peut pas y prétendre.
+Windows utilise exclusivement l'API officielle `UserNotificationListener`,
+implémentée dans `windows_notifications.py`.
 """
 
 # Deck3DS — Copyright (C) 2026 Romuald (@RomualdYT)
@@ -31,27 +23,14 @@ import plistlib
 import sqlite3
 import sys
 import time
-import xml.etree.ElementTree as ElementTree
 from dataclasses import dataclass
 from pathlib import Path
 
 #: Base du centre de notifications de macOS.
 _MAC_DB_PATH = "~/Library/Group Containers/group.com.apple.usernoted/db2/db"
 
-#: Base des notifications poussées de Windows, depuis la version 1607. Les
-#: éditions antérieures utilisaient `appdb.dat`, dans un format propriétaire :
-#: elles ne sont pas prises en charge.
-_WINDOWS_DB_PATH = (
-    "~/AppData/Local/Microsoft/Windows/Notifications/wpndatabase.db"
-)
-
 #: Les dates de macOS sont comptées depuis le 1er janvier 2001.
 _APPLE_EPOCH = 978307200
-
-#: Un FILETIME Windows compte les intervalles de 100 ns depuis le
-#: 1er janvier 1601. Cette constante est l'écart avec l'époque Unix.
-_FILETIME_EPOCH = 11644473600
-_FILETIME_PER_SECOND = 10_000_000
 
 #: Notifications conservées et transmises à la console.
 MAX_NOTIFICATIONS = 8
@@ -86,34 +65,6 @@ _APP_NAMES = {
     "com.google.Chrome": "Chrome",
     "com.docker.docker": "Docker",
     "com.github.GitHubClient": "GitHub",
-}
-
-#: Noms lisibles des applications Windows. L'identifiant y est un AUMID, dont la
-#: forme varie : identifiant de paquet du Microsoft Store, ou chemin du
-#: raccourci pour une application installée classiquement.
-_WINDOWS_APP_NAMES = {
-    "microsoft.windowscommunicationsapps": "Courrier",
-    "microsoft.windowsstore": "Store",
-    "microsoft.skypeapp": "Skype",
-    "microsoft.outlook": "Outlook",
-    "microsoft.teams": "Teams",
-    "microsoft.office.outlook": "Outlook",
-    "microsoft.windows.explorer": "Explorateur",
-    "microsoft.windowsterminal": "Terminal",
-    "windows.systemtoast.securityandmaintenance": "Sécurité",
-    "windows.systemtoast.windowsupdate": "Mise à jour",
-    "windows.systemtoast.bthquickpair": "Bluetooth",
-    "chrome": "Chrome",
-    "firefox": "Firefox",
-    "msedge": "Edge",
-    "discord": "Discord",
-    "slack": "Slack",
-    "spotify": "Spotify",
-    "code": "VS Code",
-    "steam": "Steam",
-    "thunderbird": "Thunderbird",
-    "whatsapp": "WhatsApp",
-    "telegram": "Telegram",
 }
 
 #: Icônes de l'interface associées aux applications connues.
@@ -178,41 +129,6 @@ def _readable_name(bundle: str) -> str:
     # À défaut, le dernier segment de l'identifiant est le plus parlant.
     tail = cleaned.rsplit(".", 1)[-1]
     return tail[:1].upper() + tail[1:] if tail else cleaned
-
-
-def _readable_windows_name(aumid: str) -> str:
-    """Nom lisible d'une application Windows à partir de son AUMID.
-
-    Trois formes se présentent : un identifiant de paquet du Store
-    (`Microsoft.WindowsStore_8wekyb3d8bbwe!App`), un identifiant de notification
-    système (`Windows.SystemToast.WindowsUpdate`), ou le chemin d'un raccourci
-    (`{...}\Programs\Discord.lnk`). Chacune est réduite au fragment porteur de
-    sens avant d'être confrontée à la table.
-    """
-    cleaned = aumid.strip()
-    if not cleaned:
-        return ""
-
-    # Un AUMID du Store sépare le paquet du point d'entrée par « ! ».
-    package = cleaned.split("!")[0]
-    # Le suffixe d'éditeur (`_8wekyb3d8bbwe`) n'apporte rien.
-    package = package.split("_")[0]
-
-    # Forme « chemin de raccourci » : seul le nom du fichier compte.
-    if "\\" in package or "/" in package:
-        package = package.replace("\\", "/").rsplit("/", 1)[-1]
-    if package.lower().endswith(".lnk"):
-        package = package[: -len(".lnk")]
-    if package.lower().endswith(".exe"):
-        package = package[: -len(".exe")]
-
-    known = _WINDOWS_APP_NAMES.get(package.lower())
-    if known:
-        return known
-
-    # Les notifications système annoncent leur origine dans le dernier segment.
-    tail = package.rsplit(".", 1)[-1] if "." in package else package
-    return tail[:1].upper() + tail[1:] if tail else package
 
 
 def _icon_for(name: str) -> str:
@@ -288,67 +204,11 @@ class _MacSource(_Source):
         return _readable_name(identifier)
 
 
-class _WindowsSource(_Source):
-    """Notifications poussées de Windows : XML de toast, dates en FILETIME."""
-
-    path = _WINDOWS_DB_PATH
-    # `NotificationHandler` porte le nom de l'application, `Notification` la
-    # charge utile : la jointure relie les deux.
-    query = (
-        "SELECT n.ArrivalTime, h.PrimaryId, n.Payload "
-        "FROM Notification n "
-        "JOIN NotificationHandler h ON n.HandlerId = h.RecordId "
-        "WHERE n.ArrivalTime IS NOT NULL AND n.ArrivalTime > 0 "
-        "ORDER BY n.ArrivalTime DESC LIMIT 40"
-    )
-
-    def timestamp(self, raw: object) -> float | None:
-        if not isinstance(raw, (int, float)) or isinstance(raw, bool):
-            return None
-        return float(raw) / _FILETIME_PER_SECOND - _FILETIME_EPOCH
-
-    def texts(self, payload: object) -> tuple[str, str, str]:
-        if isinstance(payload, (bytes, bytearray)):
-            try:
-                raw = bytes(payload).decode("utf-8")
-            except UnicodeDecodeError:
-                return "", "", ""
-        elif isinstance(payload, str):
-            raw = payload
-        else:
-            return "", "", ""
-
-        try:
-            root = ElementTree.fromstring(raw)
-        except ElementTree.ParseError:
-            return "", "", ""
-
-        # Seules les notifications d'écran nous intéressent : une vignette de
-        # menu Démarrer (`tile`) ou un badge ne s'affiche pas comme une alerte.
-        if root.tag != "toast":
-            return "", "", ""
-
-        # Un toast expose ses lignes dans l'ordre d'affichage : titre en
-        # premier, puis corps. L'attribut `id` est facultatif et parfois absent.
-        blocks = [(node.text or "").strip() for node in root.iter("text")]
-        blocks = [block for block in blocks if block]
-        if not blocks:
-            return "", "", ""
-
-        title = blocks[0]
-        body = " ".join(blocks[1:]) if len(blocks) > 1 else ""
-        return title, "", body
-
-    def app_name(self, identifier: str) -> str:
-        return _readable_windows_name(identifier)
-
 
 def _source_for(platform: str) -> _Source | None:
     """Adaptateur correspondant au système, `None` s'il n'est pas pris en charge."""
     if platform == "darwin":
         return _MacSource()
-    if platform == "win32":
-        return _WindowsSource()
     return None
 
 

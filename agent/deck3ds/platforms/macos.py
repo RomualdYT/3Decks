@@ -651,8 +651,8 @@ class MacPlatform(Platform):
             snapshot.audio_outputs = []
             snapshot.audio_output = ""
 
-        # Lecture du centre de notifications : quelques millisecondes, donc
-        # sans incidence sur la fréquence de rafraîchissement.
+        # macOS conserve les notifications dans sa base interne ; le lecteur
+        # reste isolé afin qu'un refus d'accès n'affecte pas le reste du relevé.
         try:
             snapshot.notifications = self.list_notifications()
             snapshot.new_notification = self.take_new_notification()
