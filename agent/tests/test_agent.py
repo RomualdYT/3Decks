@@ -530,6 +530,13 @@ class TestConfig(unittest.TestCase):
         with self.assertRaises(config_module.ConfigError):
             config_module.parse({"pages": []})
 
+    def test_sections_objets_refusent_une_liste_vide(self):
+        """Une valeur vide ne doit pas contourner le contrôle de type."""
+        for section in ("server", "integrations", "scripts"):
+            with self.subTest(section=section):
+                with self.assertRaises(config_module.ConfigError):
+                    config_module.parse(minimal_config(**{section: []}))
+
     def test_booleen_refuse_pour_entier(self):
         """True est un entier en Python : le piège doit être détecté."""
         with self.assertRaises(config_module.ConfigError):
@@ -563,6 +570,17 @@ class TestConfig(unittest.TestCase):
         text = json.dumps(parsed.snapshot_payload())
         self.assertNotIn("secret", text)
         self.assertNotIn("path", text)
+
+    def test_boutons_dynamiques_absents_de_la_configuration_serialisee(self):
+        raw = minimal_config()
+        raw["pages"][0].update({"source": "windows", "buttons": []})
+        parsed = config_module.parse(raw)
+        server = Server(parsed, FakePlatform())
+
+        server._fill_dynamic_pages([("Safari", "Page"), ("OBS", "Direct")])
+
+        self.assertEqual(len(server.config.pages[0].buttons), 2)
+        self.assertEqual(config_module.to_raw(server.config)["pages"][0]["buttons"], [])
 
     def test_integration_obs_aller_retour(self):
         raw = minimal_config(
@@ -873,6 +891,45 @@ class TestDispatcher(unittest.TestCase):
 
 
 class TestObsProtocol(unittest.TestCase):
+    @staticmethod
+    def _server_frame(payload):
+        import struct
+
+        data = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+        if len(data) < 126:
+            return bytes((0x81, len(data))) + data
+        return bytes((0x81, 126)) + struct.pack("!H", len(data)) + data
+
+    @staticmethod
+    def _read_exact(connection, size):
+        data = bytearray()
+        while len(data) < size:
+            chunk = connection.recv(size - len(data))
+            if not chunk:
+                raise RuntimeError("connexion OBS fermee pendant le test")
+            data.extend(chunk)
+        return bytes(data)
+
+    @classmethod
+    def _receive_client_json(cls, connection):
+        import struct
+
+        first, second = cls._read_exact(connection, 2)
+        length = second & 0x7F
+        if length == 126:
+            length = struct.unpack("!H", cls._read_exact(connection, 2))[0]
+        elif length == 127:
+            length = struct.unpack("!Q", cls._read_exact(connection, 8))[0]
+        mask = cls._read_exact(connection, 4)
+        payload = cls._read_exact(connection, length)
+        decoded = bytes(
+            value ^ mask[index % 4] for index, value in enumerate(payload)
+        )
+        self_opcode = first & 0x0F
+        if self_opcode != 0x1 or not second & 0x80:
+            raise RuntimeError("trame texte masquee attendue du client")
+        return json.loads(decoded.decode("utf-8"))
+
     def test_authentification_exemple_officiel(self):
         from deck3ds.obs import ObsClient
 
@@ -886,6 +943,107 @@ class TestObsProtocol(unittest.TestCase):
             authentication,
             "3mcHavhrlV/WjBJq7nRyT9oyhV5uW/2sBOtoNrRfsTM=",
         )
+
+    def test_connexion_complete_avec_un_serveur_websocket(self):
+        """Teste le fil réel : HTTP, identification puis requêtes OBS 5.x."""
+        import base64
+        import hashlib
+        import socket
+
+        from deck3ds.obs import test_connection
+
+        ready = threading.Event()
+        port = []
+        errors = []
+
+        def serve():
+            try:
+                with socket.socket() as listener:
+                    listener.bind(("127.0.0.1", 0))
+                    listener.listen(1)
+                    port.append(listener.getsockname()[1])
+                    ready.set()
+
+                    connection, _ = listener.accept()
+                    with connection:
+                        connection.settimeout(2)
+                        request = bytearray()
+                        while b"\r\n\r\n" not in request:
+                            request.extend(connection.recv(4096))
+                        headers = request.decode("latin-1").split("\r\n")
+                        key = next(
+                            line.split(":", 1)[1].strip()
+                            for line in headers
+                            if line.lower().startswith("sec-websocket-key:")
+                        )
+                        accept = base64.b64encode(
+                            hashlib.sha1(
+                                (key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11")
+                                .encode("ascii")
+                            ).digest()
+                        ).decode("ascii")
+                        connection.sendall(
+                            (
+                                "HTTP/1.1 101 Switching Protocols\r\n"
+                                "Upgrade: websocket\r\n"
+                                "Connection: Upgrade\r\n"
+                                f"Sec-WebSocket-Accept: {accept}\r\n\r\n"
+                            ).encode("ascii")
+                        )
+                        connection.sendall(
+                            self._server_frame({"op": 0, "d": {"rpcVersion": 1}})
+                        )
+
+                        identify = self._receive_client_json(connection)
+                        self.assertEqual(identify["op"], 1)
+                        connection.sendall(self._server_frame({"op": 2, "d": {}}))
+
+                        responses = {
+                            "GetVersion": {
+                                "obsVersion": "31.0.0",
+                                "obsWebSocketVersion": "5.6.0",
+                            },
+                            "GetSceneList": {
+                                "currentProgramSceneName": "Direct",
+                                "scenes": [
+                                    {"sceneName": "Direct"},
+                                    {"sceneName": "Pause"},
+                                ],
+                            },
+                        }
+                        for expected in ("GetVersion", "GetSceneList"):
+                            message = self._receive_client_json(connection)
+                            request_data = message["d"]
+                            self.assertEqual(message["op"], 6)
+                            self.assertEqual(request_data["requestType"], expected)
+                            connection.sendall(self._server_frame({
+                                "op": 7,
+                                "d": {
+                                    "requestType": expected,
+                                    "requestId": request_data["requestId"],
+                                    "requestStatus": {"result": True, "code": 100},
+                                    "responseData": responses[expected],
+                                },
+                            }))
+            except Exception as error:
+                errors.append(error)
+                ready.set()
+
+        worker = threading.Thread(target=serve, daemon=True)
+        worker.start()
+        self.assertTrue(ready.wait(2))
+        self.assertTrue(port, errors)
+
+        status = test_connection(config_module.ObsConfig(
+            host="127.0.0.1", port=port[0], timeout=2,
+        ))
+        worker.join(2)
+
+        self.assertEqual(errors, [])
+        self.assertFalse(worker.is_alive())
+        self.assertEqual(status.obs_version, "31.0.0")
+        self.assertEqual(status.current_scene, "Direct")
+        self.assertEqual(status.scenes, ["Direct", "Pause"])
 
 
 # --- Sérialisation de l'état ---------------------------------------------------
@@ -1913,7 +2071,6 @@ class TestNotifications(unittest.TestCase):
         path.write_bytes(b"")
 
         vues = []
-        vraie_connexion = notifications.sqlite3.connect
 
         def espionner(target, *args, **kwargs):
             vues.append((target, kwargs.get("uri", False)))
@@ -2606,19 +2763,21 @@ class TestKeyCatalogAndEditor(unittest.TestCase):
     l'enregistrement, ou l'inverse.
     """
 
-    def _editor_source(self):
+    def _static_source(self, filename):
         from pathlib import Path
 
         import deck3ds
 
-        source = Path(deck3ds.__file__).parent / "ui" / "static" / "app.js"
+        source = Path(deck3ds.__file__).parent / "ui" / "static" / filename
         return source.read_text(encoding="utf-8")
 
     def _mapped_names(self):
         import re
 
-        source = self._editor_source()
-        table = re.search(r"const byCode = \{(.*?)\};", source, re.S)
+        source = self._static_source("hotkeys.js")
+        table = re.search(
+            r"const CODE_TO_KEY = Object\.freeze\(\{(.*?)\}\);", source, re.S
+        )
         self.assertIsNotNone(table, "table de correspondance introuvable")
         names = {name for _, name in re.findall(r"(\w+):\s*'([\w_]+)'", table.group(1))}
         # Les touches de fonction sont reconnues par expression régulière.
@@ -2636,7 +2795,7 @@ class TestKeyCatalogAndEditor(unittest.TestCase):
 
     def test_libelles_de_groupes_traduits(self):
         """Un groupe sans libellé s'afficherait sous son nom technique."""
-        source = self._editor_source()
+        source = self._static_source("translations.js")
         for group in keys.GROUPS:
             self.assertIn(f"keyGroup_{group}", source, group)
 
@@ -3100,6 +3259,15 @@ class TestCapabilities(unittest.TestCase):
         ):
             for key, capability in table.items():
                 self.assertIn(capability, connus, f"{key} -> {capability}")
+
+    def test_chaque_action_du_catalogue_a_un_handler(self):
+        """Le catalogue ne doit pas annoncer une action inexécutable."""
+        missing = [
+            kind
+            for kind in config_module.KNOWN_ACTIONS
+            if not hasattr(Dispatcher, f"_do_{kind.replace('.', '_')}")
+        ]
+        self.assertEqual(sorted(missing), [])
 
     def test_windows_declare_ses_manques(self):
         """L'adaptateur Windows doit avouer ce qu'il n'implémente pas.
@@ -3675,15 +3843,24 @@ class TestUiSecurity(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(status, 200)
 
     async def test_interface_conserve_le_jeton_entre_rechargements(self):
-        """Le script servi doit mémoriser le jeton, sinon F5 casse la page.
+        """Le module d'accès doit mémoriser le jeton, sinon F5 casse la page.
 
         Vérifié sur la ressource réellement servie : le défaut se situait
         entièrement côté navigateur et aucun test de l'API ne pouvait le voir.
         """
-        status, _ = await self.request("GET", "/app.js")
-        self.assertEqual(status, 200)
+        for asset in (
+            "app.js",
+            "agent-api.js",
+            "editor-utils.js",
+            "hotkeys.js",
+            "translations.js",
+            "icons.js",
+        ):
+            with self.subTest(asset=asset):
+                status, _ = await self.request("GET", f"/{asset}")
+                self.assertEqual(status, 200)
 
-        script = (self.ui.static_root / "app.js").read_text(encoding="utf-8")
+        script = (self.ui.static_root / "agent-api.js").read_text(encoding="utf-8")
         self.assertIn("sessionStorage", script)
         # Le jeton doit être mémorisé avant d'être retiré de l'URL, sans quoi
         # l'effacement le perdrait définitivement.
@@ -3730,13 +3907,46 @@ class TestUiApi(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(after, before)
 
     async def test_revision_incrementee(self):
-        """Sans cela, la console garderait sa mise en page en cache."""
+        """Chaque sauvegarde reçoit une nouvelle version persistante."""
         raw = config_module.to_raw(self.server.config)
-        raw["revision"] = 7
+        previous = raw["revision"]
         await self.api.put_config(self.fake_request(raw))
         self.assertEqual(
-            json.loads(self.path.read_text(encoding="utf-8"))["revision"], 8
+            json.loads(self.path.read_text(encoding="utf-8"))["revision"], previous + 1
         )
+
+    async def test_sauvegarde_appliquee_immediatement(self):
+        raw = config_module.to_raw(self.server.config)
+        raw["pages"][0]["title"] = "Mis à jour"
+
+        await self.api.put_config(self.fake_request(raw))
+
+        self.assertEqual(self.server.config.pages[0].title("fr"), "Mis à jour")
+        self.assertIs(self.server.dispatcher.config, self.server.config)
+        self.assertEqual(self.server._config_mtime, self.path.stat().st_mtime)
+
+    async def test_revision_perimee_refusee(self):
+        from deck3ds.ui.http import HttpError
+
+        raw = config_module.to_raw(self.server.config)
+        raw["revision"] -= 1
+
+        with self.assertRaises(HttpError) as caught:
+            await self.api.put_config(self.fake_request(raw))
+
+        self.assertEqual(caught.exception.status, 409)
+
+    async def test_page_dynamique_non_persistee_par_api(self):
+        raw = config_module.to_raw(self.server.config)
+        raw["pages"][0].update({"source": "windows", "buttons": []})
+
+        response = await self.api.put_config(self.fake_request(raw))
+
+        persisted = json.loads(self.path.read_text(encoding="utf-8"))
+        returned = json.loads(response.body)["config"]
+        self.assertEqual(persisted["pages"][0]["buttons"], [])
+        self.assertEqual(returned["pages"][0]["buttons"], [])
+        self.assertGreater(len(self.server.config.pages[0].buttons), 0)
 
     async def test_configuration_invalide_refusee_et_fichier_intact(self):
         """Une erreur ne doit jamais corrompre le fichier en place."""
@@ -3797,29 +4007,45 @@ class TestUiApi(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(limits["buttons_per_page"], config_module.MAX_BUTTONS_PER_PAGE)
         self.assertEqual(limits["pages"], config_module.MAX_PAGES)
 
-    def _editor_source(self):
+    def _static_source(self, filename):
         from pathlib import Path
 
         import deck3ds
 
-        source = Path(deck3ds.__file__).parent / "ui" / "static" / "app.js"
+        source = Path(deck3ds.__file__).parent / "ui" / "static" / filename
         return source.read_text(encoding="utf-8")
 
-    async def test_editeur_nomme_toutes_les_actions(self):
-        """Une action sans libellé s'afficherait sous son identifiant brut.
+    def _editor_source(self):
+        return self._static_source("app.js")
 
-        L'éditeur tire la *liste* du schéma, mais porte ses propres textes.
-        Ce test signale l'oubli au moment de l'ajout, et non à l'usage.
-        """
+    async def test_schema_nomme_toutes_les_actions(self):
+        """Le catalogue partagé fournit toute la présentation de l'éditeur."""
+        from deck3ds.platforms.base import Capabilities
+        from deck3ds.ui.api import build_schema
+
+        for item in build_schema(Capabilities())["actions"]:
+            with self.subTest(kind=item["kind"]):
+                self.assertIn(item["category"], {
+                    "essential", "audio", "media", "apps", "obs",
+                    "navigation", "advanced",
+                })
+                self.assertIn(item["icon"], config_module.ICONS)
+                self.assertRegex(item["color"], r"^#[0-9A-F]{6}$")
+                self.assertTrue(item["title"]["fr"])
+                self.assertTrue(item["title"]["en"])
+                self.assertTrue(item["description"]["fr"])
+                self.assertTrue(item["description"]["en"])
+
+    async def test_collecte_ne_reconstruit_pas_les_reglages(self):
+        """Une saisie en cours doit survivre au rafraîchissement périodique."""
         import re
 
         source = self._editor_source()
-        table = re.search(r"const ACTIONS = \{(.*?)^\};", source, re.S | re.M)
-        self.assertIsNotNone(table, "table ACTIONS introuvable")
-        named = set(re.findall(r"^\s*'([\w.]+)':", table.group(1), re.M))
-
-        missing = sorted(config_module.KNOWN_ACTIONS - named)
-        self.assertEqual(missing, [], f"actions sans libellé : {missing}")
+        refresh = re.search(
+            r"async function refreshStatus\(\).*?\n\}", source, re.S
+        )
+        self.assertIsNotNone(refresh)
+        self.assertNotIn("state.view === 'settings'", refresh.group(0))
 
     async def test_editeur_nomme_tous_les_tableaux_de_bord(self):
         import re
@@ -3846,8 +4072,8 @@ class TestUiApi(unittest.IsolatedAsyncioTestCase):
     async def test_editeur_nomme_toutes_les_icones(self):
         import re
 
-        source = self._editor_source()
-        table = re.search(r"const ICON_LABELS = \{(.*?)\};", source, re.S)
+        source = self._static_source("icons.js")
+        table = re.search(r"export const ICON_LABELS = \{(.*?)\};", source, re.S)
         named = set(re.findall(r"'?([\w-]+)'?:\s*\{", table.group(1)))
 
         missing = sorted(config_module.ICONS - named)
@@ -3969,6 +4195,7 @@ class TestUiApi(unittest.IsolatedAsyncioTestCase):
 
         catalogue = build_schema(Capabilities(hotkey=True))["keys"]
 
+        self.assertEqual(catalogue, keys.catalog())
         self.assertEqual(len(catalogue["keys"]), len(keys.KEYS))
         self.assertEqual(len(catalogue["modifiers"]), len(keys.MODIFIERS))
         for entry in catalogue["keys"]:
@@ -3999,8 +4226,9 @@ class TestUiApi(unittest.IsolatedAsyncioTestCase):
 
     async def test_journal_borne(self):
         """Une exécution de plusieurs jours ne doit pas consommer la mémoire."""
-        for index in range(1000):
-            self.server.log(f"ligne {index}")
+        with patch("builtins.print"):
+            for index in range(1000):
+                self.server.log(f"ligne {index}")
         self.assertLessEqual(len(self.server.recent_logs()), 300)
 
 

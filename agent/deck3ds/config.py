@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from .action_catalog import ACTION_SPECS
 from .keys import InvalidHotkey, parse_hotkey
 
 #: Bornes alignées sur les limites de l'application 3DS.
@@ -40,135 +41,25 @@ POLL_INTERVAL_RANGE = (0.2, 30.0)
 VOLUME_STEP_RANGE = (1, 50)
 OBS_TIMEOUT_RANGE = (0.2, 15.0)
 
-#: Actions acceptées. Toute autre valeur est rejetée au chargement : la 3DS ne
-#: peut donc pas déclencher d'exécution arbitraire, même si elle était
-#: compromise.
-KNOWN_ACTIONS = {
-    "volume.up",
-    "volume.down",
-    "volume.set",
-    "volume.mute_toggle",
-    # Volume interne du lecteur, utile quand le son sort sur une enceinte
-    # externe et que le volume système n'agit plus sur la musique.
-    "app_volume.up",
-    "app_volume.down",
-    "app_volume.set",
-    # Bascule de la sortie audio : casque, enceinte, écran...
-    "audio_output.cycle",
-    "audio_output.set",
-    "mic.mute_toggle",
-    "mic.mute",
-    "mic.unmute",
-    "media.play_pause",
-    "media.next",
-    "media.previous",
-    "app.launch",
-    "app.quit",
-    # Sélection d'une fenêtre ouverte, alimentée dynamiquement par l'agent.
-    "window.focus",
-    "url.open",
-    "path.open",
-    "hotkey",
-    "script.run",
-    "page.open",
-    # Ouvre l'écran de réglages de la console, sans action côté ordinateur.
-    "settings.open",
-    # Ouvre le panneau de volumes de la console.
-    "modal.volumes",
-    # Bascule l'affichage plein écran, réutilisé par la veille.
-    "frame.toggle",
-    "system.lock",
-    # OBS Studio, via le serveur WebSocket integre a OBS 28 et suivants.
-    "obs.scene.set",
-    "obs.stream.toggle",
-    "obs.record.toggle",
-    "obs.source.toggle",
-    "noop",
-}
-
-#: Argument obligatoire de chaque action qui en exige un.
-#:
-#: Défini ici plutôt que dans le validateur : l'interface a besoin de la même
-#: table pour demander le bon champ, et une seconde copie finirait par diverger.
+#: Vues de compatibilité dérivées du catalogue unique. Toute autre action est
+#: rejetée : la console ne peut donc pas déclencher d'exécution arbitraire.
+KNOWN_ACTIONS = frozenset(ACTION_SPECS)
 ACTION_REQUIRED_ARG = {
-    "app.launch": "target",
-    "app.quit": "target",
-    "url.open": "url",
-    "path.open": "path",
-    "hotkey": "keys",
-    "script.run": "script",
-    "page.open": "page",
-    "volume.set": "value",
-    "app_volume.set": "value",
-    "audio_output.set": "target",
-    "obs.scene.set": "scene",
-    # `obs.source.toggle` exige egalement `source`; voir `action_arguments`.
-    "obs.source.toggle": "scene",
+    kind: spec.arguments[0].name
+    for kind, spec in ACTION_SPECS.items()
+    if spec.arguments
+}
+ACTION_CAPABILITY = {
+    kind: spec.capability
+    for kind, spec in ACTION_SPECS.items()
+    if spec.capability is not None
 }
 
 
 def action_arguments(kind: str) -> list[dict[str, Any]]:
-    """Champs configurables d'une action, exposes tels quels a l'interface.
-
-    La plupart des actions historiques n'ont qu'un argument obligatoire. OBS a
-    besoin de deux valeurs pour une source (scene + source), d'ou ce contrat un
-    peu plus riche. Le conserver pres du validateur evite que l'editeur et
-    l'agent divergent lorsqu'une nouvelle action est ajoutee.
-    """
-    if kind == "obs.source.toggle":
-        return [
-            {"name": "scene", "type": "text", "required": True},
-            {"name": "source", "type": "text", "required": True},
-        ]
-
-    required = ACTION_REQUIRED_ARG.get(kind)
-    if required is None:
-        return []
-
-    field_type = {
-        "page": "page",
-        "script": "script",
-        "value": "number",
-        # Les raccourcis ont leur propre éditeur : l'utilisateur choisit une
-        # touche du catalogue au lieu d'en deviner l'orthographe.
-        "keys": "hotkey",
-    }.get(required, "text")
-    return [{"name": required, "type": field_type, "required": True}]
-
-#: Capacité de plateforme exigée par chaque action.
-#:
-#: Une action absente de cette table fonctionne partout : elle est traitée par
-#: la console elle-même (`settings.open`, `page.open`...) ou ne fait rien.
-#: Sert à l'interface pour signaler un bouton qui resterait sans effet sur le
-#: poste courant, plutôt que de le laisser paraître fonctionnel.
-ACTION_CAPABILITY = {
-    "volume.up": "volume",
-    "volume.down": "volume",
-    "volume.set": "volume",
-    "volume.mute_toggle": "mute",
-    "app_volume.up": "app_volume",
-    "app_volume.down": "app_volume",
-    "app_volume.set": "app_volume",
-    "audio_output.cycle": "audio_output",
-    "audio_output.set": "audio_output",
-    "mic.mute_toggle": "mic",
-    "mic.mute": "mic",
-    "mic.unmute": "mic",
-    "media.play_pause": "media",
-    "media.next": "media",
-    "media.previous": "media",
-    "app.launch": "apps",
-    "app.quit": "apps",
-    "window.focus": "windows",
-    "url.open": "open_url",
-    "path.open": "open_path",
-    "hotkey": "hotkey",
-    "system.lock": "lock",
-    "obs.scene.set": "obs",
-    "obs.stream.toggle": "obs",
-    "obs.record.toggle": "obs",
-    "obs.source.toggle": "obs",
-}
+    """Champs configurables d'une action, issus du catalogue partagé."""
+    spec = ACTION_SPECS.get(kind)
+    return [] if spec is None else [argument.as_payload() for argument in spec.arguments]
 
 #: Capacité exigée par chaque tableau de bord, même logique que ci-dessus.
 DASHBOARD_CAPABILITY = {
@@ -761,10 +652,12 @@ def parse_obs(raw: Any) -> ObsConfig:
 
 def _apply_server(raw: Any, config: Config) -> None:
     """Applique la section `server`, en conservant les défauts absents."""
-    if not raw:
+    if raw is None:
         return
     if not isinstance(raw, dict):
         raise ConfigError("server: un objet est attendu")
+    if not raw:
+        return
 
     config.host = _require_host(raw.get("host", config.host), "server.host")
     config.port = _require_port(raw.get("port", config.port), "server.port")
@@ -786,10 +679,12 @@ def _apply_server(raw: Any, config: Config) -> None:
 
 def _parse_scripts(raw: Any) -> dict[str, list[str]]:
     """Commandes autorisées, référencées par leur nom depuis les boutons."""
-    if not raw:
+    if raw is None:
         return {}
     if not isinstance(raw, dict):
         raise ConfigError("scripts: un objet est attendu")
+    if not raw:
+        return {}
 
     scripts: dict[str, list[str]] = {}
     for name, command in raw.items():
@@ -804,10 +699,12 @@ def _parse_scripts(raw: Any) -> dict[str, list[str]]:
 
 
 def _parse_integrations(raw: Any, config: Config) -> None:
-    if not raw:
+    if raw is None:
         return
     if not isinstance(raw, dict):
         raise ConfigError("integrations: un objet est attendu")
+    if not raw:
+        return
     if "obs" in raw:
         config.obs = parse_obs(raw["obs"])
 
@@ -948,12 +845,18 @@ def _page_to_raw(page: PageConfig) -> dict[str, Any]:
     if page.source:
         raw["source"] = page.source
 
-    # Les boutons sont rangés par emplacement : le fichier reflète alors
-    # l'ordre visible sur la console.
-    raw["buttons"] = [
-        _button_to_raw(button)
-        for button in sorted(page.buttons, key=lambda item: item.slot)
-    ]
+    # Le contenu d'une page dynamique appartient à l'état d'exécution, pas au
+    # fichier. Sans cette frontière, ouvrir l'éditeur puis enregistrer un autre
+    # réglage inscrirait les fenêtres du moment dans `config.json`.
+    if page.source:
+        raw["buttons"] = []
+    else:
+        # Les boutons sont rangés par emplacement : le fichier reflète alors
+        # l'ordre visible sur la console.
+        raw["buttons"] = [
+            _button_to_raw(button)
+            for button in sorted(page.buttons, key=lambda item: item.slot)
+        ]
     return raw
 
 

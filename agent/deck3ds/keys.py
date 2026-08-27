@@ -31,7 +31,7 @@ directement (`a`, `7`) et résolus par chaque adaptateur.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
@@ -241,6 +241,8 @@ def catalog(locale: str = "en") -> dict:
             {
                 "name": modifier.name,
                 "label": modifier.label_fr if locale == "fr" else modifier.label_en,
+                "label_en": modifier.label_en,
+                "label_fr": modifier.label_fr,
             }
             for modifier in MODIFIERS
         ],
@@ -249,6 +251,8 @@ def catalog(locale: str = "en") -> dict:
             {
                 "name": key.name,
                 "label": key.label_fr if locale == "fr" else key.label_en,
+                "label_en": key.label_en,
+                "label_fr": key.label_fr,
                 "group": key.group,
             }
             for key in KEYS

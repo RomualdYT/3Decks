@@ -1,243 +1,28 @@
 /* Interface locale de configuration de 3Decks, sans dépendance ni build. */
 
-'use strict';
-
-/* Accès à l'agent ---------------------------------------------------------- */
-
-const TOKEN_KEY = 'deck3ds.token';
-const LOCALE_KEY = 'deck3ds.locale';
-
-function readToken() {
-  const fromUrl = new URLSearchParams(location.search).get('token');
-  if (fromUrl) {
-    try {
-      sessionStorage.setItem(TOKEN_KEY, fromUrl);
-    } catch (error) {
-      // Le jeton reste en mémoire si le stockage de session est refusé.
-    }
-    history.replaceState(null, '', location.pathname);
-    return fromUrl;
-  }
-  try {
-    return sessionStorage.getItem(TOKEN_KEY) || '';
-  } catch (error) {
-    return '';
-  }
-}
-
-let TOKEN = readToken();
-
-function forgetToken() {
-  TOKEN = '';
-  try { sessionStorage.removeItem(TOKEN_KEY); } catch (error) { /* déjà oublié */ }
-}
-
-async function api(method, path, body) {
-  const options = { method, headers: { 'X-Deck3DS-Token': TOKEN } };
-  if (body !== undefined) {
-    options.headers['Content-Type'] = 'application/json';
-    options.body = JSON.stringify(body);
-  }
-
-  const response = await fetch(path, options);
-  const text = await response.text();
-  let payload = {};
-  try {
-    payload = text ? JSON.parse(text) : {};
-  } catch (error) {
-    throw new Error(`Réponse illisible de l’agent : ${text.slice(0, 200)}`);
-  }
-
-  if (response.status === 403) {
-    forgetToken();
-    throw new Error(
-      'Le lien de configuration a expiré. Ouvrez le nouveau lien affiché par l’agent.'
-    );
-  }
-  if (!response.ok) throw new Error(payload.error || `Erreur HTTP ${response.status}`);
-  return payload;
-}
+import { api, hasToken } from './agent-api.js';
+import {
+  actionArgs,
+  actionKind,
+  escapeHtml,
+  localizedText,
+  normaliseColor,
+  setLocalizedText,
+  uniqueId,
+} from './editor-utils.js';
+import {
+  hotkeyFromEvent,
+  hotkeyPreview,
+  joinHotkey,
+  splitHotkey,
+} from './hotkeys.js';
+import { initialLocale, LOCALE_KEY, translate } from './translations.js';
+import { ICON_LABELS, iconSvg } from './icons.js';
 
 /* Traductions --------------------------------------------------------------- */
 
-const COPY = {
-  fr: {
-    editor: 'Éditeur', settings: 'Réglages', status: 'État de l’agent',
-    save: 'Enregistrer', reload: 'Annuler', dirty: 'Modifications non enregistrées',
-    noConsole: 'Aucune console', oneConsole: '1 console', consoles: '{count} consoles',
-    unreachable: 'Agent injoignable', myPages: 'Mes pages', addPage: 'Ajouter une page',
-    createPages: 'Créez vos pages', createPagesHelp: 'Ajoutez des pages pour organiser vos actions.',
-    pageCount: '{count} / {limit} pages', pageTitle: 'Page {name}',
-    chooseSlot: 'Choisissez un emplacement puis une action.',
-    touchSlot: 'Touchez un emplacement pour choisir son action.',
-    previewNote: 'Le visuel représente la disposition actuelle de votre console.',
-    addActions: 'Ajoutez des actions', addActionsHelp: 'Sélectionnez un emplacement vide, puis choisissez une action.',
-    saveConfig: 'Enregistrez', saveConfigHelp: 'La configuration est envoyée automatiquement à la console.',
-    addAction: 'Ajouter une action', changeAction: 'Changer l’action',
-    searchAction: 'Rechercher une action', supported: 'Disponible', unavailable: 'À configurer',
-    supportNote: 'Les actions indisponibles sont signalées clairement. Vous pouvez les préparer puis configurer l’intégration correspondante.',
-    pageSettings: 'Réglages de la page', buttonSettings: 'Réglages du bouton',
-    selectButtonHelp: 'Sélectionnez un bouton pour modifier son texte, son apparence ou son action.',
-    emptySlot: 'Ajouter un bouton ici', moveHint: 'Glissez les boutons pour les réorganiser.',
-    id: 'Identifiant technique', titleEn: 'Titre anglais', titleFr: 'Titre français',
-    labelEn: 'Libellé anglais', labelFr: 'Libellé français', icon: 'Icône', color: 'Couleur',
-    chooseIcon: 'Choisir une icône', gridLayout: 'Grille 3 × 2', listLayout: 'Liste',
-    hotkeyEmpty: 'Aucune touche choisie',
-    hotkeyCapture: 'Appuyer sur une touche',
-    hotkeyListening: 'En attente… (Échap pour annuler)',
-    hotkeyCaptureHelp: 'La touche est reconnue par sa position : la langue du clavier n’a pas d’importance.',
-    hotkeyBrowse: 'Choisir dans la liste',
-    keyGroup_character: 'Lettres et chiffres',
-    keyGroup_editing: 'Édition',
-    keyGroup_navigation: 'Navigation',
-    keyGroup_function: 'Touches de fonction',
-    gridLayoutHelp: 'Six boutons immédiatement accessibles.', listLayoutHelp: 'Fenêtres défilantes alimentées par l’agent.',
-    listNeedsSource: 'La liste est disponible avec un contenu automatique.',
-    dashboard: 'Écran supérieur', layout: 'Disposition', automaticSource: 'Contenu automatique',
-    noSource: 'Boutons définis ici', windowsSource: 'Fenêtres ouvertes',
-    deletePage: 'Supprimer la page', deleteButton: 'Supprimer le bouton', backToPage: 'Réglages de la page',
-    action: 'Action', followedState: 'État suivi', noFollowedState: 'Aucun',
-    actionUnsupported: 'Cette action nécessite une fonction qui n’est pas encore disponible ou configurée. Le bouton restera visible mais ne fera rien.',
-    configureObs: 'Configurer OBS Studio', argumentMissing: 'Renseignez ce champ avant d’enregistrer.',
-    connection: 'Connexion', preferences: 'Préférences', obsStudio: 'OBS Studio', notConfigured: 'Non configuré',
-    connectionTitle: 'Connexion à la console',
-    connectionIntro: 'Ces réglages permettent à votre 3DS de trouver cet ordinateur sur votre réseau local.',
-    connectionAddress: 'Adresse de connexion', copy: 'Copier', copied: 'Adresse copiée.',
-    connectionInstruction: 'Sur la 3DS, ouvrez Réglages puis saisissez cette adresse.',
-    networkSecurity: 'Sécurité du réseau',
-    networkSecurityHelp: 'Un jeton partagé limite le contrôle de cet ordinateur à vos consoles configurées.',
-    enabledRecommended: 'Activé (recommandé)', disabled: 'Désactivé',
-    securityEnabled: 'Un jeton a été généré. Reportez-le également dans les réglages de la 3DS.',
-    securityDisabled: 'Sans jeton, toute console présente sur votre réseau local peut agir sur cet ordinateur.',
-    advancedSettings: 'Réglages avancés', listenAddress: 'Adresse d’écoute', port: 'Port',
-    refresh: 'Rafraîchissement', volumeStep: 'Pas de volume', seconds: 'secondes',
-    restartNote: 'L’adresse d’écoute et le port s’appliquent au prochain démarrage de l’agent.',
-    languageTitle: 'Langue de l’interface', languageHelp: 'Les boutons peuvent avoir un libellé français et anglais. La 3DS affiche la variante correspondant à sa langue.',
-    french: 'Français', english: 'English',
-    preferencesTitle: 'Préférences', preferencesIntro: 'Adaptez l’éditeur et les commandes à votre façon de travailler.',
-    labelsLanguages: 'Langues des boutons', labelsLanguagesHelp: 'Chaque page et chaque bouton accepte un texte dans les deux langues.',
-    displayLanguage: 'Langue affichée dans l’aperçu', displayLanguageHelp: 'Ce choix modifie aussi la langue de l’éditeur sur cet appareil.',
-    obsTitle: 'Connexion à OBS Studio',
-    obsIntro: 'Activez le serveur WebSocket d’OBS, puis testez la connexion pour récupérer vos scènes.',
-    obsEnabled: 'Activer les actions OBS', obsHost: 'Adresse', obsPort: 'Port WebSocket',
-    obsPassword: 'Mot de passe', obsTimeout: 'Délai maximal', testConnection: 'Tester la connexion',
-    testing: 'Test en cours…', obsConnected: 'Connecté à OBS {version}. {count} scène(s) détectée(s).',
-    obsScenes: 'Scènes détectées', obsSetupHelp: 'Dans OBS : Outils → Paramètres du serveur WebSocket. Le port par défaut est 4455.',
-    obsPasswordHelp: 'Le mot de passe est conservé localement dans config.json.',
-    aboutConnection: 'À propos de la connexion',
-    connectionHelp: 'La 3DS et cet ordinateur doivent être connectés au même réseau local.',
-    obsPreview: 'Préparation OBS Studio', obsPreviewHelp: 'Après un test réussi, les scènes détectées sont proposées directement dans les boutons OBS.',
-    statusTitle: 'État de l’agent', statusIntro: 'Vérifiez en un coup d’œil la connexion, les fonctions disponibles et les derniers événements.',
-    listening: 'Écoute', addressFor3ds: 'Adresse pour la 3DS', platform: 'Plateforme', version: 'Version',
-    connectedConsoles: 'Consoles connectées', token: 'Jeton réseau', defined: 'Défini', absent: 'Absent',
-    capabilities: 'Fonctions disponibles', logs: 'Journal récent', yes: 'Oui', no: 'Non',
-    noStatus: 'L’état de l’agent est momentanément indisponible.', dynamicContent: 'Contenu rempli automatiquement par l’agent.',
-    dynamicWindow: 'Fenêtre {number}', dynamicListHint: 'Liste mise à jour automatiquement',
-    noMedia: 'Aucun média en lecture.', producedByAgent: 'Contenu « {name} » produit par l’agent.',
-    saved: 'Configuration enregistrée. La console se met à jour dans un instant.',
-    loadFailed: 'Chargement impossible : {message}', saveFailed: 'Enregistrement refusé : {message}',
-    unsavedConfirm: 'Des modifications non enregistrées seront perdues. Continuer ?',
-    deleteRefs: 'Des boutons renvoient vers cette page. Ils deviendront invalides. Supprimer quand même ?',
-    pageNameDefault: 'Nouvelle page', noScripts: 'Aucun script n’est déclaré dans config.json.',
-    scriptsReadonly: 'Les scripts restent en lecture seule dans cet éditeur pour éviter toute exécution de commande depuis le navigateur.',
-    filterAll: 'Toutes', close: 'Fermer',
-  },
-  en: {
-    editor: 'Editor', settings: 'Settings', status: 'Agent status',
-    save: 'Save', reload: 'Cancel', dirty: 'Unsaved changes',
-    noConsole: 'No console', oneConsole: '1 console', consoles: '{count} consoles',
-    unreachable: 'Agent unreachable', myPages: 'My pages', addPage: 'Add a page',
-    createPages: 'Create your pages', createPagesHelp: 'Add pages to organise your actions.',
-    pageCount: '{count} / {limit} pages', pageTitle: '{name} page',
-    chooseSlot: 'Choose a slot, then choose an action.', touchSlot: 'Tap a slot to choose its action.',
-    previewNote: 'The preview reflects the current layout on your console.',
-    addActions: 'Add actions', addActionsHelp: 'Select an empty slot, then choose an action.',
-    saveConfig: 'Save', saveConfigHelp: 'The layout is sent to the console automatically.',
-    addAction: 'Add an action', changeAction: 'Change action', searchAction: 'Search actions',
-    supported: 'Available', unavailable: 'Setup needed',
-    supportNote: 'Unavailable actions are clearly marked. You can prepare them now and configure the related integration later.',
-    pageSettings: 'Page settings', buttonSettings: 'Button settings',
-    selectButtonHelp: 'Select a button to change its text, appearance or action.',
-    emptySlot: 'Add a button here', moveHint: 'Drag buttons to rearrange them.',
-    id: 'Technical identifier', titleEn: 'English title', titleFr: 'French title',
-    labelEn: 'English label', labelFr: 'French label', icon: 'Icon', color: 'Colour',
-    chooseIcon: 'Choose an icon', gridLayout: '3 × 2 grid', listLayout: 'List',
-    hotkeyEmpty: 'No key selected',
-    hotkeyCapture: 'Press a key',
-    hotkeyListening: 'Waiting… (Esc to cancel)',
-    hotkeyCaptureHelp: 'Keys are matched by position: the keyboard language does not matter.',
-    hotkeyBrowse: 'Pick from the list',
-    keyGroup_character: 'Letters and digits',
-    keyGroup_editing: 'Editing',
-    keyGroup_navigation: 'Navigation',
-    keyGroup_function: 'Function keys',
-    gridLayoutHelp: 'Six buttons available at a glance.', listLayoutHelp: 'Scrollable windows supplied by the agent.',
-    listNeedsSource: 'List view is available with automatic content.',
-    dashboard: 'Top screen', layout: 'Layout', automaticSource: 'Automatic content',
-    noSource: 'Buttons defined here', windowsSource: 'Open windows',
-    deletePage: 'Delete page', deleteButton: 'Delete button', backToPage: 'Page settings',
-    action: 'Action', followedState: 'Tracked state', noFollowedState: 'None',
-    actionUnsupported: 'This action needs a feature that is not available or configured yet. The button will remain visible but will not run.',
-    configureObs: 'Set up OBS Studio', argumentMissing: 'Fill in this field before saving.',
-    connection: 'Connection', preferences: 'Preferences', obsStudio: 'OBS Studio', notConfigured: 'Not configured',
-    connectionTitle: 'Console connection',
-    connectionIntro: 'These settings help your 3DS find this computer on your local network.',
-    connectionAddress: 'Connection address', copy: 'Copy', copied: 'Address copied.',
-    connectionInstruction: 'On the 3DS, open Settings and enter this address.',
-    networkSecurity: 'Network security',
-    networkSecurityHelp: 'A shared token limits control of this computer to your configured consoles.',
-    enabledRecommended: 'Enabled (recommended)', disabled: 'Disabled',
-    securityEnabled: 'A token was generated. Enter it in the 3DS settings as well.',
-    securityDisabled: 'Without a token, any console on your local network can control this computer.',
-    advancedSettings: 'Advanced settings', listenAddress: 'Listen address', port: 'Port',
-    refresh: 'Refresh interval', volumeStep: 'Volume step', seconds: 'seconds',
-    restartNote: 'The listen address and port apply after restarting the agent.',
-    languageTitle: 'Interface language', languageHelp: 'Buttons can have French and English labels. The 3DS shows the matching variant.',
-    french: 'Français', english: 'English',
-    preferencesTitle: 'Preferences', preferencesIntro: 'Adapt the editor and controls to the way you work.',
-    labelsLanguages: 'Button languages', labelsLanguagesHelp: 'Every page and button can provide text in both languages.',
-    displayLanguage: 'Preview language', displayLanguageHelp: 'This choice also changes the editor language on this device.',
-    obsTitle: 'OBS Studio connection',
-    obsIntro: 'Enable the OBS WebSocket server, then test the connection to load your scenes.',
-    obsEnabled: 'Enable OBS actions', obsHost: 'Address', obsPort: 'WebSocket port',
-    obsPassword: 'Password', obsTimeout: 'Timeout', testConnection: 'Test connection', testing: 'Testing…',
-    obsConnected: 'Connected to OBS {version}. {count} scene(s) found.', obsScenes: 'Detected scenes',
-    obsSetupHelp: 'In OBS: Tools → WebSocket Server Settings. The default port is 4455.',
-    obsPasswordHelp: 'The password is stored locally in config.json.',
-    aboutConnection: 'About the connection', connectionHelp: 'The 3DS and this computer must be on the same local network.',
-    obsPreview: 'OBS Studio setup', obsPreviewHelp: 'After a successful test, detected scenes are offered directly when configuring OBS buttons.',
-    statusTitle: 'Agent status', statusIntro: 'Quickly check connectivity, available features and recent events.',
-    listening: 'Listening on', addressFor3ds: '3DS address', platform: 'Platform', version: 'Version',
-    connectedConsoles: 'Connected consoles', token: 'Network token', defined: 'Set', absent: 'Missing',
-    capabilities: 'Available features', logs: 'Recent log', yes: 'Yes', no: 'No',
-    noStatus: 'Agent status is temporarily unavailable.', dynamicContent: 'Content filled automatically by the agent.',
-    dynamicWindow: 'Window {number}', dynamicListHint: 'List updated automatically',
-    noMedia: 'No media is playing.', producedByAgent: '“{name}” content produced by the agent.',
-    saved: 'Configuration saved. The console will update in a moment.',
-    loadFailed: 'Could not load: {message}', saveFailed: 'Could not save: {message}',
-    unsavedConfirm: 'Unsaved changes will be lost. Continue?',
-    deleteRefs: 'Some buttons point to this page and will become invalid. Delete anyway?',
-    pageNameDefault: 'New page', noScripts: 'No script is declared in config.json.',
-    scriptsReadonly: 'Scripts remain read-only in this editor to prevent command execution from the browser.',
-    filterAll: 'All', close: 'Close',
-  },
-};
-
-function initialLocale() {
-  try {
-    const saved = localStorage.getItem(LOCALE_KEY);
-    if (saved === 'fr' || saved === 'en') return saved;
-  } catch (error) { /* langue du navigateur ci-dessous */ }
-  return navigator.language.toLowerCase().startsWith('fr') ? 'fr' : 'en';
-}
-
 function t(key, values = {}) {
-  const table = COPY[state.locale] || COPY.fr;
-  let text = table[key] || COPY.fr[key] || key;
-  Object.entries(values).forEach(([name, value]) => {
-    text = text.replaceAll(`{${name}}`, String(value));
-  });
-  return text;
+  return translate(state.locale, key, values);
 }
 
 /* Catalogue d'actions ------------------------------------------------------ */
@@ -252,66 +37,13 @@ const CATEGORIES = [
   ['advanced', { fr: 'Avancé', en: 'Advanced' }],
 ];
 
-const ACTIONS = {
-  'app.launch': action('essential', 'app', '#4F8DF7', 'Ouvrir une application', 'Open an application', 'Lance ou remet au premier plan un programme.', 'Launches or focuses a program.'),
-  'hotkey': action('essential', 'star', '#7C6BF2', 'Raccourci clavier', 'Keyboard shortcut', 'Déclenche une combinaison de touches.', 'Runs a keyboard shortcut.'),
-  'url.open': action('essential', 'browser', '#36A6D8', 'Ouvrir un site web', 'Open a website', 'Ouvre une adresse dans le navigateur.', 'Opens an address in the browser.'),
-  'path.open': action('essential', 'folder', '#D99B46', 'Ouvrir un fichier ou dossier', 'Open a file or folder', 'Ouvre un élément dans l’explorateur de fichiers.', 'Opens an item in the file explorer.'),
-  'volume.up': action('audio', 'volume-up', '#3B82F6', 'Monter le volume', 'Volume up', 'Augmente le volume de l’ordinateur.', 'Raises the computer volume.'),
-  'volume.down': action('audio', 'volume-down', '#3B82F6', 'Baisser le volume', 'Volume down', 'Baisse le volume de l’ordinateur.', 'Lowers the computer volume.'),
-  'volume.set': action('audio', 'volume-up', '#3B82F6', 'Régler le volume', 'Set volume', 'Applique un niveau précis.', 'Sets a precise volume level.'),
-  'volume.mute_toggle': action('audio', 'volume-mute', '#F59E0B', 'Couper / rétablir le son', 'Mute / unmute', 'Bascule le son général.', 'Toggles system sound.'),
-  'mic.mute_toggle': action('audio', 'mic', '#F59E0B', 'Couper / activer le micro', 'Mute / unmute mic', 'Bascule le microphone système.', 'Toggles the system microphone.'),
-  'mic.mute': action('audio', 'mic-off', '#EF6A71', 'Couper le micro', 'Mute microphone', 'Force le microphone en sourdine.', 'Forces the microphone off.'),
-  'mic.unmute': action('audio', 'mic', '#45C995', 'Activer le micro', 'Unmute microphone', 'Force le microphone actif.', 'Forces the microphone on.'),
-  'audio_output.cycle': action('audio', 'volume-up', '#8B78EA', 'Changer de sortie audio', 'Cycle audio output', 'Passe au casque, aux enceintes ou à l’écran suivant.', 'Cycles headphones, speakers and displays.'),
-  'audio_output.set': action('audio', 'volume-up', '#8B78EA', 'Choisir une sortie audio', 'Choose audio output', 'Sélectionne une sortie par son nom.', 'Selects an output by name.'),
-  'app_volume.up': action('audio', 'music', '#8B78EA', 'Monter le volume du lecteur', 'Player volume up', 'Ajuste uniquement le lecteur musical.', 'Adjusts only the music player.'),
-  'app_volume.down': action('audio', 'music', '#8B78EA', 'Baisser le volume du lecteur', 'Player volume down', 'Ajuste uniquement le lecteur musical.', 'Adjusts only the music player.'),
-  'app_volume.set': action('audio', 'music', '#8B78EA', 'Régler le volume du lecteur', 'Set player volume', 'Applique un niveau précis au lecteur.', 'Sets a precise player volume.'),
-  'media.play_pause': action('media', 'play', '#5C8DFF', 'Lecture / pause', 'Play / pause', 'Pilote la lecture en cours.', 'Controls current playback.'),
-  'media.next': action('media', 'next', '#5C8DFF', 'Piste suivante', 'Next track', 'Passe au média suivant.', 'Skips to the next item.'),
-  'media.previous': action('media', 'previous', '#5C8DFF', 'Piste précédente', 'Previous track', 'Revient au média précédent.', 'Returns to the previous item.'),
-  'app.quit': action('apps', 'power', '#EF6A71', 'Fermer une application', 'Quit an application', 'Ferme le programme indiqué.', 'Quits the selected program.'),
-  'window.focus': action('apps', 'app', '#58B69B', 'Afficher une fenêtre', 'Focus a window', 'Ramène une fenêtre ouverte au premier plan.', 'Brings an open window to the front.'),
-  'obs.scene.set': action('obs', 'video', '#7D73F1', 'Changer de scène OBS', 'Change OBS scene', 'Passe à une scène précise dans OBS Studio.', 'Switches to a specific OBS Studio scene.'),
-  'obs.stream.toggle': action('obs', 'record', '#EF6A71', 'Démarrer / arrêter le stream', 'Start / stop stream', 'Bascule la diffusion en direct dans OBS.', 'Toggles live streaming in OBS.'),
-  'obs.record.toggle': action('obs', 'record', '#EF6A71', 'Démarrer / arrêter l’enregistrement', 'Start / stop recording', 'Bascule l’enregistrement dans OBS.', 'Toggles recording in OBS.'),
-  'obs.source.toggle': action('obs', 'video', '#7D73F1', 'Afficher / masquer une source', 'Show / hide a source', 'Bascule la visibilité d’une source dans une scène.', 'Toggles a source inside a scene.'),
-  'page.open': action('navigation', 'page', '#43A6CF', 'Ouvrir une autre page', 'Open another page', 'Affiche une page de boutons sur la 3DS.', 'Opens another button page on the 3DS.'),
-  'settings.open': action('navigation', 'gear', '#6D88AA', 'Ouvrir les réglages 3DS', 'Open 3DS settings', 'Affiche les réglages directement sur la console.', 'Opens settings directly on the console.'),
-  'modal.volumes': action('navigation', 'volume-up', '#6D88AA', 'Ouvrir le panneau des volumes', 'Open volume panel', 'Affiche les volumes sur la console.', 'Shows volume controls on the console.'),
-  'frame.toggle': action('navigation', 'video', '#6D88AA', 'Basculer le plein écran', 'Toggle full screen', 'Agrandit ou réduit l’affichage supérieur.', 'Toggles the top display full screen.'),
-  'system.lock': action('advanced', 'lock', '#E98D54', 'Verrouiller l’ordinateur', 'Lock computer', 'Verrouille immédiatement la session.', 'Locks the current session.'),
-  'script.run': action('advanced', 'terminal', '#E98D54', 'Exécuter un script autorisé', 'Run an allowed script', 'Lance un script déclaré dans config.json.', 'Runs a script declared in config.json.'),
-  'noop': action('advanced', 'app', '#63758D', 'Ne rien faire', 'Do nothing', 'Laisse volontairement le bouton sans effet.', 'Intentionally leaves the button inactive.'),
-};
-
-function action(category, icon, color, frTitle, enTitle, frDescription, enDescription) {
-  return {
-    category, icon, color,
-    title: { fr: frTitle, en: enTitle },
-    description: { fr: frDescription, en: enDescription },
+function actionMeta(kind) {
+  return actionInfo(kind) || {
+    category: 'advanced', icon: 'app', color: '#63758D',
+    title: { fr: kind, en: kind },
+    description: { fr: 'Action avancée.', en: 'Advanced action.' },
   };
 }
-
-function actionMeta(kind) {
-  return ACTIONS[kind] || action('advanced', 'app', '#63758D', kind, kind, 'Action avancée.', 'Advanced action.');
-}
-
-const ICON_LABELS = {
-  app: { fr: 'Applications', en: 'Applications' }, browser: { fr: 'Navigateur', en: 'Browser' },
-  folder: { fr: 'Dossier', en: 'Folder' }, terminal: { fr: 'Terminal', en: 'Terminal' },
-  mic: { fr: 'Micro', en: 'Microphone' }, 'mic-off': { fr: 'Micro coupé', en: 'Microphone off' },
-  'volume-up': { fr: 'Volume haut', en: 'Volume up' }, 'volume-down': { fr: 'Volume bas', en: 'Volume down' },
-  'volume-mute': { fr: 'Son coupé', en: 'Muted' }, play: { fr: 'Lecture', en: 'Play' },
-  pause: { fr: 'Pause', en: 'Pause' }, next: { fr: 'Suivant', en: 'Next' },
-  previous: { fr: 'Précédent', en: 'Previous' }, music: { fr: 'Musique', en: 'Music' },
-  chat: { fr: 'Discussion', en: 'Chat' }, video: { fr: 'Vidéo', en: 'Video' },
-  record: { fr: 'Enregistrement', en: 'Record' }, lock: { fr: 'Verrouillage', en: 'Lock' },
-  page: { fr: 'Page', en: 'Page' }, power: { fr: 'Marche / arrêt', en: 'Power' },
-  gear: { fr: 'Réglages', en: 'Settings' }, star: { fr: 'Favori', en: 'Favourite' },
-};
 
 function iconLabel(name) {
   return ICON_LABELS[name]?.[state.locale] || name;
@@ -338,12 +70,6 @@ const state = {
 
 const el = (id) => document.getElementById(id);
 
-function escapeHtml(value) {
-  return String(value ?? '').replace(/[&<>"']/g, (character) => (
-    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character]
-  ));
-}
-
 function currentPage() { return state.config?.pages?.[state.pageIndex] || null; }
 
 function currentButton() {
@@ -354,29 +80,7 @@ function currentButton() {
 function isDirty() { return JSON.stringify(state.config) !== JSON.stringify(state.saved); }
 
 function textFor(value, locale = state.locale) {
-  if (typeof value === 'string') return value;
-  if (value && typeof value === 'object') return value[locale] || value.en || value.fr || '';
-  return '';
-}
-
-function setLocalizedText(value, locale, next) {
-  const object = typeof value === 'object' && value
-    ? { ...value }
-    : { en: typeof value === 'string' ? value : '', fr: typeof value === 'string' ? value : '' };
-  object[locale] = next;
-  if (object.fr === object.en) return object.en;
-  return object;
-}
-
-function actionKind(value) {
-  if (typeof value === 'string') return value;
-  return value && typeof value === 'object' ? value.type || 'noop' : 'noop';
-}
-
-function actionArgs(value) {
-  if (!value || typeof value !== 'object') return {};
-  const { type, ...rest } = value;
-  return rest;
+  return localizedText(value, locale);
 }
 
 function actionInfo(kind) {
@@ -390,57 +94,11 @@ function actionSupported(value) {
   return info ? info.supported : true;
 }
 
-function uniqueId(prefix, taken) {
-  let index = 1;
-  while (taken.includes(`${prefix}${index}`)) index += 1;
-  return `${prefix}${index}`;
-}
-
 function banner(message, kind) {
   const node = el('banner');
   node.textContent = message || '';
   node.classList.toggle('hidden', !message);
   node.classList.toggle('ok', kind === 'ok');
-}
-
-function normaliseColor(value) {
-  const fallback = defaultValue('button_color', '#3B82F6');
-  const text = String(value || fallback);
-  if (/^#[0-9a-f]{3}$/i.test(text)) return '#' + text.slice(1).split('').map((item) => item + item).join('');
-  return /^#[0-9a-f]{6}$/i.test(text) ? text : fallback;
-}
-
-function iconSvg(name, className = 'icon') {
-  const paths = {
-    app: '<rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/>',
-    browser: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>',
-    folder: '<path d="M3 7h7l2 2h9v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M3 9V6a2 2 0 0 1 2-2h5l2 3"/>',
-    terminal: '<path d="m5 7 4 4-4 4M11 16h8"/>',
-    mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M9 21h6"/>',
-    'mic-off': '<path d="m3 3 18 18M9 9v2a3 3 0 0 0 5 2M15 10V6a3 3 0 0 0-5.6-1.5M5 11a7 7 0 0 0 11 5.7M19 11a7 7 0 0 1-.4 2.3M12 18v3M9 21h6"/>',
-    'volume-up': '<path d="M4 10v4h4l5 4V6L8 10zM17 9a4 4 0 0 1 0 6M19 6a8 8 0 0 1 0 12"/>',
-    'volume-down': '<path d="M4 10v4h4l5 4V6L8 10zM17 10v4"/>',
-    'volume-mute': '<path d="M4 10v4h4l5 4V6L8 10zM17 10l4 4M21 10l-4 4"/>',
-    play: '<path d="m8 5 11 7-11 7z"/>',
-    pause: '<path d="M8 5v14M16 5v14"/>',
-    next: '<path d="m6 5 8 7-8 7zM17 5v14"/>',
-    previous: '<path d="m18 5-8 7 8 7zM7 5v14"/>',
-    music: '<path d="M9 18V5l10-2v13M9 10l10-2"/><circle cx="6" cy="18" r="3"/><circle cx="16" cy="16" r="3"/>',
-    chat: '<path d="M5 5h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-8l-5 4v-4H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z"/><path d="M8 9h8M8 13h5"/>',
-    video: '<rect x="3" y="5" width="14" height="14" rx="2"/><path d="m17 10 4-3v10l-4-3z"/>',
-    record: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"/>',
-    lock: '<rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>',
-    page: '<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/>',
-    power: '<path d="M12 3v9M7 5.5a8 8 0 1 0 10 0"/>',
-    gear: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3A1.7 1.7 0 0 0 10 3v-.2h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1z"/>',
-    star: '<path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-2.9-5.6 2.9 1.1-6.2L3 9.6l6.2-.9z"/>',
-    search: '<circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/>',
-    info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7h.01"/>',
-    link: '<path d="M10 13a5 5 0 0 0 7.5.5l2-2a5 5 0 0 0-7-7l-1.1 1.1M14 11a5 5 0 0 0-7.5-.5l-2 2a5 5 0 0 0 7 7l1.1-1.1"/>',
-    sliders: '<path d="M4 6h10M18 6h2M4 12h3M11 12h9M4 18h8M16 18h4"/><circle cx="16" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="14" cy="18" r="2"/>',
-  };
-  const content = paths[name] || paths.app;
-  return `<span class="${className}" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${content}</svg></span>`;
 }
 
 /* Chargement et enregistrement -------------------------------------------- */
@@ -497,14 +155,17 @@ async function refreshStatus() {
     state.status = await api('GET', '/api/state');
   } catch (error) {
     state.status = null;
-    if (!TOKEN) banner(error.message);
+    if (!hasToken()) banner(error.message);
   }
   renderHeader();
-  if (state.view === 'status' || state.view === 'settings') {
+  // Une collecte ne doit jamais reconstruire un formulaire de réglages : un
+  // champ encore focalisé n'a pas forcément émis `change`, et sa saisie serait
+  // alors perdue. Seul l'écran d'état dépend intégralement de ce résultat.
+  if (state.view === 'status') {
     renderWorkspace();
     renderDetail();
     bindDynamicUi();
-  } else if (state.config) {
+  } else if (state.view === 'editor' && state.config) {
     renderDashboard(currentPage());
   }
 }
@@ -788,48 +449,12 @@ function iconPicker(binding, value) {
  * l'orthographe attendue.
  */
 
-/* Décompose « cmd+shift+a » en modificateurs et touche finale. */
-function splitHotkey(value) {
-  const parts = String(value || '').split('+').map((part) => part.trim().toLowerCase()).filter(Boolean);
-  const known = new Set((state.schema.keys?.modifiers || []).map((modifier) => modifier.name));
-  return {
-    modifiers: parts.filter((part) => known.has(part)),
-    key: parts.filter((part) => !known.has(part))[0] || '',
-  };
-}
-
-function joinHotkey(modifiers, key) {
-  // L'ordre suit celui du catalogue, pour que deux saisies équivalentes
-  // produisent la même écriture.
-  const order = (state.schema.keys?.modifiers || []).map((modifier) => modifier.name);
-  const sorted = order.filter((name) => modifiers.includes(name));
-  return [...sorted, key].filter(Boolean).join('+');
-}
-
-function keyLabel(name) {
-  const entry = (state.schema.keys?.keys || []).find((item) => item.name === name);
-  if (entry) return state.locale === 'fr' ? entry.label_fr : entry.label_en;
-  return String(name || '').toUpperCase();
-}
-
-function modifierLabel(name) {
-  const entry = (state.schema.keys?.modifiers || []).find((item) => item.name === name);
-  if (entry) return state.locale === 'fr' ? entry.label_fr : entry.label_en;
-  return name;
-}
-
-function hotkeyPreview(value) {
-  const { modifiers, key } = splitHotkey(value);
-  if (!key && !modifiers.length) return t('hotkeyEmpty');
-  return [...modifiers.map(modifierLabel), key ? keyLabel(key) : '…'].join(' + ');
-}
-
 function hotkeyEditor(binding, value) {
   const catalogue = state.schema.keys;
   // Repli défensif : un agent plus ancien ne fournirait pas le catalogue.
   if (!catalogue) return textInput(binding, value, { placeholder: 'cmd+shift+4' });
 
-  const { modifiers, key } = splitHotkey(value);
+  const { modifiers, key } = splitHotkey(value, catalogue);
   const groups = catalogue.groups.map((group) => {
     const entries = catalogue.keys.filter((item) => item.group === group);
     if (!entries.length) return '';
@@ -838,7 +463,7 @@ function hotkeyEditor(binding, value) {
   }).join('');
 
   return `<div class="hotkey-editor" data-hotkey-binding="${escapeHtml(binding)}">
-    <div class="hotkey-preview" aria-live="polite">${escapeHtml(hotkeyPreview(value))}</div>
+    <div class="hotkey-preview" aria-live="polite">${escapeHtml(hotkeyPreview(value, catalogue, state.locale, t('hotkeyEmpty')))}</div>
     <div class="hotkey-modifiers">
       ${catalogue.modifiers.map((modifier) => `<button type="button" class="hotkey-modifier ${modifiers.includes(modifier.name) ? 'active' : ''}" data-hotkey-modifier="${escapeHtml(modifier.name)}" data-hotkey-binding="${escapeHtml(binding)}" aria-pressed="${modifiers.includes(modifier.name)}">${escapeHtml(state.locale === 'fr' ? modifier.label_fr : modifier.label_en)}</button>`).join('')}
     </div>
@@ -852,36 +477,6 @@ function hotkeyEditor(binding, value) {
       ${groups}
     </details>
   </div>`;
-}
-
-/* Traduit un événement clavier en identifiant du catalogue.
- *
- * `event.code` décrit la position physique de la touche : il ne dépend ni de
- * la langue du système ni de la disposition, ce qui est exactement ce qu'il
- * faut ici. `event.key` renverrait « é » sur un clavier français.
- */
-function hotkeyFromEvent(event) {
-  const byCode = {
-    Escape: 'escape', Enter: 'return', NumpadEnter: 'return', Tab: 'tab', Space: 'space',
-    Backspace: 'backspace', Delete: 'forward_delete',
-    ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down',
-    Home: 'home', End: 'end', PageUp: 'pageup', PageDown: 'pagedown',
-    // Le système intercepte souvent cette touche avant le navigateur : elle
-    // reste choisissable dans la liste.
-    PrintScreen: 'printscreen',
-  };
-  let key = byCode[event.code] || '';
-  if (!key && /^F([1-9]|1[0-2])$/.test(event.code)) key = event.code.toLowerCase();
-  if (!key && /^Key[A-Z]$/.test(event.code)) key = event.code.slice(3).toLowerCase();
-  if (!key && /^Digit[0-9]$/.test(event.code)) key = event.code.slice(5);
-  if (!key) return '';
-
-  const modifiers = [];
-  if (event.metaKey) modifiers.push('cmd');
-  if (event.ctrlKey) modifiers.push('ctrl');
-  if (event.altKey) modifiers.push('alt');
-  if (event.shiftKey) modifiers.push('shift');
-  return joinHotkey(modifiers, key);
 }
 
 function layoutPicker(page) {
@@ -947,7 +542,7 @@ function buttonForm(button) {
     ${field(t('labelFr'), textInput('button.label.fr', textFor(button.label, 'fr'), { max: state.schema.limits.label }))}
     <div class="form-row">
       ${field(t('icon'), iconPicker('button.icon', button.icon || meta.icon))}
-      ${field(t('color'), `<input type="color" data-bind="button.color" value="${escapeHtml(normaliseColor(button.color))}">`)}
+      ${field(t('color'), `<input type="color" data-bind="button.color" value="${escapeHtml(normaliseColor(button.color, defaultValue('button_color', '#3B82F6')))}">`)}
     </div>
     <div class="divider"></div>
     <span class="field-label">${t('action')}</span>
@@ -1372,12 +967,13 @@ function bindHotkeyEditor() {
   document.querySelectorAll('[data-hotkey-modifier]').forEach((node) => {
     node.addEventListener('click', () => {
       const binding = node.dataset.hotkeyBinding;
-      const { modifiers, key } = splitHotkey(currentValue(binding));
+      const catalogue = state.schema.keys;
+      const { modifiers, key } = splitHotkey(currentValue(binding), catalogue);
       const name = node.dataset.hotkeyModifier;
       const next = modifiers.includes(name)
         ? modifiers.filter((item) => item !== name)
         : [...modifiers, name];
-      applyBinding(binding, joinHotkey(next, key));
+      applyBinding(binding, joinHotkey(next, key, catalogue));
       render();
     });
   });
@@ -1385,8 +981,9 @@ function bindHotkeyEditor() {
   document.querySelectorAll('[data-hotkey-key]').forEach((node) => {
     node.addEventListener('click', () => {
       const binding = node.dataset.hotkeyBinding;
-      const { modifiers } = splitHotkey(currentValue(binding));
-      applyBinding(binding, joinHotkey(modifiers, node.dataset.hotkeyKey));
+      const catalogue = state.schema.keys;
+      const { modifiers } = splitHotkey(currentValue(binding), catalogue);
+      applyBinding(binding, joinHotkey(modifiers, node.dataset.hotkeyKey, catalogue));
       render();
     });
   });
@@ -1413,7 +1010,7 @@ function bindHotkeyEditor() {
           render();
           return;
         }
-        const combination = hotkeyFromEvent(event);
+        const combination = hotkeyFromEvent(event, state.schema.keys);
         // Une frappe ne portant qu'un modificateur est ignorée : l'utilisateur
         // est probablement en train de composer sa combinaison.
         if (!combination) return;
@@ -1593,12 +1190,12 @@ window.addEventListener('keydown', (event) => {
   }
 });
 
-if (!TOKEN) {
+if (!hasToken()) {
   banner('Jeton absent. Ouvrez le lien complet affiché par l’agent.');
 } else {
   load().then(refreshStatus);
   const timer = setInterval(() => {
-    if (!TOKEN) return clearInterval(timer);
+    if (!hasToken()) return clearInterval(timer);
     refreshStatus();
   }, 2500);
 }

@@ -701,7 +701,8 @@ void app_pump_network(App *app)
 			 * donnait l'impression que l'interface se réinitialisait toute
 			 * seule.
 			 *
-			 * On compare donc le nombre de pages et la révision : les
+			 * La configuration reçue est toujours appliquée. Seul le nombre de
+			 * pages décide si l'animation structurelle doit être rejouée : les
 			 * changements de libellés n'affectent pas l'animation.
 			 */
 			const bool first_config = !app->config_received;

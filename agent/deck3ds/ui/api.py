@@ -20,7 +20,7 @@ from typing import Any
 
 from .. import config as config_module
 from .. import keys as keys_module
-from ..platforms.base import Capabilities, fields_of
+from ..platforms.base import Capabilities
 from ..obs import ObsError, test_connection
 from .http import HttpError, Request, Response
 
@@ -30,15 +30,8 @@ def build_schema(
 ) -> dict[str, Any]:
     """Décrit ce que l'interface peut proposer, capacités comprises.
 
-    Le schéma est engendré depuis les tables de `config.py` : la liste des
-    actions, les limites et les capacités ne sont donc jamais recopiées dans
-    l'interface.
-
-    En revanche l'éditeur conserve ses propres libellés et descriptions
-    (`ACTIONS`, `dashboardLabel`, `capabilityLabel` dans `app.js`) : ajouter
-    une action à `KNOWN_ACTIONS` la fait apparaître dans le sélecteur, mais
-    sous son identifiant brut jusqu'à ce qu'un libellé lui soit donné. Un test
-    vérifie que ces tables restent complètes.
+    Le schéma est engendré depuis le catalogue unique : contrat, capacités,
+    libellés et apparence restent donc alignés avec le validateur.
     """
     available = capabilities.as_payload()
     # OBS est transversal aux plateformes : son support depend de la
@@ -46,19 +39,19 @@ def build_schema(
     available["obs"] = obs_enabled
 
     actions = []
-    for kind in sorted(config_module.KNOWN_ACTIONS):
-        needed = config_module.ACTION_CAPABILITY.get(kind)
-        actions.append(
-            {
-                "kind": kind,
-                "requires": config_module.ACTION_REQUIRED_ARG.get(kind),
-                "arguments": config_module.action_arguments(kind),
-                # `None` signifie « aucune capacité requise » : l'action est
-                # traitée par la console ou reste sans effet par nature.
-                "capability": needed,
-                "supported": True if needed is None else available.get(needed, False),
-            }
-        )
+    for kind, spec in sorted(config_module.ACTION_SPECS.items()):
+        needed = spec.capability
+        item = {
+            "kind": kind,
+            "requires": config_module.ACTION_REQUIRED_ARG.get(kind),
+            "arguments": config_module.action_arguments(kind),
+            # `None` signifie « aucune capacité requise » : l'action est
+            # traitée par la console ou reste sans effet par nature.
+            "capability": needed,
+            "supported": True if needed is None else available.get(needed, False),
+        }
+        item.update(spec.presentation_payload())
+        actions.append(item)
 
     dashboards = []
     for name in sorted(config_module.DASHBOARDS):
@@ -79,26 +72,7 @@ def build_schema(
         # laisser l'utilisateur en deviner l'orthographe. Les libellés sont
         # fournis dans les deux langues : la langue est un choix d'affichage
         # côté navigateur, jamais une clé d'identification.
-        "keys": {
-            "modifiers": [
-                {
-                    "name": modifier.name,
-                    "label_en": modifier.label_en,
-                    "label_fr": modifier.label_fr,
-                }
-                for modifier in keys_module.MODIFIERS
-            ],
-            "groups": list(keys_module.GROUPS),
-            "keys": [
-                {
-                    "name": key.name,
-                    "label_en": key.label_en,
-                    "label_fr": key.label_fr,
-                    "group": key.group,
-                }
-                for key in keys_module.KEYS
-            ],
-        },
+        "keys": keys_module.catalog(),
         "locales": list(config_module.LOCALES),
         "capabilities": available,
         "limits": {
@@ -189,9 +163,8 @@ class Api:
     async def put_config(self, request: Request) -> Response:
         """Valide puis enregistre la configuration.
 
-        La révision est incrémentée d'office : sans cela, la console garderait
-        sa mise en page en cache, l'utilisateur ne verrait aucun changement et
-        conclurait à tort que l'enregistrement a échoué.
+        La révision est incrémentée d'office et protège également contre
+        l'écrasement silencieux d'une modification faite dans un autre onglet.
         """
         if self.server.config_path is None:
             raise HttpError(409, "aucun fichier de configuration a enregistrer")
@@ -199,6 +172,18 @@ class Api:
         raw = request.json()
         if not isinstance(raw, dict):
             raise HttpError(400, "un objet est attendu")
+
+        revision = raw.get("revision")
+        current_revision = self.server.config.revision
+        if (
+            isinstance(revision, int)
+            and not isinstance(revision, bool)
+            and revision != current_revision
+        ):
+            raise HttpError(
+                409,
+                "la configuration a change depuis son ouverture; rechargez-la",
+            )
 
         candidate = self._prepare(raw)
 
@@ -213,6 +198,8 @@ class Api:
             config_module.save(parsed, self.server.config_path)
         except OSError as error:
             raise HttpError(500, f"ecriture impossible : {error}") from error
+
+        await self.server.apply_config(parsed)
 
         self.server.log(
             f"Configuration enregistree depuis l'interface "
@@ -251,10 +238,7 @@ class Api:
             name: list(command) for name, command in current.scripts.items()
         }
 
-        revision = candidate.get("revision")
-        if not isinstance(revision, int) or isinstance(revision, bool):
-            revision = current.revision
-        candidate["revision"] = revision + 1
+        candidate["revision"] = current.revision + 1
 
         return candidate
 

@@ -45,7 +45,7 @@ run_make() {
 		-v "$DOCKER_APP_DIR":/work -w /work \
 		"$IMAGE" \
 		bash -c 'export PATH=$DEVKITARM/bin:$DEVKITPRO/tools/bin:$PATH && make '"$1"' 2>&1' |
-		grep -vE "modification time|Clock skew" || true
+		sed -E '/modification time|Clock skew/d'
 }
 
 case "${1:-build}" in

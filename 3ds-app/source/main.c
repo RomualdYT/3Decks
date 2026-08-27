@@ -36,6 +36,11 @@
 
 /** Durée d'un pas de temps nominal (60 images par seconde). */
 #define FRAME_TIME (1.0f / 60.0f)
+#define TOUCH_DRAG_THRESHOLD 6.0f
+#define LIST_ROW_HEIGHT 42.0f
+#define CIRCLE_DEAD_ZONE 22.0f
+#define CIRCLE_MAX_AXIS 154.0f
+#define LIST_SCROLL_SPEED 9.0f
 
 static App s_app;
 static Setup s_setup;
@@ -56,9 +61,320 @@ typedef struct {
 } TouchTracker;
 
 static TouchTracker s_touch;
+/**
+ * Donne la priorité aux écrans qui capturent toutes les commandes.
+ *
+ * @return Vrai si l'entrée a été entièrement consommée.
+ */
+static bool handle_exclusive_input(App *app, u32 down, u32 held, u32 up)
+{
+	if (s_setup.active) {
+		if (down & KEY_TOUCH) {
+			touchPosition touch;
+			hidTouchRead(&touch);
+			setup_touch(&s_setup, app, (float)touch.px, (float)touch.py);
+		}
+		setup_buttons(&s_setup, app, down);
+		return true;
+	}
+
+	if (s_modal.active) {
+		touchPosition touch;
+		hidTouchRead(&touch);
+
+		if ((down & KEY_TOUCH) || (held & KEY_TOUCH) || (up & KEY_TOUCH)) {
+			modal_touch(&s_modal, app, (float)touch.px, (float)touch.py,
+			            (down & KEY_TOUCH) != 0, (up & KEY_TOUCH) != 0);
+		}
+
+		modal_buttons(&s_modal, app, down);
+		return true;
+	}
+
+	/*
+	 * En plein écran, la console sert d'objet d'affichage : un contact ou une
+	 * touche en sort, sans déclencher d'action.
+	 */
+	if (app->frame_mode) {
+		if (down != 0) {
+			app->frame_mode = false;
+			sound_play(SOUND_PAGE);
+		}
+		return true;
+	}
+
+	/* Le raccourci L + SELECT ouvre les réglages depuis l'écran principal. */
+	if ((down & KEY_SELECT) && (held & KEY_L)) {
+		setup_open_settings(&s_setup);
+		return true;
+	}
+
+	return false;
+}
 
 /**
- * Traite les entrées : tactile, boutons physiques, pavé directionnel.
+ * Mémorise le début d'un geste tactile.
+ *
+ * @return Vrai lorsqu'une liste a capturé le geste et que la trame est finie.
+ */
+static bool begin_touch(App *app)
+{
+	touchPosition touch;
+	hidTouchRead(&touch);
+
+	const Page *page = app_current_page(app);
+	const bool is_list = (page != NULL) && page->layout == LAYOUT_LIST;
+	const int entry =
+	    is_list ? ui_list_at(app, (float)touch.px, (float)touch.py) : -1;
+
+	if (entry >= 0) {
+		s_touch.active = true;
+		s_touch.slot = -1;
+		s_touch.entry = entry;
+		s_touch.start_y = (float)touch.py;
+		s_touch.start_scroll = app->list_target;
+		s_touch.dragging = false;
+		app->list_focus = entry;
+		app->press_time = 0.0f;
+		app->hold_fired = false;
+		return true;
+	}
+
+	/*
+	 * Sur une page en liste, tout contact dans la zone centrale fait défiler.
+	 * La barre d'onglets et le bouton des réglages restent ainsi accessibles.
+	 */
+	if (is_list && touch.py < (u16)(SCREEN_H - GRID_BOTTOM_BAR)) {
+		s_touch.active = true;
+		s_touch.slot = -1;
+		s_touch.entry = -1;
+		s_touch.start_y = (float)touch.py;
+		s_touch.start_scroll = app->list_target;
+		s_touch.dragging = true;
+		return true;
+	}
+
+	const int slot =
+	    is_list ? -1 : ui_slot_at((float)touch.px, (float)touch.py);
+	if (slot >= 0) {
+		s_touch.active = true;
+		s_touch.slot = slot;
+		s_touch.entry = -1;
+		app->pressed_slot = slot;
+		/*
+		 * Le stylet retire la sélection afin de ne pas afficher deux pointeurs
+		 * concurrents.
+		 */
+		app->grid_focus = -1;
+		app->press_time = 0.0f;
+		app->hold_fired = false;
+	} else if ((!app->config_received &&
+	            ui_waiting_settings_at((float)touch.px, (float)touch.py)) ||
+	           ui_settings_at((float)touch.px, (float)touch.py)) {
+		setup_open_settings(&s_setup);
+	} else {
+		const int tab = ui_tab_at((float)touch.px, (float)touch.py,
+		                          app->config.page_count);
+		if (tab >= 0) {
+			app_goto_page(app, tab);
+		}
+	}
+
+	return false;
+}
+
+/**
+ * Fait suivre une liste au doigt pendant un glissement.
+ *
+ * @return Vrai si la page en liste a capturé la trame tactile.
+ */
+static bool update_list_touch(App *app, u32 held)
+{
+	if (!(held & KEY_TOUCH) || !s_touch.active) {
+		return false;
+	}
+
+	const Page *page = app_current_page(app);
+	if (page == NULL || page->layout != LAYOUT_LIST) {
+		return false;
+	}
+
+	touchPosition touch;
+	hidTouchRead(&touch);
+
+	const float delta = (float)touch.py - s_touch.start_y;
+	if (!s_touch.dragging &&
+	    (delta > TOUCH_DRAG_THRESHOLD || delta < -TOUCH_DRAG_THRESHOLD)) {
+		s_touch.dragging = true;
+	}
+
+	if (s_touch.dragging) {
+		app->list_target =
+		    s_touch.start_scroll - delta / LIST_ROW_HEIGHT;
+
+		if (app->list_target < 0.0f) {
+			app->list_target = 0.0f;
+		}
+
+		const float max_scroll = ui_list_max_scroll(app);
+		if (app->list_target > max_scroll) {
+			app->list_target = max_scroll;
+		}
+
+		app_touch_activity(app);
+	}
+
+	return true;
+}
+
+/** Annule un appui de grille lorsque le doigt quitte le bouton. */
+static void update_grid_touch(App *app, u32 held)
+{
+	if (!(held & KEY_TOUCH) || !s_touch.active || s_touch.entry >= 0) {
+		return;
+	}
+
+	touchPosition touch;
+	hidTouchRead(&touch);
+
+	const int slot = ui_slot_at((float)touch.px, (float)touch.py);
+	if (slot != s_touch.slot) {
+		s_touch.active = false;
+		app->pressed_slot = -1;
+	}
+}
+
+/** Déclenche ou annule l'action tactile lors du relâchement. */
+static void finish_touch(App *app, u32 up)
+{
+	if (!(up & KEY_TOUCH)) {
+		return;
+	}
+
+	if (s_touch.active && !app->hold_fired && !s_touch.dragging) {
+		if (s_touch.entry >= 0) {
+			app_press_entry(app, s_touch.entry, false);
+		} else {
+			app_press_button(app, s_touch.slot, false);
+		}
+	}
+
+	s_touch.active = false;
+	s_touch.entry = -1;
+	s_touch.dragging = false;
+	app->pressed_slot = -1;
+	app->press_time = 0.0f;
+	app->hold_fired = false;
+}
+
+/** Traite le défilement et la sélection d'une page en liste. */
+static void handle_list_controls(App *app, u32 down)
+{
+	const Page *page = app_current_page(app);
+	if (page == NULL || page->layout != LAYOUT_LIST) {
+		return;
+	}
+
+	const int columns = ui_list_columns();
+	const int rows = ui_list_rows();
+	const float max_scroll = ui_list_max_scroll(app);
+
+	circlePosition circle;
+	hidCircleRead(&circle);
+
+	const float value = (float)circle.dy;
+	if (value > CIRCLE_DEAD_ZONE || value < -CIRCLE_DEAD_ZONE) {
+		const float amount =
+		    (value - (value > 0.0f ? CIRCLE_DEAD_ZONE : -CIRCLE_DEAD_ZONE)) /
+		    (CIRCLE_MAX_AXIS - CIRCLE_DEAD_ZONE);
+		const float speed =
+		    amount * amount * amount * LIST_SCROLL_SPEED;
+
+		/* Le pavé pointé vers le haut fait remonter la liste. */
+		app_scroll_list(app, -speed * FRAME_TIME, max_scroll);
+		app_touch_activity(app);
+	}
+
+	if (down & KEY_UP) {
+		app_move_list_focus(app, 0, -1, columns, rows);
+	}
+	if (down & KEY_DOWN) {
+		app_move_list_focus(app, 0, 1, columns, rows);
+	}
+	if (down & KEY_LEFT) {
+		app_move_list_focus(app, -1, 0, columns, rows);
+	}
+	if (down & KEY_RIGHT) {
+		app_move_list_focus(app, 1, 0, columns, rows);
+	}
+
+	if ((down & KEY_A) && app_list_focus(app) >= 0) {
+		app_press_entry(app, app_list_focus(app), false);
+	}
+	if (down & KEY_B) {
+		app_clear_focus(app);
+	}
+}
+
+/** Traite la sélection et les raccourcis d'une page en grille. */
+static void handle_grid_controls(App *app, u32 down)
+{
+	const Page *page = app_current_page(app);
+	if (page == NULL || page->layout != LAYOUT_GRID) {
+		return;
+	}
+
+	if (down & KEY_UP) {
+		app_move_grid_focus(app, 0, -1);
+	}
+	if (down & KEY_DOWN) {
+		app_move_grid_focus(app, 0, 1);
+	}
+	if (down & KEY_LEFT) {
+		app_move_grid_focus(app, -1, 0);
+	}
+	if (down & KEY_RIGHT) {
+		app_move_grid_focus(app, 1, 0);
+	}
+
+	if (down & KEY_A) {
+		if (app->grid_focus >= 0) {
+			app_press_button(app, app->grid_focus, false);
+		} else {
+			/* Sans sélection, A désigne le premier emplacement. */
+			app_move_grid_focus(app, 0, 0);
+		}
+	}
+
+	if (down & KEY_B) {
+		app_clear_focus(app);
+	}
+
+	if (down & KEY_X) {
+		app_press_button(app, 2, false);
+	}
+	if (down & KEY_Y) {
+		app_press_button(app, 3, false);
+	}
+}
+
+/** Demande à l'agent de renvoyer immédiatement la configuration. */
+static void request_config(App *app, u32 down)
+{
+	if (!(down & KEY_SELECT)) {
+		return;
+	}
+
+	char payload[64];
+	const int written = protocol_encode_config_request(
+	    payload, sizeof(payload), app->next_request_id++);
+	if (written > 0 && net_send(payload, (size_t)written)) {
+		app_notify(app, tr(STR_CONFIG_REQUESTED), false);
+	}
+}
+
+/**
+ * Distribue les entrées vers les contrôleurs spécialisés.
  *
  * Le tactile déclenche l'action au relâchement, pas à l'appui : cela permet
  * d'annuler en glissant hors du bouton, et rend possible l'appui long.
@@ -75,280 +391,21 @@ static void handle_input(App *app)
 		app_touch_activity(app);
 	}
 
-	/*
-	 * L'assistant et les réglages sont modaux : tant qu'ils sont ouverts, ils
-	 * reçoivent seuls les commandes, ce qui évite de déclencher une action par
-	 * mégarde.
-	 */
-	if (s_setup.active) {
-		if (down & KEY_TOUCH) {
-			touchPosition touch;
-			hidTouchRead(&touch);
-			setup_touch(&s_setup, app, (float)touch.px, (float)touch.py);
-		}
-		setup_buttons(&s_setup, app, down);
+	if (handle_exclusive_input(app, down, held, up)) {
 		return;
 	}
 
-	/*
-	 * Le panneau de volumes est modal : il reçoit seul les commandes tant qu'il
-	 * est ouvert, ce qui évite de déclencher une action de la grille par
-	 * mégarde.
-	 */
-	if (s_modal.active) {
-		touchPosition touch;
-		hidTouchRead(&touch);
-
-		if ((down & KEY_TOUCH) || (held & KEY_TOUCH) || (up & KEY_TOUCH)) {
-			modal_touch(&s_modal, app, (float)touch.px, (float)touch.py,
-			            (down & KEY_TOUCH) != 0, (up & KEY_TOUCH) != 0);
-		}
-
-		modal_buttons(&s_modal, app, down);
+	if ((down & KEY_TOUCH) && begin_touch(app)) {
+		return;
+	}
+	if (update_list_touch(app, held)) {
 		return;
 	}
 
-	/*
-	 * En plein écran, la console sert d'objet d'affichage : un contact ou une
-	 * touche en sort, sans déclencher d'action.
-	 */
-	if (app->frame_mode) {
-		if (down != 0) {
-			app->frame_mode = false;
-			sound_play(SOUND_PAGE);
-		}
-		return;
-	}
+	update_grid_touch(app, held);
+	finish_touch(app, up);
+	handle_list_controls(app, down);
 
-	/* SELECT maintenu ouvre les réglages. */
-	if ((down & KEY_SELECT) && (held & KEY_L)) {
-		setup_open_settings(&s_setup);
-		return;
-	}
-
-	/* --- Tactile --- */
-	if (down & KEY_TOUCH) {
-		touchPosition touch;
-		hidTouchRead(&touch);
-
-		const Page *page = app_current_page(app);
-		const bool is_list = (page != NULL) && page->layout == LAYOUT_LIST;
-
-		/*
-		 * En présentation liste, la zone centrale contient des éléments et non
-		 * une grille : on les traite en priorité.
-		 */
-		const int entry =
-		    is_list ? ui_list_at(app, (float)touch.px, (float)touch.py) : -1;
-
-		if (entry >= 0) {
-			s_touch.active = true;
-			s_touch.slot = -1;
-			s_touch.entry = entry;
-			s_touch.start_y = (float)touch.py;
-			s_touch.start_scroll = app->list_target;
-			s_touch.dragging = false;
-			app->list_focus = entry;
-			app->press_time = 0.0f;
-			app->hold_fired = false;
-			return;
-		}
-
-		/*
-		 * Contact en dehors d'un élément, sur une page en liste : le geste sert
-		 * à faire défiler.
-		 *
-		 * La barre d'onglets et le bouton des réglages doivent toutefois rester
-		 * atteignables : ils sont donc écartés avant que le geste ne soit
-		 * interprété comme un défilement. Sans cette réserve, toucher un onglet
-		 * revenait à faire glisser la liste, et le changement de page devenait
-		 * impossible au stylet.
-		 */
-		if (is_list && touch.py < (u16)(SCREEN_H - GRID_BOTTOM_BAR)) {
-			s_touch.active = true;
-			s_touch.slot = -1;
-			s_touch.entry = -1;
-			s_touch.start_y = (float)touch.py;
-			s_touch.start_scroll = app->list_target;
-			s_touch.dragging = true;
-			return;
-		}
-
-		const int slot =
-		    is_list ? -1 : ui_slot_at((float)touch.px, (float)touch.py);
-		if (slot >= 0) {
-			s_touch.active = true;
-			s_touch.slot = slot;
-			s_touch.entry = -1;
-			app->pressed_slot = slot;
-			/*
-			 * Le stylet retire la sélection : garder un curseur affiché alors
-			 * que l'utilisateur touche l'écran laisserait croire à deux
-			 * pointeurs concurrents.
-			 */
-			app->grid_focus = -1;
-			app->press_time = 0.0f;
-			app->hold_fired = false;
-		} else if ((!app->config_received &&
-		            ui_waiting_settings_at((float)touch.px, (float)touch.py)) ||
-		           ui_settings_at((float)touch.px, (float)touch.py)) {
-			setup_open_settings(&s_setup);
-		} else {
-			const int tab = ui_tab_at((float)touch.px, (float)touch.py,
-			                          app->config.page_count);
-			if (tab >= 0) {
-				app_goto_page(app, tab);
-			}
-		}
-	}
-
-	/*
-	 * Glissement au doigt sur une page en liste.
-	 *
-	 * La liste suit le doigt au pixel : c'est le geste attendu sur un écran
-	 * tactile, et il rend le parcours d'une longue liste immédiat.
-	 */
-	if ((held & KEY_TOUCH) && s_touch.active) {
-		const Page *page = app_current_page(app);
-
-		if (page != NULL && page->layout == LAYOUT_LIST) {
-			touchPosition touch;
-			hidTouchRead(&touch);
-
-			const float delta = (float)touch.py - s_touch.start_y;
-
-			/*
-			 * Seuil de déclenchement : sans lui, un appui un peu tremblant
-			 * serait interprété comme un glissement et l'élément ne
-			 * s'activerait jamais.
-			 */
-			if (!s_touch.dragging && (delta > 6.0f || delta < -6.0f)) {
-				s_touch.dragging = true;
-			}
-
-			if (s_touch.dragging) {
-				/* Une rangée correspond à sa hauteur plus l'espacement. */
-				const float row_height = 42.0f;
-				const float target =
-				    s_touch.start_scroll - delta / row_height;
-
-				app->list_target = target;
-				if (app->list_target < 0.0f) {
-					app->list_target = 0.0f;
-				}
-				const float max_scroll = ui_list_max_scroll(app);
-				if (app->list_target > max_scroll) {
-					app->list_target = max_scroll;
-				}
-
-				app_touch_activity(app);
-			}
-
-			return;
-		}
-	}
-
-	if ((held & KEY_TOUCH) && s_touch.active && s_touch.entry < 0) {
-		touchPosition touch;
-		hidTouchRead(&touch);
-
-		/*
-		 * Si le doigt quitte le bouton, on annule l'appui : c'est le
-		 * comportement attendu d'une surface tactile et cela évite les
-		 * déclenchements involontaires.
-		 */
-		const int slot = ui_slot_at((float)touch.px, (float)touch.py);
-		if (slot != s_touch.slot) {
-			s_touch.active = false;
-			app->pressed_slot = -1;
-		}
-	}
-
-	if (up & KEY_TOUCH) {
-		if (s_touch.active && !app->hold_fired && !s_touch.dragging) {
-			if (s_touch.entry >= 0) {
-				app_press_entry(app, s_touch.entry, false);
-			} else {
-				app_press_button(app, s_touch.slot, false);
-			}
-		}
-		s_touch.active = false;
-		s_touch.entry = -1;
-		s_touch.dragging = false;
-		app->pressed_slot = -1;
-		app->press_time = 0.0f;
-		app->hold_fired = false;
-	}
-
-	/* --- Navigation dans une page en mode liste ---
-	 *
-	 * Répartition des commandes :
-	 *   - la croix directionnelle choisit un élément ;
-	 *   - le pavé circulaire fait défiler la liste ;
-	 *   - `A` active l'élément choisi.
-	 *
-	 * Séparer la sélection du défilement permet de parcourir une longue liste
-	 * sans perdre l'élément désigné, et de désigner précisément sans faire
-	 * bouger l'affichage.
-	 */
-	{
-		const Page *page = app_current_page(app);
-		const bool is_list = (page != NULL) && page->layout == LAYOUT_LIST;
-
-		if (is_list) {
-			const int columns = ui_list_columns();
-			const int rows = ui_list_rows();
-			const float max_scroll = ui_list_max_scroll(app);
-
-			/* Pavé circulaire : défilement continu, vitesse progressive. */
-			circlePosition circle;
-			hidCircleRead(&circle);
-
-			/*
-			 * Zone morte : le pavé ne revient jamais exactement au centre, et
-			 * sans elle la liste dériverait en permanence.
-			 */
-			const float dead_zone = 22.0f;
-			const float value = (float)circle.dy;
-
-			if (value > dead_zone || value < -dead_zone) {
-				const float amount =
-				    (value - (value > 0.0f ? dead_zone : -dead_zone)) /
-				    (154.0f - dead_zone);
-				const float speed = amount * amount * amount * 9.0f;
-
-				/* Le pavé pointé vers le haut fait remonter la liste. */
-				app_scroll_list(app, -speed * FRAME_TIME, max_scroll);
-				app_touch_activity(app);
-			}
-
-			/* Croix : déplacement de la sélection. */
-			if (down & KEY_UP) {
-				app_move_list_focus(app, 0, -1, columns, rows);
-			}
-			if (down & KEY_DOWN) {
-				app_move_list_focus(app, 0, 1, columns, rows);
-			}
-			if (down & KEY_LEFT) {
-				app_move_list_focus(app, -1, 0, columns, rows);
-			}
-			if (down & KEY_RIGHT) {
-				app_move_list_focus(app, 1, 0, columns, rows);
-			}
-
-			/* `A` active l'élément désigné. */
-			if ((down & KEY_A) && app_list_focus(app) >= 0) {
-				app_press_entry(app, app_list_focus(app), false);
-			}
-
-			/* `B` retire la sélection. */
-			if (down & KEY_B) {
-				app_clear_focus(app);
-			}
-		}
-	}
-
-	/* --- Pagination par les gâchettes --- */
 	if (down & KEY_L) {
 		app_cycle_page(app, -1);
 	}
@@ -356,67 +413,8 @@ static void handle_input(App *app)
 		app_cycle_page(app, 1);
 	}
 
-	/* --- Commandes de la grille ---
-	 *
-	 * La répartition est la même que sur une page en liste : la croix déplace la
-	 * sélection, `A` valide, `B` annule. Le comportement ne dépend donc plus de
-	 * la page affichée.
-	 *
-	 * `X` et `Y` restent des raccourcis directs vers deux emplacements, ce qui
-	 * permet de garder un accès immédiat sans passer par la sélection.
-	 */
-	{
-		const Page *page = app_current_page(app);
-
-		if (page != NULL && page->layout == LAYOUT_GRID) {
-			if (down & KEY_UP) {
-				app_move_grid_focus(app, 0, -1);
-			}
-			if (down & KEY_DOWN) {
-				app_move_grid_focus(app, 0, 1);
-			}
-			if (down & KEY_LEFT) {
-				app_move_grid_focus(app, -1, 0);
-			}
-			if (down & KEY_RIGHT) {
-				app_move_grid_focus(app, 1, 0);
-			}
-
-			if (down & KEY_A) {
-				if (app->grid_focus >= 0) {
-					app_press_button(app, app->grid_focus, false);
-				} else {
-					/*
-					 * Sans sélection, `A` désigne le premier emplacement : le
-					 * bouton reste ainsi utilisable sans navigation préalable.
-					 */
-					app_move_grid_focus(app, 0, 0);
-				}
-			}
-
-			if (down & KEY_B) {
-				app_clear_focus(app);
-			}
-
-			/* Raccourcis directs, indépendants de la sélection. */
-			if (down & KEY_X) {
-				app_press_button(app, 2, false);
-			}
-			if (down & KEY_Y) {
-				app_press_button(app, 3, false);
-			}
-		}
-	}
-
-	/* Demande explicite de rechargement de la configuration. */
-	if (down & KEY_SELECT) {
-		char payload[64];
-		const int written = protocol_encode_config_request(
-		    payload, sizeof(payload), app->next_request_id++);
-		if (written > 0 && net_send(payload, (size_t)written)) {
-			app_notify(app, tr(STR_CONFIG_REQUESTED), false);
-		}
-	}
+	handle_grid_controls(app, down);
+	request_config(app, down);
 }
 
 int main(int argc, char *argv[])

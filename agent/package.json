@@ -1,0 +1,8 @@
+{
+  "name": "3decks-agent-frontend",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:frontend": "node --test tests/frontend_modules.test.mjs"
+  }
+}
