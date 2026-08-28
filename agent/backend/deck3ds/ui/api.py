@@ -21,7 +21,12 @@ from typing import Any
 from .. import config as config_module
 from .. import keys as keys_module
 from ..feature_catalog import FEATURE_SPECS
-from ..platforms.base import Capabilities
+from ..platforms.base import (
+    ActionFailed,
+    Capabilities,
+    SelectionCancelled,
+    Unsupported,
+)
 from ..obs import ObsError, test_connection
 from .http import HttpError, Request, Response
 
@@ -158,6 +163,8 @@ class Api:
             ("PUT", "/api/config"): self.put_config,
             ("POST", "/api/config/validate"): self.validate_config,
             ("POST", "/api/obs/test"): self.test_obs,
+            ("POST", "/api/permissions/open"): self.open_permission_settings,
+            ("POST", "/api/paths/pick"): self.pick_path,
             ("GET", "/api/apps"): self.get_apps,
             ("GET", "/api/state"): self.get_state,
         }
@@ -192,6 +199,36 @@ class Api:
         """Catalogue des applications installées pour le sélecteur d'action."""
         apps = await asyncio.to_thread(self.server.platform.list_launchable_apps)
         return Response.json({"apps": apps})
+
+    async def open_permission_settings(self, request: Request) -> Response:
+        """Ouvre un panneau système explicitement autorisé par la plateforme."""
+        raw = request.json()
+        permission = raw.get("permission") if isinstance(raw, dict) else None
+        if not isinstance(permission, str) or not permission:
+            raise HttpError(422, "autorisation manquante")
+        try:
+            await asyncio.to_thread(
+                self.server.platform.open_permission_settings, permission
+            )
+        except (Unsupported, ActionFailed) as error:
+            raise HttpError(409, str(error)) from error
+        return Response.json({"opened": True, "permission": permission})
+
+    async def pick_path(self, request: Request) -> Response:
+        """Ouvre un sélecteur système, sans accepter de commande du navigateur."""
+        raw = request.json()
+        kind = raw.get("kind") if isinstance(raw, dict) else None
+        if kind not in ("file", "folder"):
+            raise HttpError(422, "type de sélection invalide")
+        try:
+            path = await asyncio.to_thread(self.server.platform.choose_path, kind)
+        except SelectionCancelled:
+            return Response.json({"cancelled": True, "path": "", "kind": kind})
+        except (Unsupported, ActionFailed) as error:
+            raise HttpError(409, str(error)) from error
+        return Response.json(
+            {"cancelled": False, "path": path, "kind": kind}
+        )
 
     # --- Configuration ---------------------------------------------------------
 

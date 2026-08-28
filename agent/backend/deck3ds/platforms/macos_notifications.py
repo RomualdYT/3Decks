@@ -24,6 +24,7 @@ import sqlite3
 import sys
 import time
 from pathlib import Path
+from typing import Callable
 
 from .notification_types import (
     MAX_AGE_SECONDS,
@@ -41,6 +42,11 @@ _APPLE_EPOCH = 978307200
 #: Avance tolérée sur l'horloge, la date de la base et l'heure courante n'étant
 #: pas lues au même instant. Au-delà, la date est jugée aberrante.
 _CLOCK_TOLERANCE = 60.0
+
+# Un refus d'accès peut être levé pendant que l'agent tourne. Une courte
+# temporisation évite de solliciter SQLite à chaque collecte sans imposer un
+# redémarrage après l'ajout de l'autorisation.
+ACCESS_RETRY_DELAY = 5.0
 
 #: Noms lisibles pour les applications courantes. L'identifiant de paquet est
 #: illisible sur un petit écran.
@@ -183,6 +189,7 @@ class NotificationReader:
         ignored: list[str] | None = None,
         source: _Source | None = None,
         path: Path | None = None,
+        clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self._source = source if source is not None else _source_for(sys.platform)
         if path is not None:
@@ -193,8 +200,11 @@ class NotificationReader:
             self.path = None
 
         self.available = self.path is not None and self.path.is_file()
-        #: Vrai après un échec de lecture : on cesse alors d'insister.
+        #: Vrai après un échec de lecture, jusqu'à la prochaine tentative.
         self.broken = False
+        self.last_error = ""
+        self.retry_after = 0.0
+        self._clock = clock
 
         # Comparaison en minuscules, pour rester tolérant à la casse.
         self._ignored = {name.strip().lower() for name in (ignored or [])}
@@ -211,7 +221,9 @@ class NotificationReader:
 
     def read(self) -> list[Notification]:
         """Notifications récentes, de la plus récente à la plus ancienne."""
-        if not self.available or self.broken or self._source is None:
+        if not self.available or self._source is None:
+            return []
+        if self.broken and self._clock() < self.retry_after:
             return []
 
         rows = self._rows()
@@ -239,6 +251,19 @@ class NotificationReader:
 
         return results
 
+    def probe(self) -> bool:
+        """Vérifie l'accès sans attendre qu'une console déclenche une collecte."""
+        if not self.available or self._source is None:
+            return False
+        if self.broken and self._clock() < self.retry_after:
+            return False
+        return self._rows() is not None
+
+    def _mark_failure(self, error: sqlite3.Error) -> None:
+        self.broken = True
+        self.last_error = str(error)
+        self.retry_after = self._clock() + ACCESS_RETRY_DELAY
+
     def _rows(self) -> list[tuple] | None:
         """Lignes brutes de la base, ou `None` si elle est illisible."""
         try:
@@ -247,19 +272,24 @@ class NotificationReader:
             connection = sqlite3.connect(
                 f"file:{self.path}?mode=ro", uri=True, timeout=1.0
             )
-        except sqlite3.Error:
-            self.broken = True
+        except sqlite3.Error as error:
+            self._mark_failure(error)
             return None
 
         try:
-            return connection.execute(self._source.query).fetchall()
-        except sqlite3.Error:
+            rows = connection.execute(self._source.query).fetchall()
+        except sqlite3.Error as error:
             # Schéma inattendu : la fonctionnalité s'éteint proprement plutôt
-            # que de réessayer indéfiniment.
-            self.broken = True
+            # que de réessayer à chaque cycle.
+            self._mark_failure(error)
             return None
         finally:
             connection.close()
+
+        self.broken = False
+        self.last_error = ""
+        self.retry_after = 0.0
+        return rows
 
     def _decode(
         self, delivered: object, identifier: str, payload: object, now: float

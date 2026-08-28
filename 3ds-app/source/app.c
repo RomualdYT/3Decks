@@ -802,11 +802,29 @@ void app_pump_network(App *app)
 /** Met à jour l'horloge locale de repli. */
 static void update_local_clock(App *app)
 {
+	static const char *const months_en[] = {
+	    "January", "February", "March", "April", "May", "June",
+	    "July", "August", "September", "October", "November", "December",
+	};
+	static const char *const months_fr[] = {
+	    "janvier", "fevrier", "mars", "avril", "mai", "juin",
+	    "juillet", "aout", "septembre", "octobre", "novembre", "decembre",
+	};
 	const time_t now = time(NULL);
 	const struct tm *local = localtime(&now);
 	if (local != NULL) {
 		snprintf(app->local_time, sizeof(app->local_time), "%02d:%02d",
 		         local->tm_hour, local->tm_min);
+		const int month = local->tm_mon >= 0 && local->tm_mon < 12
+		                      ? local->tm_mon
+		                      : 0;
+		if (i18n_language() == LANG_FR) {
+			snprintf(app->local_date, sizeof(app->local_date), "%d %s",
+			         local->tm_mday, months_fr[month]);
+		} else {
+			snprintf(app->local_date, sizeof(app->local_date), "%s %d",
+			         months_en[month], local->tm_mday);
+		}
 	}
 }
 

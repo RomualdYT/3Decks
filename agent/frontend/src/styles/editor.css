@@ -179,6 +179,23 @@
 .advanced-disclosure [data-slot="disclosure-body"] { display: flex; flex-direction: column; gap: 12px; padding: 0 12px 12px; }
 .technical-help [data-slot="card-content"], .support-warning [data-slot="card-content"] { align-items: flex-start; display: flex; gap: 8px; padding: 10px; }
 .technical-help p, .support-warning p { font-size: 9px; line-height: 1.45; }
+.path-picker { display: flex; flex-direction: column; gap: 9px; }
+.path-picker > .field-label { color: #bac5d7; font-size: 10px; font-weight: 750; letter-spacing: .035em; }
+.path-selection { align-items: center; background: var(--surface-input); border: 1px solid var(--border-strong); border-radius: 13px; display: grid; gap: 10px; grid-template-columns: 38px minmax(0, 1fr) auto; min-height: 62px; padding: 9px; }
+.path-selection.empty { border-style: dashed; grid-template-columns: 38px minmax(0, 1fr); }
+.path-selection.selected { background: linear-gradient(135deg, rgba(102,203,16,.08), var(--surface-input) 58%); border-color: rgba(102,203,16,.28); }
+.path-selection-icon { align-items: center; background: var(--panel-raised); border: 1px solid var(--border); border-radius: 10px; color: var(--muted); display: flex; height: 38px; justify-content: center; width: 38px; }
+.path-selection.selected .path-selection-icon { background: var(--accent-soft); border-color: rgba(102,203,16,.18); color: var(--accent); }
+.path-selection-copy { min-width: 0; }
+.path-selection-copy strong, .path-selection-copy small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.path-selection-copy strong { font-size: 10px; margin-bottom: 3px; }
+.path-selection-copy small { color: var(--muted); font-size: 8px; }
+.path-selection [data-slot="button"] { padding-inline: 8px; }
+.path-picker-actions { display: grid; gap: 7px; grid-template-columns: 1fr 1fr; }
+.path-picker-actions [data-slot="button"] { font-size: 9px; min-width: 0; padding-inline: 8px; }
+.path-picker-help { align-items: flex-start; color: var(--muted-2); display: flex; font-size: 8px; gap: 5px; line-height: 1.4; }
+.path-picker-help svg { color: var(--accent); flex: 0 0 auto; margin-top: 1px; }
+.path-manual { margin-top: 1px; }
 .current-action { align-items: center; background: var(--panel); border: 1px solid var(--border-strong); border-radius: 13px; cursor: pointer; display: grid; gap: 10px; grid-template-columns: 40px 1fr auto; padding: 10px; text-align: left; }
 .current-action:hover { border-color: rgba(102,203,16,.5); }
 .current-action > span:first-child { align-items: center; background: color-mix(in srgb, var(--action-color) 18%, #242428); border-radius: 10px; color: var(--action-color); display: flex; height: 38px; justify-content: center; width: 38px; }

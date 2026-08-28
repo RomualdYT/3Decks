@@ -1080,9 +1080,10 @@ class TestBroadcast(unittest.IsolatedAsyncioTestCase):
     """
 
     class _FakeClient:
-        def __init__(self, authenticated=True, alive=True):
+        def __init__(self, authenticated=True, alive=True, language="en"):
             self.authenticated = authenticated
             self.alive = alive
+            self.language = language
             self.sent = []
             self.raw = []
             self.closed = False
@@ -1129,6 +1130,20 @@ class TestBroadcast(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn(morte, server.clients)
         self.assertTrue(morte.closed)
         self.assertIn(vivante, server.clients)
+
+    async def test_configuration_traduite_pour_chaque_console(self):
+        raw = minimal_config()
+        raw["pages"][0]["title"] = {"en": "Main", "fr": "Principal"}
+        server = Server(config_module.parse(raw), FakePlatform())
+        server.log = lambda message: None
+        english = self._FakeClient(language="en")
+        french = self._FakeClient(language="fr")
+        server.clients.update((english, french))
+
+        await server._broadcast_config()
+
+        self.assertEqual(english.sent[0]["pages"][0]["title"], "Main")
+        self.assertEqual(french.sent[0]["pages"][0]["title"], "Principal")
 
     async def test_pochette_transmise_apres_l_etat(self):
         client = self._FakeClient()
@@ -1265,7 +1280,7 @@ class TestDynamicRepublish(unittest.IsolatedAsyncioTestCase):
         server = Server(loaded, FakePlatform())
         server.log = lambda message: None
         self.diffusions = []
-        server._broadcast = lambda message: self._note(message)
+        server._broadcast_config = lambda: self._note(server._config_message())
         return server
 
     async def _note(self, message):
@@ -1563,6 +1578,7 @@ class TestServerEndToEnd(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.platform = FakePlatform()
         raw = minimal_config()
+        raw["pages"][0]["title"] = {"en": "Main", "fr": "Principal"}
         raw["pages"][0]["buttons"] = [
             {
                 "id": "mic",
@@ -1620,11 +1636,13 @@ class TestServerEndToEnd(unittest.IsolatedAsyncioTestCase):
                 raise AssertionError("connexion fermee")
             frames.feed(data)
 
-    async def handshake(self, token=None):
+    async def handshake(self, token=None, language=None):
         reader, writer, frames = await self.connect()
         hello = {"type": "hello", "protocol": 1, "device": "test"}
         if token is not None:
             hello["token"] = token
+        if language is not None:
+            hello["language"] = language
         writer.write(protocol.encode(hello))
         await writer.drain()
         return reader, writer, frames
@@ -1640,6 +1658,23 @@ class TestServerEndToEnd(unittest.IsolatedAsyncioTestCase):
 
         writer.close()
         await writer.wait_closed()
+
+    async def test_handshake_localise_la_configuration(self):
+        reader_en, writer_en, frames_en = await self.handshake(language="en")
+        await self.receive(reader_en, frames_en, "hello.ok")
+        config_en = await self.receive(reader_en, frames_en, "config.snapshot")
+
+        reader_fr, writer_fr, frames_fr = await self.handshake(language="fr")
+        await self.receive(reader_fr, frames_fr, "hello.ok")
+        config_fr = await self.receive(reader_fr, frames_fr, "config.snapshot")
+
+        self.assertEqual(config_en["pages"][0]["title"], "Main")
+        self.assertEqual(config_fr["pages"][0]["title"], "Principal")
+
+        writer_en.close()
+        writer_fr.close()
+        await writer_en.wait_closed()
+        await writer_fr.wait_closed()
 
     async def test_appui_bouton_execute_et_repond(self):
         reader, writer, frames = await self.handshake()
@@ -2054,8 +2089,8 @@ class TestNotifications(unittest.TestCase):
         self.assertEqual(reader.read(), [])
         self.assertTrue(reader.broken, "la lecture doit être abandonnée")
 
-    def test_ouverture_impossible_eteint_la_lecture(self):
-        """Si `sqlite3.connect` échoue, la lecture ne doit pas être retentée.
+    def test_ouverture_impossible_temporise_la_lecture(self):
+        """Si `sqlite3.connect` échoue, la lecture n'insiste pas immédiatement.
 
         Le cas se produit lorsque le fichier existe mais reste inaccessible :
         droits refusés, chemin devenu un dossier, verrou exclusif du système.
@@ -2067,17 +2102,58 @@ class TestNotifications(unittest.TestCase):
         path = directory / "db"
         path.write_bytes(b"")
 
+        now = [100.0]
         reader = notifications.NotificationReader(
-            source=notifications._MacSource(), path=path
+            source=notifications._MacSource(), path=path, clock=lambda: now[0]
         )
+        calls = []
 
         def refuser(*args, **kwargs):
+            calls.append(args)
             raise sqlite3.OperationalError("acces refuse")
 
         with patch.object(notifications.sqlite3, "connect", refuser):
             self.assertEqual(reader.read(), [])
+            self.assertEqual(reader.read(), [])
 
-        self.assertTrue(reader.broken, "la lecture doit être abandonnée")
+        self.assertTrue(reader.broken)
+        self.assertEqual(len(calls), 1, "la temporisation doit éviter une boucle")
+
+    def test_autorisation_tardive_est_reessayee(self):
+        """Accorder l'accès complet au disque ne doit plus imposer un redémarrage."""
+        from deck3ds.platforms import macos_notifications as notifications
+
+        directory = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, directory, ignore_errors=True)
+        path = directory / "db"
+        connection = sqlite3.connect(path)
+        connection.execute("CREATE TABLE app (app_id INTEGER, identifier TEXT)")
+        connection.execute(
+            "CREATE TABLE record (app_id INTEGER, delivered_date REAL, data BLOB)"
+        )
+        connection.commit()
+        connection.close()
+
+        now = [100.0]
+        allowed = [False]
+        original_connect = sqlite3.connect
+        reader = notifications.NotificationReader(
+            source=notifications._MacSource(), path=path, clock=lambda: now[0]
+        )
+
+        def connect(*args, **kwargs):
+            if not allowed[0]:
+                raise sqlite3.OperationalError("acces refuse")
+            return original_connect(*args, **kwargs)
+
+        with patch.object(notifications.sqlite3, "connect", connect):
+            self.assertFalse(reader.probe())
+            allowed[0] = True
+            self.assertFalse(reader.probe(), "le délai protège encore la collecte")
+            now[0] += notifications.ACCESS_RETRY_DELAY
+            self.assertTrue(reader.probe())
+
+        self.assertFalse(reader.broken)
 
     def test_ouverture_en_lecture_seule(self):
         """La base appartient au système : l'écriture doit être impossible.
@@ -2228,6 +2304,7 @@ class TestNotifications(unittest.TestCase):
     def test_lecture_cassee_desactive(self):
         reader = self.reader()
         reader.broken = True
+        reader.retry_after = float("inf")
         self.assertEqual(reader.read(), [])
 
 
@@ -2969,6 +3046,40 @@ def _mac_platform(player_running=True, **scripts):
     return platform
 
 
+class TestMacPathPicker(unittest.TestCase):
+    """Le sélecteur natif masque les chemins techniques à l'utilisateur."""
+
+    def test_selection_de_fichier_retourne_le_chemin(self):
+        platform = _mac_platform()
+        commands = []
+
+        def run(command, timeout=0):
+            commands.append((command, timeout))
+            return "/Users/test/Documents/rapport.pdf\n"
+
+        platform.run = run
+
+        self.assertEqual(
+            platform.choose_path("file"),
+            "/Users/test/Documents/rapport.pdf",
+        )
+        self.assertIn("choose file", commands[0][0][-1])
+        self.assertEqual(commands[0][1], 120.0)
+
+    def test_annulation_du_selecteur_n_est_pas_une_erreur(self):
+        from deck3ds.platforms.base import SelectionCancelled
+
+        platform = _mac_platform()
+
+        def cancel(*_args, **_kwargs):
+            raise ActionFailed("User canceled. (-128)")
+
+        platform.run = cancel
+
+        with self.assertRaises(SelectionCancelled):
+            platform.choose_path("folder")
+
+
 class TestMacMedia(unittest.TestCase):
     """Lecture du média courant sur macOS.
 
@@ -3022,14 +3133,51 @@ class TestMacMedia(unittest.TestCase):
         self.assertAlmostEqual(platform.get_media().position, 12.5)
 
     def test_lecteur_qui_refuse_l_automatisation_est_ecarte(self):
-        """Un refus doit être mémorisé, sinon chaque cycle paierait le délai."""
+        """Un refus est temporisé, sinon chaque cycle paierait le délai."""
         from deck3ds.platforms.macos import MEDIA_PLAYERS
 
         platform = _mac_platform(**{"player state": ActionFailed("refus")})
         self.assertIsNone(platform.get_media())
-        self.assertTrue(platform._media.blocked)
-        for player in platform._media.blocked:
+        self.assertTrue(platform._media.retry_after)
+        for player in platform._media.retry_after:
             self.assertIn(player, MEDIA_PLAYERS)
+
+    def test_lecteur_est_reessaye_apres_une_autorisation_tardive(self):
+        """Accepter la permission macOS ne doit plus imposer un redémarrage."""
+        from deck3ds.platforms.macos_media import (
+            FAILURE_RETRY_DELAY,
+            MacMediaProvider,
+        )
+
+        now = [100.0]
+        authorized = [False]
+        calls = []
+
+        def quiet(source, *args):
+            calls.append(source)
+            if not authorized[0]:
+                return None
+            return "playing\nTitre\nArtiste\nAlbum\n\n12\n180\n55"
+
+        provider = MacMediaProvider(
+            lambda source, *args: "",
+            quiet,
+            lambda feature: feature == "spotify",
+            clock=lambda: now[0],
+        )
+
+        self.assertIsNone(provider.get_media())
+        self.assertEqual(len(calls), 1)
+
+        authorized[0] = True
+        self.assertIsNone(provider.get_media())
+        self.assertEqual(len(calls), 1, "la temporisation doit éviter le spam")
+
+        now[0] += FAILURE_RETRY_DELAY
+        media = provider.get_media()
+        self.assertIsNotNone(media)
+        self.assertEqual(media.title, "Titre")
+        self.assertEqual(provider.retry_after, {})
 
     def test_lecteur_actif_devient_prioritaire(self):
         """Mémoriser le lecteur trouvé évite de sonder l'autre au cycle suivant."""
@@ -3895,6 +4043,77 @@ class TestUiSecurity(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(status, 200)
         self.assertEqual(payload, {"apps": ["Terminal", "Safari"]})
+
+    async def test_selecteur_natif_de_fichier(self):
+        selected = []
+
+        def choose(kind):
+            selected.append(kind)
+            return "/Users/test/Documents/rapport.pdf"
+
+        self.server.platform.choose_path = choose
+        status, payload = await self.request(
+            "POST",
+            "/api/paths/pick",
+            body={"kind": "file"},
+            headers=self.authorised(),
+        )
+
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["path"], "/Users/test/Documents/rapport.pdf")
+        self.assertFalse(payload["cancelled"])
+        self.assertEqual(selected, ["file"])
+
+    async def test_selecteur_natif_annule_proprement(self):
+        from deck3ds.platforms.base import SelectionCancelled
+
+        def cancel(_kind):
+            raise SelectionCancelled
+
+        self.server.platform.choose_path = cancel
+        status, payload = await self.request(
+            "POST",
+            "/api/paths/pick",
+            body={"kind": "folder"},
+            headers=self.authorised(),
+        )
+
+        self.assertEqual(status, 200)
+        self.assertTrue(payload["cancelled"])
+        self.assertEqual(payload["path"], "")
+
+    async def test_selecteur_natif_refuse_un_type_inconnu(self):
+        status, _ = await self.request(
+            "POST",
+            "/api/paths/pick",
+            body={"kind": "commande"},
+            headers=self.authorised(),
+        )
+        self.assertEqual(status, 422)
+
+    async def test_ouverture_d_une_autorisation_systeme(self):
+        opened = []
+        self.server.platform.open_permission_settings = opened.append
+
+        status, payload = await self.request(
+            "POST",
+            "/api/permissions/open",
+            body={"permission": "notifications"},
+            headers=self.authorised(),
+        )
+
+        self.assertEqual(status, 200)
+        self.assertEqual(payload, {"opened": True, "permission": "notifications"})
+        self.assertEqual(opened, ["notifications"])
+
+    async def test_autorisation_systeme_invalide_refusee(self):
+        status, _ = await self.request(
+            "POST",
+            "/api/permissions/open",
+            body={},
+            headers=self.authorised(),
+        )
+        self.assertEqual(status, 422)
 
     async def test_interface_conserve_le_jeton_entre_rechargements(self):
         """Le module d'accès doit mémoriser le jeton, sinon F5 casse la page.

@@ -37,6 +37,7 @@ from .base import (
     MediaInfo,
     NotificationInfo,
     Platform,
+    SelectionCancelled,
     SystemSnapshot,
     Unsupported,
 )
@@ -248,7 +249,22 @@ class WindowsPlatform(Platform):
                 else "Disabled"
             ),
             "error": self._notifications.last_error,
+            "settings_action": (
+                "notifications"
+                if self.feature_enabled("notifications")
+                and not self._notifications.available
+                else ""
+            ),
         }
+
+    def open_permission_settings(self, permission: str) -> None:
+        """Ouvre le panneau natif Windows sans solution de repli."""
+        if permission != "notifications":
+            raise Unsupported("autorisation Windows inconnue")
+        try:
+            os.startfile("ms-settings:privacy-notifications")
+        except OSError as error:
+            raise ActionFailed("impossible d'ouvrir les autorisations Windows") from error
 
     # --- Touches --------------------------------------------------------------
 
@@ -853,7 +869,35 @@ if ($s) {
         self.spawn(["cmd", "/c", "start", "", url])
 
     def open_path(self, path: str) -> None:
-        self.spawn(["explorer.exe", os.path.expanduser(path)])
+        try:
+            os.startfile(os.path.expanduser(path))
+        except OSError as error:
+            raise ActionFailed("impossible d'ouvrir ce fichier ou dossier") from error
+
+    def choose_path(self, kind: str) -> str:
+        """Ouvre le dialogue Windows adapté, dans le processus PowerShell STA."""
+        scripts = {
+            "file": (
+                "Add-Type -AssemblyName System.Windows.Forms;"
+                "$dialog = New-Object System.Windows.Forms.OpenFileDialog;"
+                "$dialog.CheckFileExists = $true;"
+                "if ($dialog.ShowDialog() -eq "
+                "[System.Windows.Forms.DialogResult]::OK) { $dialog.FileName }"
+            ),
+            "folder": (
+                "Add-Type -AssemblyName System.Windows.Forms;"
+                "$dialog = New-Object System.Windows.Forms.FolderBrowserDialog;"
+                "if ($dialog.ShowDialog() -eq "
+                "[System.Windows.Forms.DialogResult]::OK) { $dialog.SelectedPath }"
+            ),
+        }
+        script = scripts.get(kind)
+        if script is None:
+            raise Unsupported("type de sélection Windows inconnu")
+        selected = self._shell.run(script, timeout=120.0).strip()
+        if not selected:
+            raise SelectionCancelled
+        return selected.splitlines()[-1].strip()
 
     def _character_code(self, character: str) -> tuple[int, bool]:
         """Code virtuel produisant ce caractère sur la disposition active.

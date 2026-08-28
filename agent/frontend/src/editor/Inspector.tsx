@@ -7,6 +7,7 @@ import { DeckIcon } from "../components/DeckIcon";
 import { ComboControl, NumberControl, SelectControl, TextControl } from "../components/FormControls";
 import { IconPicker } from "../components/IconPicker";
 import { HotkeyInput } from "../components/HotkeyInput";
+import { PathPicker } from "../components/PathPicker";
 
 interface Props {
   config: DeckConfig;
@@ -56,7 +57,7 @@ function argumentCopy(name: string, kind: string, locale: Locale) {
     target: kind.startsWith("app.") ? ["Choisissez une application détectée, ou saisissez son nom si elle n’apparaît pas.", "Choose a detected app, or type its name if it is missing."] : ["Nom reconnu par votre ordinateur.", "A name recognized by your computer."],
     value: ["Valeur comprise entre 0 et 100.", "A value between 0 and 100."],
     url: ["Exemple : youtube.com. HTTPS est ajouté automatiquement.", "Example: youtube.com. HTTPS is added automatically."],
-    path: ["Chemin complet vers l’élément à ouvrir.", "Full path to the item to open."],
+    path: ["Choisissez l’élément directement sur cet ordinateur.", "Choose the item directly on this computer."],
     scene: ["Les scènes apparaissent après avoir testé OBS dans les réglages.", "Scenes appear after testing OBS in Settings."],
     source: ["Nom exact de la source tel qu’il apparaît dans OBS.", "Exact source name as shown in OBS."],
   };
@@ -140,6 +141,7 @@ function ActionArgumentControl({ argument, spec, value, locale, config, scenes, 
   if (argument.type === "page") return <SelectControl label={copy.label} value={value} description={copy.description} choices={config.pages.map((item) => ({ id: item.id, label: localized(item.title, locale) || item.id, icon: item.icon }))} onChange={onChange} />;
   if (argument.type === "script") return <SelectControl label={copy.label} value={value} choices={Object.keys(config.scripts ?? {}).map((script) => ({ id: script, label: script, icon: "workflow" }))} onChange={onChange} />;
   if (argument.type === "hotkey") return <div className="ui-field"><span className="field-label">{copy.label}</span><HotkeyInput value={value} catalog={schema.keys} locale={locale} onChange={onChange} /></div>;
+  if (argument.name === "path" && spec.kind === "path.open") return <PathPicker value={value} locale={locale} onChange={(next) => onChange(next)} />;
   if (argument.name === "scene") return <SelectControl label={copy.label} value={value} description={copy.description} choices={(scenes.length ? scenes : [value].filter(Boolean)).map((scene) => ({ id: scene, label: scene, icon: "video", description: scenes.length ? undefined : (fr ? "Testez la connexion OBS pour charger vos scènes." : "Test OBS to load your scenes.") }))} onChange={onChange} />;
   if (argument.type === "number") return <NumberControl label={copy.label} value={Number(value || 0)} min={0} max={100} description={copy.description} onChange={onChange} />;
   if (argument.name === "target" && spec.kind.startsWith("app.")) return <ComboControl label={copy.label} value={value} choices={apps} description={copy.description} placeholder={fr ? "Ex. Safari, Spotify, OBS Studio…" : "e.g. Safari, Spotify, OBS Studio…"} onChange={onChange} />;

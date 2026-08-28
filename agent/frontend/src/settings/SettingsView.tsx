@@ -77,6 +77,14 @@ function SettingsHeading({ icon, title, help }: { icon: string; title: string; h
 }
 
 function FeatureSettings({ config, schema, status, locale, t, update }: Pick<Props, "config" | "schema" | "status" | "locale" | "t" | "update">) {
+  const [openingPermission, setOpeningPermission] = useState<string | null>(null);
+  const openPermission = (permission: string) => {
+    setOpeningPermission(permission);
+    void agentApi.openPermissionSettings(permission)
+      .then(() => toast.success(t("permissionsOpened")))
+      .catch((error: Error) => toast.danger(error.message))
+      .finally(() => setOpeningPermission(null));
+  };
   const groups: Array<{ title: string; icon: string; items: FeatureSpec[] }> = [
     { title: locale === "fr" ? "Informations système" : "System information", icon: "monitor", items: schema.features.filter((item) => ["notifications", "windows", "system_stats", "audio_output"].includes(item.key)) },
     { title: locale === "fr" ? "Média et lecteurs" : "Media and players", icon: "music", items: schema.features.filter((item) => ["media", "media_artwork", "apple_music", "spotify"].includes(item.key)) },
@@ -86,7 +94,8 @@ function FeatureSettings({ config, schema, status, locale, t, update }: Pick<Pro
       const parentEnabled = !feature.parent || config.features[feature.parent] !== false;
       const enabled = config.features[feature.key] ?? feature.enabled;
       const platformAvailable = !status?.platform || feature.platforms.includes(status.platform);
-      return <div className={`feature-row ${feature.parent ? "nested" : ""} ${!platformAvailable ? "unavailable" : ""}`} key={feature.key}><div className={`feature-symbol ${feature.key === "spotify" || feature.key === "apple_music" ? "brand" : ""}`}>{feature.key === "spotify" ? <SpotifyIcon /> : feature.key === "apple_music" ? <AppleMusicIcon /> : <DeckIcon name={feature.key === "notifications" ? "bell" : feature.key === "windows" ? "app" : feature.key === "system_stats" ? "status" : feature.key === "audio_output" ? "volume-up" : feature.key === "media_artwork" ? "square" : "music"} />}</div><div className="feature-copy"><h3>{feature.title[locale]}</h3><p>{feature.description[locale]}</p>{!platformAvailable && <small>{t("unavailablePlatform")}</small>}</div><div className="feature-state"><span>{enabled && parentEnabled ? t("enabled") : t("disabled")}</span><Switch aria-label={feature.title[locale]} isSelected={enabled && parentEnabled} isDisabled={!platformAvailable || !parentEnabled} onChange={(selected) => update((draft) => { draft.features[feature.key] = selected; if (!selected) for (const child of schema.features.filter((item) => item.parent === feature.key)) draft.features[child.key] = false; })}><Switch.Content><Switch.Control><Switch.Thumb /></Switch.Control></Switch.Content></Switch></div></div>;
+      const permissionAction = feature.key === "notifications" && enabled && status?.notifications?.available === false ? status.notifications.settings_action : undefined;
+      return <div className={`feature-row ${feature.parent ? "nested" : ""} ${!platformAvailable ? "unavailable" : ""}`} key={feature.key}><div className={`feature-symbol ${feature.key === "spotify" || feature.key === "apple_music" ? "brand" : ""}`}>{feature.key === "spotify" ? <SpotifyIcon /> : feature.key === "apple_music" ? <AppleMusicIcon /> : <DeckIcon name={feature.key === "notifications" ? "bell" : feature.key === "windows" ? "app" : feature.key === "system_stats" ? "status" : feature.key === "audio_output" ? "volume-up" : feature.key === "media_artwork" ? "square" : "music"} />}</div><div className="feature-copy"><h3>{feature.title[locale]}</h3><p>{feature.description[locale]}</p>{!platformAvailable && <small>{t("unavailablePlatform")}</small>}{permissionAction ? <div className="feature-permission"><span><DeckIcon name="lock" size={14} />{t("permissionRequired")}</span><Button size="sm" variant="outline" isDisabled={openingPermission === permissionAction} onPress={() => openPermission(permissionAction)}><DeckIcon name="link" size={14} />{openingPermission === permissionAction ? t("openingPermissions") : t("openPermissions")}</Button></div> : null}</div><div className="feature-state"><span>{enabled && parentEnabled ? t("enabled") : t("disabled")}</span><Switch aria-label={feature.title[locale]} isSelected={enabled && parentEnabled} isDisabled={!platformAvailable || !parentEnabled} onChange={(selected) => update((draft) => { draft.features[feature.key] = selected; if (!selected) for (const child of schema.features.filter((item) => item.parent === feature.key)) draft.features[child.key] = false; })}><Switch.Content><Switch.Control><Switch.Thumb /></Switch.Control></Switch.Content></Switch></div></div>;
     })}</section>)}
   </div>;
 }

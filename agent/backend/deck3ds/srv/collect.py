@@ -63,7 +63,7 @@ class CollectMixin:
             # collecte : une modification est ainsi appliquée en quelques
             # secondes, sans redémarrer l'agent.
             if self.reload_config_if_changed():
-                await self._broadcast(self._config_message())
+                await self._broadcast_config()
 
             await self._collect_safely()
 
@@ -100,7 +100,7 @@ class CollectMixin:
             return
 
         self._fill_dynamic_pages(windows, active_app)
-        await self._broadcast(self._config_message())
+        await self._broadcast_config()
     async def _refresh_artwork(
         self, snapshot: SystemSnapshot, payload: dict[str, Any]
     ) -> bytes | None:

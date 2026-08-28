@@ -777,10 +777,10 @@ static void draw_standby(const App *app)
 
 	text_draw(cx, 24.0f, Z_CONTENT, TEXT_HUGE, COL_TEXT, ALIGN_CENTER, clock);
 
-	if (app->state.date[0] != '\0') {
+	if (app->local_date[0] != '\0') {
 		text_draw_clipped(cx, 24.0f + TEXT_LINE_PX(TEXT_HUGE) + 2.0f, Z_CONTENT,
 		                  TEXT_SMALL, COL_TEXT_FAINT, ALIGN_CENTER,
-		                  SCREEN_BOTTOM_W - 40.0f, app->state.date);
+		                  SCREEN_BOTTOM_W - 40.0f, app->local_date);
 	}
 
 	draw_rect(30.0f, 88.0f, SCREEN_BOTTOM_W - 60.0f, 1.0f, Z_CONTENT,

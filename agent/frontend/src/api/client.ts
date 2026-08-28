@@ -42,5 +42,7 @@ export const agentApi = {
   save: (config: DeckConfig) => request<{ saved: boolean; config: DeckConfig }>("PUT", "/api/config", config),
   state: () => request<AgentState>("GET", "/api/state"),
   apps: () => request<{ apps: string[] }>("GET", "/api/apps"),
+  pickPath: (kind: "file" | "folder") => request<{ cancelled: boolean; path: string; kind: "file" | "folder" }>("POST", "/api/paths/pick", { kind }),
+  openPermissionSettings: (permission: string) => request<{ opened: boolean; permission: string }>("POST", "/api/permissions/open", { permission }),
   testObs: (config: ObsConfig) => request<{ connected: boolean; obs_version?: string; current_scene?: string; scenes?: string[] }>("POST", "/api/obs/test", config),
 };

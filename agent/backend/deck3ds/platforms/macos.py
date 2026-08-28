@@ -33,6 +33,7 @@ from .base import (
     MediaInfo,
     NotificationInfo,
     Platform,
+    SelectionCancelled,
     SystemSnapshot,
     Unsupported,
 )
@@ -115,22 +116,47 @@ class MacPlatform(Platform):
 
     def notification_status(self) -> dict[str, object]:
         """État du lecteur historique macOS, faute d'API publique équivalente."""
-        available = self._notifications.available and not self._notifications.broken
+        enabled = self.feature_enabled("notifications")
+        available = self._notifications.probe() if enabled else False
         return {
             "provider": "macos_notification_database",
-            "enabled": self.feature_enabled("notifications"),
-            "available": available and self.feature_enabled("notifications"),
+            "enabled": enabled,
+            "available": available,
             "access": (
                 "Disabled"
-                if not self.feature_enabled("notifications")
+                if not enabled
                 else "Allowed" if available else "Unavailable"
             ),
             "error": (
-                "Centre de notifications inaccessible"
-                if self._notifications.broken
+                self._notifications.last_error or "Centre de notifications inaccessible"
+                if enabled and not available
+                else ""
+            ),
+            "settings_action": (
+                "notifications"
+                if enabled and not available
                 else ""
             ),
         }
+
+    def open_permission_settings(self, permission: str) -> None:
+        """Ouvre directement la section Confidentialité utile de macOS."""
+        panels = {
+            # La base Notification Center est protégée par Full Disk Access.
+            "notifications": (
+                "x-apple.systempreferences:com.apple.preference.security?"
+                "Privacy_AllFiles"
+            ),
+            # Prévu pour les lecteurs AppleScript (Spotify / Apple Music).
+            "automation": (
+                "x-apple.systempreferences:com.apple.preference.security?"
+                "Privacy_Automation"
+            ),
+        }
+        panel = panels.get(permission)
+        if panel is None:
+            raise Unsupported("autorisation macOS inconnue")
+        self.spawn(["open", panel])
 
     # --- AppleScript ----------------------------------------------------------
 
@@ -342,7 +368,26 @@ class MacPlatform(Platform):
         self.run(["open", url], timeout=8.0)
 
     def open_path(self, path: str) -> None:
-        self.run(["open", path], timeout=8.0)
+        self.run(["open", str(Path(path).expanduser())], timeout=8.0)
+
+    def choose_path(self, kind: str) -> str:
+        """Ouvre le sélecteur Finder natif et retourne un chemin POSIX."""
+        commands = {
+            "file": "POSIX path of (choose file)",
+            "folder": "POSIX path of (choose folder)",
+        }
+        source = commands.get(kind)
+        if source is None:
+            raise Unsupported("type de sélection macOS inconnu")
+        try:
+            selected = self.run(["osascript", "-e", source], timeout=120.0).strip()
+        except ActionFailed as error:
+            if "-128" in str(error):
+                raise SelectionCancelled from error
+            raise
+        if not selected:
+            raise SelectionCancelled
+        return selected
 
     def send_hotkey(self, combination: str) -> None:
         """Envoie une combinaison décrite sous la forme `cmd+shift+n`.

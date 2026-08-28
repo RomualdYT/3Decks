@@ -84,6 +84,6 @@ class ConnectionMixin:
         self, client: Client, message: dict[str, Any]
     ) -> None:
         """Renvoie la mise en page, puis l'état courant s'il existe."""
-        await client.send(self._config_message())
+        await client.send(self._config_message(client.language))
         if self._last_payload is not None:
             await client.send(self._last_payload)

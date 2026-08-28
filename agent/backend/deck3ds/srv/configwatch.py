@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from .. import messages
 from .. import config as config_module
 from .parts import _window_buttons, _window_entries
 
@@ -79,7 +78,7 @@ class ConfigWatchMixin:
                     f"{type(error).__name__}: {error}"
                 )
 
-        await self._broadcast(self._config_message())
+        await self._broadcast_config()
 
     def _has_dynamic_pages(self) -> bool:
         return self.config.features.windows and any(
@@ -108,6 +107,13 @@ class ConfigWatchMixin:
         self.dispatcher.set_config(self.config)
         self._published_windows = list(windows)
 
-    def _config_message(self) -> dict[str, Any]:
+    def _config_message(self, locale: str = "en") -> dict[str, Any]:
         """Configuration à transmettre, pages dynamiques comprises."""
-        return self.config.snapshot_payload(messages.language())
+        return self.config.snapshot_payload(locale)
+
+    async def _broadcast_config(self) -> None:
+        """Diffuse une configuration traduite pour chaque console."""
+        for client in self._audience():
+            locale = getattr(client, "language", "en")
+            if not await client.send(self._config_message(locale)):
+                await self._drop(client)

@@ -107,7 +107,13 @@ export interface AgentState {
   clients: Array<{ id: string; address: string }>;
   capabilities: Record<string, boolean>;
   features: Record<string, boolean>;
-  notifications?: { access?: string; enabled?: boolean; available?: boolean };
+  notifications?: {
+    access?: string;
+    enabled?: boolean;
+    available?: boolean;
+    error?: string;
+    settings_action?: string;
+  };
   snapshot?: Record<string, unknown>;
   logs: string[];
 }

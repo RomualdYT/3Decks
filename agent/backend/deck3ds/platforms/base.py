@@ -24,6 +24,10 @@ class ActionFailed(Exception):
     """L'action est supportée mais a échoué."""
 
 
+class SelectionCancelled(Exception):
+    """L'utilisateur a fermé un sélecteur natif sans choisir d'élément."""
+
+
 @dataclass
 class MediaInfo:
     """Média en cours de lecture."""
@@ -215,6 +219,14 @@ class Platform:
             "error": "",
         }
 
+    def open_permission_settings(self, permission: str) -> None:
+        """Ouvre le panneau système correspondant à une permission connue.
+
+        Chaque adaptateur conserve sa propre liste blanche : une valeur venue
+        du navigateur ne peut donc jamais devenir une commande arbitraire.
+        """
+        raise Unsupported("réglage d'autorisation indisponible")
+
     # --- Volume ---------------------------------------------------------------
 
     def get_volume(self) -> int | None:
@@ -320,6 +332,10 @@ class Platform:
 
     def open_path(self, path: str) -> None:
         raise Unsupported("ouverture de fichier indisponible")
+
+    def choose_path(self, kind: str) -> str:
+        """Demande au système de choisir un fichier ou un dossier existant."""
+        raise Unsupported("sélecteur de fichier indisponible")
 
     def send_hotkey(self, keys: str) -> None:
         raise Unsupported("raccourcis clavier indisponibles")

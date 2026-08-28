@@ -37,10 +37,6 @@ static void draw_background(const App *app)
 	const u32 bottom =
 	    app->dimmed ? C2D_Color32(0x04, 0x05, 0x08, 0xFF) : COL_BG_ALT;
 	draw_rect_vgrad(0.0f, 0.0f, SCREEN_TOP_W, SCREEN_H, Z_BG, top, bottom);
-
-	/* Liseré d'accent en haut, discret repère visuel. */
-	const u32 accent = (app->link == LINK_ONLINE) ? COL_ACCENT : COL_TEXT_FAINT;
-	draw_rect(0.0f, 0.0f, SCREEN_TOP_W, 2.0f, Z_CARD, theme_alpha(accent, 0x99));
 }
 
 /** Pastille d'état de connexion, avec pulsation pendant la connexion. */
@@ -109,13 +105,13 @@ static void draw_header(const App *app)
 	 *
 	 * Le centrage est optique, calé sur la ligne médiane de l'heure.
 	 */
-	if (app->state.date[0] != '\0') {
+	if (app->local_date[0] != '\0') {
 		const float clock_middle = 8.0f + TEXT_LINE_PX(TEXT_TITLE) * 0.5f;
 
 		text_draw_clipped(SCREEN_TOP_W * 0.5f,
 		                  clock_middle - TEXT_LINE_PX(TEXT_SMALL) * 0.5f,
 		                  Z_CONTENT, TEXT_SMALL, COL_TEXT_FAINT, ALIGN_CENTER,
-		                  150.0f, app->state.date);
+		                  150.0f, app->local_date);
 	}
 
 	/*

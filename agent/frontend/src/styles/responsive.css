@@ -55,6 +55,7 @@
   .availability { display: none; }
   .feature-row { grid-template-columns: 38px 1fr; }
   .feature-state { grid-column: 2; justify-content: space-between; }
+  .feature-permission { align-items: flex-start; flex-direction: column; }
   .feature-row.nested { padding-left: 17px; }
   .settings-title > span { display: none; }
   .language-cards, .status-summary, .capability-grid { grid-template-columns: 1fr; }

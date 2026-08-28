@@ -270,6 +270,9 @@ class Client:
         self.writer = writer
         self.reader_state = protocol.FrameReader()
         self.authenticated = False
+        # La langue appartient à la console, pas au serveur. Deux consoles
+        # peuvent ainsi recevoir simultanément leurs propres libellés.
+        self.language = "en"
         self.address = "?"
 
         peer = writer.get_extra_info("peername")

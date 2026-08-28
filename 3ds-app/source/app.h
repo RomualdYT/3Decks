@@ -64,6 +64,8 @@ typedef struct {
 
 	/** Horloge locale, utilisée si le PC ne fournit pas l'heure. */
 	char local_time[8];
+	/** Date locale, formatée dans la langue choisie sur la console. */
+	char local_date[24];
 
 	float uptime;
 	/** Fraction de seconde accumulée pour vieillir l'historique localement. */

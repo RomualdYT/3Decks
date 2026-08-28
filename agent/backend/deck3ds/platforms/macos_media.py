@@ -6,10 +6,12 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from time import monotonic
 
 from .base import ActionFailed, MediaInfo, Unsupported
 
 SCRIPT_TIMEOUT = 2.5
+FAILURE_RETRY_DELAY = 5.0
 MEDIA_PLAYERS = ("Spotify", "Music")
 PLAYER_FEATURE = {"Spotify": "spotify", "Music": "apple_music"}
 PLAYER_LABEL = {"Spotify": "Spotify", "Music": "Apple Music"}
@@ -100,20 +102,23 @@ class MacMediaProvider:
         run: Callable[..., str],
         run_quiet: Callable[..., str | None],
         feature_enabled: Callable[[str], bool],
+        clock: Callable[[], float] = monotonic,
     ) -> None:
         self._run = run
         self._run_quiet = run_quiet
         self._feature_enabled = feature_enabled
+        self._clock = clock
         self.preferred_player = ""
-        self.blocked: set[str] = set()
+        self.retry_after: dict[str, float] = {}
         self.volume: int | None = None
 
     def _players_to_try(self) -> list[str]:
+        now = self._clock()
         order = [
             player
             for player in MEDIA_PLAYERS
             if self._feature_enabled(PLAYER_FEATURE[player])
-            and player not in self.blocked
+            and self.retry_after.get(player, 0.0) <= now
         ]
         if self.preferred_player in order:
             order.remove(self.preferred_player)
@@ -125,8 +130,16 @@ class MacMediaProvider:
         for player in self._players_to_try():
             raw = self._run_quiet(build_player_script(player))
             if raw is None:
-                self.blocked.add(player)
+                # Un refus d'automatisation peut être temporaire : macOS
+                # affiche souvent la demande d'autorisation pendant la
+                # première collecte. Une liste noire permanente obligeait
+                # alors à redémarrer l'agent après avoir accepté. Un court
+                # délai évite de répéter une erreur chaque seconde tout en
+                # reprenant automatiquement dès que l'accès est accordé.
+                self.retry_after[player] = self._clock() + FAILURE_RETRY_DELAY
                 continue
+
+            self.retry_after.pop(player, None)
 
             lines = raw.split("\n")
             if not lines or not lines[0]:

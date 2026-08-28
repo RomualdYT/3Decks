@@ -58,8 +58,11 @@ class HandshakeMixin:
         if not await self._accept_handshake(client, message):
             return
 
-        # La console indique sa langue : les notifications renvoyées suivront.
-        messages.set_language(str(message.get("language", "en")))
+        # La configuration est localisée pour cette console. Le catalogue de
+        # messages historique reste synchronisé pour les retours d'action.
+        requested_language = str(message.get("language", "en"))
+        client.language = requested_language if requested_language in ("en", "fr") else "en"
+        messages.set_language(client.language)
         client.authenticated = True
 
         # Première console : les pages dynamiques ne sont pas encore remplies.
@@ -74,7 +77,7 @@ class HandshakeMixin:
                 VERSION, platform_module.node() or "PC", self.platform.name
             )
         )
-        await client.send(self._config_message())
+        await client.send(self._config_message(client.language))
         await self._send_initial_state(client)
 
         self.log(f"Console #{client.id}: handshake accepte")
