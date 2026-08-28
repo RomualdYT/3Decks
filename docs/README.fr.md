@@ -224,7 +224,7 @@ Les notifications passent exclusivement par l'API officielle
 `UserNotificationListener`. L'installation Windows doit donc être empaquetée en
 MSIX avec la capacité `userNotificationListener`, puis l'utilisateur autorise
 l'accès lors de la première ouverture. Le modèle de manifeste se trouve dans
-`agent/windows/Package.appxmanifest.template`. Une installation portable laisse
+`agent/backend/windows/Package.appxmanifest.template`. Une installation portable laisse
 la fonction indisponible : il n'existe volontairement aucun repli vers la base
 privée `wpndatabase.db`. `python -m deck3ds --probe` affiche l'état réel de la
 permission.
@@ -242,8 +242,8 @@ micro système fonctionne pendant un appel.
 
 Pour ajouter une action :
 
-1. déclarez son nom dans `KNOWN_ACTIONS` (`agent/deck3ds/config.py`) ;
-2. ajoutez une méthode `_do_<nom>` dans `agent/deck3ds/actions.py` ;
+1. déclarez son nom dans `KNOWN_ACTIONS` (`agent/backend/deck3ds/config.py`) ;
+2. ajoutez une méthode `_do_<nom>` dans `agent/backend/deck3ds/actions.py` ;
 3. si elle dépend du système, ajoutez-la à `platforms/base.py` puis
    implémentez-la dans `macos.py` et `windows.py` ;
 4. associez-la dans `ACTION_CAPABILITY` et renseignez le drapeau dans chaque
@@ -257,7 +257,7 @@ Aucune modification de l'application 3DS n'est nécessaire : l'interface déduit
 ses choix de ces tables.
 
 Pour ajouter une langue, complétez `StringId` et les deux catalogues de
-`3ds-app/source/i18n.c`, ainsi que `agent/deck3ds/messages.py`. Un test vérifie
+`3ds-app/source/i18n.c`, ainsi que `agent/backend/deck3ds/messages.py`. Un test vérifie
 qu'aucune clé ne reste sans traduction.
 
 ## Licence
@@ -276,12 +276,12 @@ personnel ne vous impose rien.
 | Composant | Licence |
 |---|---|
 | libctru, citro2d, citro3d (devkitPro) | zlib |
-| DejaVu Sans, source de la police embarquée | [Bitstream Vera / domaine public](licences/DejaVuFonts-LICENSE.txt) |
+| Inter, police embarquée et frontend | [SIL Open Font License 1.1](licences/Inter-OFL.txt) |
 
-L'agent, lui, n'a aucune dépendance.
+L'agent Python n'a aucune dépendance d'exécution ; les dépendances frontend sont regroupées lors du build.
 
-La police `3ds-app/romfs/deck.bcfnt` est générée depuis DejaVu Sans, dont la
-licence autorise la redistribution. Si vous la régénérez depuis une autre police,
+La police `3ds-app/romfs/deck.bcfnt` est générée depuis Inter, comme le
+frontend de configuration. Sa licence OFL autorise la redistribution. Si vous la régénérez depuis une autre police,
 vérifiez sa licence : une police système comme Verdana ou Arial est libre
 d'*usage* mais pas de *redistribution*, et l'embarquer rendrait le projet
 indistribuable sous sa propre licence. `tools/make-font.sh` avertit lorsqu'il

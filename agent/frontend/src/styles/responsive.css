@@ -22,7 +22,6 @@
   .sidebar-heading { margin-bottom: 10px; }
   .page-list, .settings-sidebar nav { flex-direction: row; overflow-x: auto; scrollbar-width: thin; }
   .page-link { flex: 0 0 176px; }
-  .drag-handle { display: none; }
   .sidebar-add { max-width: 190px; }
   .settings-sidebar nav button { flex: 0 0 auto; grid-template-columns: 29px auto; }
   .settings-sidebar nav button small { display: none; }
@@ -42,7 +41,6 @@
   .main-nav button svg { display: block; }
   .language-switch { display: none; }
   .workspace-heading { display: block; }
-  .layout-chip { display: none; }
   .editor-workspace { padding: 20px 10px 52px; }
   .device-stage { border-radius: 18px; padding: 8px 2px; }
   .device-shell-wrap { width: 100%; }

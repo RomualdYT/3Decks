@@ -1,6 +1,11 @@
+import { closestCenter, DndContext, KeyboardSensor, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
+import type { DragEndEvent } from "@dnd-kit/core";
+import { rectSortingStrategy, SortableContext, sortableKeyboardCoordinates, useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { Button, Modal } from "@heroui/react";
+import type { CSSProperties, MouseEvent as ReactMouseEvent } from "react";
 import { useEffect, useRef, useState } from "react";
-import type { DeckConfig, Locale } from "../app/types";
+import type { DeckConfig, Locale, PageConfig } from "../app/types";
 import type { CopyKey } from "../i18n/copy";
 import { localized } from "../utils/config";
 import { DeckIcon } from "./DeckIcon";
@@ -24,12 +29,43 @@ interface PageDialog {
   index: number;
 }
 
+interface SortablePageProps {
+  page: PageConfig;
+  index: number;
+  locale: Locale;
+  selected: boolean;
+  onSelect: () => void;
+  onContextMenu: (event: ReactMouseEvent) => void;
+  onOpenMenu: (event: ReactMouseEvent<HTMLButtonElement>) => void;
+}
+
+function SortablePage({ page, index, locale, selected, onSelect, onContextMenu, onOpenMenu }: SortablePageProps) {
+  const fr = locale === "fr";
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: page.id });
+  const style = { transform: CSS.Transform.toString(transform), transition } as CSSProperties;
+  const title = localized(page.title, locale) || page.id;
+  return (
+    <div ref={setNodeRef} style={style} data-page-id={page.id} className={`page-link ${selected ? "active" : ""} ${isDragging ? "is-dragging" : ""}`} onContextMenu={onContextMenu}>
+      <button className="drag-handle" type="button" aria-label={fr ? `Déplacer ${title}` : `Move ${title}`} title={fr ? "Glisser pour réorganiser" : "Drag to reorder"} {...attributes} {...listeners}><DeckIcon name="grip" size={16} /></button>
+      <button className="page-select" type="button" onClick={onSelect}>
+        <span className="page-icon"><DeckIcon name={page.icon || "page"} size={18} /></span>
+        <span>{title}</span>
+      </button>
+      <button className="page-menu-hint" type="button" title={fr ? "Renommer ou supprimer" : "Rename or delete"} aria-label={fr ? `Options de la page ${index + 1}` : `Page ${index + 1} options`} onClick={onOpenMenu}><DeckIcon name="more" size={16} /></button>
+    </div>
+  );
+}
+
 export function AppSidebar({ config, locale, selectedPage, pageLimit, t, onSelect, onAdd, onMove, onRename, onDelete }: Props) {
   const [menu, setMenu] = useState<{ index: number; x: number; y: number } | null>(null);
   const [dialog, setDialog] = useState<PageDialog | null>(null);
   const [name, setName] = useState("");
   const menuRef = useRef<HTMLDivElement>(null);
   const fr = locale === "fr";
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
   useEffect(() => {
     const close = (event: PointerEvent) => { if (!menuRef.current?.contains(event.target as Node)) setMenu(null); };
     const escape = (event: KeyboardEvent) => { if (event.key === "Escape") setMenu(null); };
@@ -42,32 +78,25 @@ export function AppSidebar({ config, locale, selectedPage, pageLimit, t, onSelec
     setName(localized(config.pages[index]?.title ?? "", locale));
     setDialog({ kind, index });
   };
+  const finishDrag = ({ active, over }: DragEndEvent) => {
+    if (!over || active.id === over.id) return;
+    const from = config.pages.findIndex((page) => page.id === active.id);
+    const to = config.pages.findIndex((page) => page.id === over.id);
+    if (from >= 0 && to >= 0) onMove(from, to);
+  };
   return (
     <aside className="app-sidebar">
       <div className="sidebar-heading">
         <div><span className="eyebrow">3DS</span><h2>{t("pages")}</h2></div>
         <span className="count-pill">{config.pages.length}/{pageLimit}</span>
       </div>
-      <div className="page-list">
-        {config.pages.map((page, index) => (
-          <div
-            className={`page-link ${selectedPage === index ? "active" : ""}`}
-            key={page.id}
-            draggable
-            onContextMenu={(event) => { event.preventDefault(); setMenu({ index, x: event.clientX, y: event.clientY }); }}
-            onDragStart={(event) => { event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/deck-page", String(index)); }}
-            onDragOver={(event) => { if (event.dataTransfer.types.includes("text/deck-page")) event.preventDefault(); }}
-            onDrop={(event) => { event.preventDefault(); const from = Number(event.dataTransfer.getData("text/deck-page")); if (Number.isInteger(from)) onMove(from, index); }}
-          >
-            <button className="page-select" type="button" onClick={() => onSelect(index)}>
-              <span className="drag-handle"><DeckIcon name="grip" size={16} /></span>
-              <span className="page-icon"><DeckIcon name={page.icon || "page"} size={18} /></span>
-              <span>{localized(page.title, locale) || page.id}</span>
-            </button>
-            <button className="page-menu-hint" type="button" title={fr ? "Renommer ou supprimer" : "Rename or delete"} aria-label={fr ? "Options de la page" : "Page options"} onClick={(event) => { const rect = event.currentTarget.getBoundingClientRect(); setMenu({ index, x: rect.right, y: rect.bottom }); }}><DeckIcon name="more" size={16} /></button>
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={finishDrag}>
+        <SortableContext items={config.pages.map((page) => page.id)} strategy={rectSortingStrategy}>
+          <div className="page-list">
+            {config.pages.map((page, index) => <SortablePage key={page.id} page={page} index={index} locale={locale} selected={selectedPage === index} onSelect={() => onSelect(index)} onContextMenu={(event) => { event.preventDefault(); setMenu({ index, x: event.clientX, y: event.clientY }); }} onOpenMenu={(event) => { const rect = event.currentTarget.getBoundingClientRect(); setMenu({ index, x: rect.right, y: rect.bottom }); }} />)}
           </div>
-        ))}
-      </div>
+        </SortableContext>
+      </DndContext>
       <Button className="sidebar-add" variant="outline" fullWidth isDisabled={config.pages.length >= pageLimit} onPress={onAdd}>
         <DeckIcon name="plus" size={18} />{t("addPage")}
       </Button>

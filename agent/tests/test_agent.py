@@ -2288,6 +2288,7 @@ class TestWindowsNotifications(unittest.TestCase):
     def test_manifeste_msix_declare_la_capacite_sans_fallback(self):
         manifest = (
             Path(__file__).resolve().parent.parent
+            / "backend"
             / "windows"
             / "Package.appxmanifest.template"
         ).read_text(encoding="utf-8")
@@ -2605,9 +2606,9 @@ class TestMessages(unittest.TestCase):
     def _sources(self):
         from pathlib import Path
 
-        import deck3ds
+        from deck3ds import actions
 
-        root = Path(deck3ds.__file__).parent
+        root = Path(actions.__file__).parent
         return "".join(
             (root / name).read_text(encoding="utf-8")
             for name in (
@@ -2766,9 +2767,7 @@ class TestKeyCatalogAndEditor(unittest.TestCase):
     def _frontend_source(self, filename):
         from pathlib import Path
 
-        import deck3ds
-
-        source = Path(deck3ds.__file__).parents[1] / "frontend" / "src" / filename
+        source = Path(__file__).resolve().parent.parent / "frontend" / "src" / filename
         return source.read_text(encoding="utf-8")
 
     def _mapped_names(self):
@@ -3914,7 +3913,7 @@ class TestUiSecurity(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(asset_status, 200)
 
         script = (
-            self.ui.static_root.parents[2]
+            self.ui.static_root.parents[3]
             / "frontend"
             / "src"
             / "api"
@@ -4069,9 +4068,7 @@ class TestUiApi(unittest.IsolatedAsyncioTestCase):
     def _frontend_source(self, filename):
         from pathlib import Path
 
-        import deck3ds
-
-        source = Path(deck3ds.__file__).parents[1] / "frontend" / "src" / filename
+        source = Path(__file__).resolve().parent.parent / "frontend" / "src" / filename
         return source.read_text(encoding="utf-8")
 
     def _editor_source(self):

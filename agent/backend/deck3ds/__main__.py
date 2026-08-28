@@ -51,7 +51,7 @@ def build_platform(features: object | None = None) -> Platform:
 
 
 def default_config_path() -> Path:
-    return Path(__file__).resolve().parent.parent / "config.json"
+    return Path(__file__).resolve().parents[2] / "config.json"
 
 
 def _open_browser(url: str) -> None:

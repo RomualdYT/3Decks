@@ -48,8 +48,10 @@ interface SelectControlProps {
 }
 
 export function SelectControl({ label, value, choices, onChange, description }: SelectControlProps) {
+  const hasRichChoices = choices.some((choice) => choice.icon || choice.description);
+
   return (
-    <Select className="ui-field" fullWidth selectedKey={value} onSelectionChange={(key) => key !== null && onChange(String(key))}>
+    <Select className={`ui-field${hasRichChoices ? " ui-rich-select" : ""}`} fullWidth selectedKey={value} onSelectionChange={(key) => key !== null && onChange(String(key))}>
       <Label>{label}</Label>
       <Select.Trigger>
         <Select.Value />

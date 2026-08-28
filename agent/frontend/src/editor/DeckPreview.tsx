@@ -49,7 +49,6 @@ export function DeckPreview({ config, page, pageIndex, locale, selectedSlot, sta
     <div className="preview-column">
       <div className="workspace-heading">
         <div><span className="eyebrow">{t("page")} {pageIndex + 1}</span><h1>{localized(page.title, locale) || page.id}</h1><p>{fr ? "Touchez un emplacement dans l’écran du bas pour le configurer." : "Select a slot on the bottom screen to configure it."}</p></div>
-        <span className="layout-chip"><DeckIcon name={page.layout === "list" ? "list" : "grid"} size={16} />{t(page.layout === "list" ? "list" : "grid")}</span>
       </div>
       <div className="device-stage">
         <div className="device-shell-wrap">

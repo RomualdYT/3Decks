@@ -10,15 +10,9 @@
 # On génère donc une police matricielle à la taille réellement affichée. Les
 # facteurs d'échelle restent alors proches de 1, et le rendu est net.
 #
-# Pourquoi DejaVu Sans par défaut : le fichier produit est embarqué dans
-# l'application et redistribué avec elle. Une police système comme Verdana est
-# gratuite à l'usage mais reste la propriété de son éditeur : en extraire les
-# glyphes pour les republier n'est pas autorisé, et rendrait la distribution du
-# projet non conforme à sa propre licence. DejaVu Sans autorise explicitement la
-# redistribution, y compris modifiée, et couvre les accents nécessaires.
-#
-# Sa licence exige que la police dérivée ne porte pas les noms « Bitstream » ni
-# « Vera » : le nom `deck.bcfnt` y satisfait.
+# Inter est aussi utilisée par l'interface web. Sa licence OFL autorise son
+# intégration et sa redistribution dans l'application, tout en couvrant les
+# accents nécessaires aux interfaces française et anglaise.
 #
 # Usage :
 #   ./tools/make-font.sh [taille] [chemin/police.ttf]
@@ -29,7 +23,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 IMAGE="devkitpro/devkitarm:latest"
 
 SIZE="${1:-17}"
-SOURCE="${2:-$ROOT/tools/fonts/DejaVuSans.ttf}"
+SOURCE="${2:-$ROOT/tools/fonts/Inter-Regular.ttf}"
 OUTPUT="$ROOT/3ds-app/romfs/deck.bcfnt"
 CHARSET="$ROOT/tools/font-charset.txt"
 
@@ -37,8 +31,8 @@ if [ ! -f "$SOURCE" ]; then
 	echo "Police source introuvable : $SOURCE" >&2
 	echo "Indiquez un fichier TrueType en second argument." >&2
 	echo >&2
-	echo "Si tools/fonts/DejaVuSans.ttf manque, telechargez-la depuis" >&2
-	echo "https://dejavu-fonts.github.io/ et placez-la a cet endroit." >&2
+	echo "Si tools/fonts/Inter-Regular.ttf manque, telechargez Inter depuis" >&2
+	echo "https://github.com/rsms/inter/releases et placez-la a cet endroit." >&2
 	exit 1
 fi
 

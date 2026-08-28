@@ -22,8 +22,8 @@ THIRD-PARTY COMPONENTS
 The console application links libctru, citro2d and citro3d, distributed
 under the zlib licence by the devkitPro project.
 
-The embedded bitmap font romfs/deck.bcfnt is generated from DejaVu Sans.
-See docs/licences/DejaVuFonts-LICENSE.txt for its terms.
+The embedded bitmap font romfs/deck.bcfnt is generated from Inter.
+See docs/licences/Inter-OFL.txt for its terms.
 
 
 --------------------------------------------------------------------------------

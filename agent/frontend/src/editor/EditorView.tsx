@@ -81,9 +81,14 @@ export function EditorView({ config, schema, status, locale, scenes, apps, t, up
   });
 
   const movePage = (from: number, to: number) => {
-    if (from === to || from < 0 || to < 0) return;
+    if (from === to || from < 0 || to < 0 || from >= config.pages.length || to >= config.pages.length) return;
+    const selectedId = config.pages[pageIndex]?.id;
+    const nextOrder = [...config.pages];
+    const [movedPage] = nextOrder.splice(from, 1);
+    if (!movedPage) return;
+    nextOrder.splice(to, 0, movedPage);
     update((draft) => { const [moved] = draft.pages.splice(from, 1); if (moved) draft.pages.splice(to, 0, moved); });
-    setPageIndex(to); setSelectedSlot(null);
+    setPageIndex(Math.max(0, nextOrder.findIndex((candidate) => candidate.id === selectedId)));
   };
 
   const moveButton = (from: number, to: number) => {

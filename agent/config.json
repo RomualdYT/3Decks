@@ -1,5 +1,5 @@
 {
-  "revision": 21,
+  "revision": 23,
   "server": {
     "host": "0.0.0.0",
     "port": 38123,
@@ -102,7 +102,7 @@
           "slot": 5,
           "label": "Capture",
           "icon": "video",
-          "color": "#A78BFA",
+          "color": "#66CB10",
           "action": {
             "type": "hotkey",
             "keys": "cmd+shift+4"

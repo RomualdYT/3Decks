@@ -8,6 +8,9 @@
 - La collecte des fenêtres macOS et les lecteurs Apple Music/Spotify sont sortis de l’adaptateur principal.
 - Les fonctionnalités activables sont décrites par un catalogue commun au backend et à l’interface, ce qui évite deux listes divergentes.
 - Le frontend est une application React TypeScript découpée par vue, composants, API, état et utilitaires.
+- Les sources de l’agent sont séparées explicitement entre `agent/backend` et `agent/frontend`, tout en conservant la commande `python3 -m deck3ds`.
+- Le tri des pages repose sur `dnd-kit` avec capteurs pointeur et clavier, au lieu des événements HTML natifs.
+- La console et le frontend utilisent désormais la même famille Inter ; le build 3DS suit aussi les changements du fichier de police embarqué.
 - Les vues Éditeur, Réglages et État sont chargées à la demande. Le bundle monolithique de 723 kB a été remplacé par un shell de 405 kB et des chunks de vue indépendants.
 - Les contrôles de formulaire partagent des composants typés (`TextControl`, `SelectControl`, `ComboControl`, `NumberControl`) au lieu de variantes locales.
 - Les intégrations spécifiques (OBS, applications détectées, couleurs, icônes, fonctionnalités média) sont présentées par des composants dédiés et testables.
@@ -40,7 +43,7 @@ Ces points ne bloquent pas la version actuelle, mais constituent le meilleur ord
 
 ```bash
 cd agent
-ruff check deck3ds tests
+ruff check backend/deck3ds deck3ds tests
 python3 -m pytest -q
 pnpm typecheck
 pnpm test:frontend

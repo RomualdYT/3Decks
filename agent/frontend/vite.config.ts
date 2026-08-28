@@ -16,7 +16,7 @@ export default defineConfig({
     proxy: { "/api": "http://127.0.0.1:38124" },
   },
   build: {
-    outDir: resolve(root, "../deck3ds/ui/static"),
+    outDir: resolve(root, "../backend/deck3ds/ui/static"),
     emptyOutDir: true,
     sourcemap: true,
   },

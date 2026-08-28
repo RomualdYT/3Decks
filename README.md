@@ -493,7 +493,7 @@ Spotify artwork is read through WinRT and converted locally with System.Drawing.
 Notifications use the official WinRT `UserNotificationListener`. Windows asks
 for consent on first use, and the distributed agent must have an MSIX package
 identity carrying the `userNotificationListener` capability. The manifest
-template lives in `agent/windows/Package.appxmanifest.template`. A portable
+template lives in `agent/backend/windows/Package.appxmanifest.template`. A portable
 folder install reports notifications as unavailable: it never falls back to
 the private `wpndatabase.db` SQLite store. Run `--probe` to see the effective
 permission and provider status.
@@ -510,8 +510,8 @@ microphone does work during a call.
 
 To add an action:
 
-1. declare its name in `KNOWN_ACTIONS` (`agent/deck3ds/config.py`);
-2. add a `_do_<name>` method in `agent/deck3ds/actions.py`;
+1. declare its name in `KNOWN_ACTIONS` (`agent/backend/deck3ds/config.py`);
+2. add a `_do_<name>` method in `agent/backend/deck3ds/actions.py`;
 3. if it is platform-specific, add the method to `platforms/base.py` and
    implement it in `macos.py` and `windows.py`;
 4. map it in `ACTION_CAPABILITY` and set the flag in each `capabilities()`.
@@ -524,7 +524,7 @@ No change to the console application is required: the interface derives its
 choices from these tables.
 
 To add a language, extend `StringId` and both catalogues in
-`3ds-app/source/i18n.c`, plus `agent/deck3ds/messages.py`. A test checks that no
+`3ds-app/source/i18n.c`, plus `agent/backend/deck3ds/messages.py`. A test checks that no
 key is left untranslated.
 
 Run the tests before submitting:
@@ -549,12 +549,12 @@ nothing of you.
 | Component | Licence |
 |---|---|
 | libctru, citro2d, citro3d (devkitPro) | zlib |
-| DejaVu Sans, source of the embedded font | [Bitstream Vera / public domain](docs/licences/DejaVuFonts-LICENSE.txt) |
+| Inter, embedded and frontend font | [SIL Open Font License 1.1](docs/licences/Inter-OFL.txt) |
 
-The agent has no dependencies at all.
+The Python agent has no runtime dependency; frontend dependencies are bundled at build time.
 
-The embedded font `3ds-app/romfs/deck.bcfnt` is generated from DejaVu Sans, whose
-licence permits redistribution. If you regenerate it from another font, check
+The embedded font `3ds-app/romfs/deck.bcfnt` is generated from Inter, matching
+the configuration frontend. The OFL permits redistribution. If you regenerate it from another font, check
 that its licence allows redistribution before publishing a build — a system font
 such as Verdana or Arial is free to *use* but not to *redistribute*, and
 embedding one would make the project undistributable under its own licence.

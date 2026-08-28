@@ -127,6 +127,7 @@ endif
 
 ifneq ($(ROMFS),)
 	export _3DSXFLAGS += --romfs=$(CURDIR)/$(ROMFS)
+	export ROMFSFILES := $(shell find $(CURDIR)/$(ROMFS) -type f 2>/dev/null)
 endif
 
 .PHONY: all clean run send
@@ -184,7 +185,7 @@ else
 #---------------------------------------------------------------------------------
 # Cibles principales
 #---------------------------------------------------------------------------------
-$(OUTPUT).3dsx	:	$(OUTPUT).elf $(_3DSXDEPS)
+$(OUTPUT).3dsx	:	$(OUTPUT).elf $(_3DSXDEPS) $(ROMFSFILES)
 
 $(OFILES_SOURCES) : $(HFILES)
 
