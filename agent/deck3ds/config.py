@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any
 
 from .action_catalog import ACTION_SPECS
+from .feature_catalog import FEATURE_SPECS
 from .keys import InvalidHotkey, parse_hotkey
 
 #: Bornes alignées sur les limites de l'application 3DS.
@@ -254,6 +255,20 @@ class ObsConfig:
 
 
 @dataclass
+class FeaturesConfig:
+    """Services que l'utilisateur autorise l'agent à collecter."""
+
+    notifications: bool = True
+    media: bool = True
+    media_artwork: bool = True
+    windows: bool = True
+    audio_output: bool = True
+    system_stats: bool = True
+    apple_music: bool = True
+    spotify: bool = True
+
+
+@dataclass
 class Config:
     revision: int = 1
     host: str = "0.0.0.0"
@@ -261,6 +276,7 @@ class Config:
     token: str = ""
     poll_interval: float = 1.0
     volume_step: int = 5
+    features: FeaturesConfig = field(default_factory=FeaturesConfig)
     obs: ObsConfig = field(default_factory=ObsConfig)
     pages: list[PageConfig] = field(default_factory=list)
     scripts: dict[str, list[str]] = field(default_factory=dict)
@@ -709,6 +725,30 @@ def _parse_integrations(raw: Any, config: Config) -> None:
         config.obs = parse_obs(raw["obs"])
 
 
+def _parse_features(raw: Any) -> FeaturesConfig:
+    """Valide les collectes optionnelles et leurs dépendances."""
+    if raw is None:
+        return FeaturesConfig()
+    if not isinstance(raw, dict):
+        raise ConfigError("features: un objet est attendu")
+
+    unknown = set(raw) - set(FEATURE_SPECS)
+    if unknown:
+        raise ConfigError(f"features: options inconnues {sorted(unknown)}")
+
+    defaults = FeaturesConfig()
+    values: dict[str, bool] = {}
+    for name in FEATURE_SPECS:
+        value = raw.get(name, getattr(defaults, name))
+        if not isinstance(value, bool):
+            raise ConfigError(f"features.{name}: un booleen est attendu")
+        values[name] = value
+
+    # Une sous-fonction désactivée avec son parent est normalisée plutôt que
+    # rejetée : l'interface peut conserver le choix pour le prochain réemploi.
+    return FeaturesConfig(**values)
+
+
 def _parse_pages(raw: Any) -> list[PageConfig]:
     if not isinstance(raw, list) or not raw:
         raise ConfigError("pages: une liste non vide est attendue")
@@ -765,6 +805,7 @@ def parse(raw: Any) -> Config:
     config = Config()
     _apply_server(raw.get("server", {}), config)
     config.revision = _require_int(raw.get("revision", 1), "revision")
+    config.features = _parse_features(raw.get("features", {}))
     _parse_integrations(raw.get("integrations", {}), config)
     config.scripts = _parse_scripts(raw.get("scripts", {}))
     config.pages = _parse_pages(raw.get("pages", []))
@@ -875,6 +916,9 @@ def to_raw(config: Config) -> dict[str, Any]:
             "token": config.token,
             "poll_interval": config.poll_interval,
             "volume_step": config.volume_step,
+        },
+        "features": {
+            name: getattr(config.features, name) for name in FEATURE_SPECS
         },
         "integrations": {
             "obs": {

@@ -17,13 +17,16 @@ Points vérifiés sur macOS 27 avant écriture de ce module :
 from __future__ import annotations
 
 import re
+from pathlib import Path
 
 from ..config import MAX_LIST_ENTRIES
 from ..coreaudio import CoreAudio
 from ..keys import InvalidHotkey, parse_hotkey
 from ..messages import msg
-from ..notifications import NotificationReader
-from ..windows_list import WindowLister
+from .macos_notifications import NotificationReader
+from .macos_media import MEDIA_PLAYERS as MEDIA_PLAYERS
+from .macos_media import MacMediaProvider, parse_number as _parse_number
+from .macos_windows import WindowLister
 from .base import (
     ActionFailed,
     Capabilities,
@@ -38,35 +41,12 @@ from .base import (
 #: qui ne répond pas ne doit pas retarder le tableau de bord.
 SCRIPT_TIMEOUT = 2.5
 
-#: Lecteurs interrogés, dans l'ordre de préférence.
-MEDIA_PLAYERS = ("Spotify", "Music")
-
 #: Processus présents dans la liste des applications sans en être : les afficher
 #: sur la console n'aurait aucun intérêt. Le filtrage sert à deux endroits
 #: (`list_apps` et la collecte groupée), qui doivent rester cohérents.
 _HIDDEN_PROCESSES = frozenset(
     {"FolderActionsDispatcher", "Dock", "SystemUIServer", ""}
 )
-
-#: Codes des touches multimédia (F7/F8/F9 sur les claviers Apple).
-KEY_PREVIOUS = 98
-KEY_PLAY_PAUSE = 100
-KEY_NEXT = 101
-
-def _parse_number(text: str) -> float | None:
-    """Lit un nombre produit par AppleScript.
-
-    Le séparateur décimal suit la langue du système : une machine configurée en
-    français renvoie « 121,926 ». Il faut donc accepter la virgule, faute de
-    quoi la position de lecture serait perdue.
-    """
-    if not text:
-        return None
-    try:
-        return float(text.replace(",", "."))
-    except ValueError:
-        return None
-
 
 def _visible_apps(raw: str) -> list[str]:
     """Découpe une liste d'applications AppleScript en masquant les processus
@@ -85,7 +65,9 @@ def _visible_apps(raw: str) -> list[str]:
 class MacPlatform(Platform):
     name = "darwin"
 
-    def __init__(self) -> None:
+    def __init__(self, features: object | None = None) -> None:
+        if features is not None:
+            self.configure_features(features)
         # Accès direct à CoreAudio pour les sorties audio : aucun utilitaire
         # externe n'est ainsi nécessaire.
         self._audio = CoreAudio()
@@ -97,13 +79,9 @@ class MacPlatform(Platform):
         # État du micro suivi localement, faute de lecture fiable.
         self._mic_muted: bool | None = None
         self._mic_restore = 75
-        # Lecteur ayant répondu en dernier : on l'interroge en premier.
-        self._preferred_player: str | None = None
-        # Volume interne du lecteur, relevé par `get_media` lors de la même
-        # requête AppleScript. Évite un second appel dans `snapshot`.
-        self._player_volume: int | None = None
-        # Applications dont l'automatisation est refusée ou bloquée.
-        self._blocked: set[str] = set()
+        self._media = MacMediaProvider(
+            self._script, self._script_quiet, self.feature_enabled
+        )
         self._cpu_count: int | None = None
 
     # --- Capacités ------------------------------------------------------------
@@ -130,7 +108,8 @@ class MacPlatform(Platform):
             open_url=True,
             open_path=True,
             lock=True,
-            notifications=True,
+            notifications=self._notifications.available
+            and not self._notifications.broken,
             system_stats=True,
         )
 
@@ -139,8 +118,13 @@ class MacPlatform(Platform):
         available = self._notifications.available and not self._notifications.broken
         return {
             "provider": "macos_notification_database",
-            "available": available,
-            "access": "Allowed" if available else "Unavailable",
+            "enabled": self.feature_enabled("notifications"),
+            "available": available and self.feature_enabled("notifications"),
+            "access": (
+                "Disabled"
+                if not self.feature_enabled("notifications")
+                else "Allowed" if available else "Unavailable"
+            ),
             "error": (
                 "Centre de notifications inaccessible"
                 if self._notifications.broken
@@ -183,42 +167,11 @@ class MacPlatform(Platform):
 
     # --- Volume du lecteur ----------------------------------------------------
 
-    def _volume_player(self) -> str | None:
-        """Lecteur dont on peut piloter le volume interne.
-
-        Spotify expose `sound volume`, ce qui permet de régler la musique
-        indépendamment du volume système. C'est indispensable lorsque le son
-        part vers une enceinte externe : le volume du Mac n'agit alors plus sur
-        la musique.
-        """
-        candidate = self._preferred_player
-        if candidate == "Spotify" and candidate not in self._blocked:
-            return candidate
-
-        if "Spotify" in self._blocked:
-            return None
-
-        if self._script_quiet('application "Spotify" is running') == "true":
-            return "Spotify"
-        return None
-
     def get_app_volume(self) -> int | None:
-        player = self._volume_player()
-        if player is None:
-            return None
-
-        raw = self._script_quiet(f'tell application "{player}" to return sound volume')
-        if raw is None or not raw.lstrip("-").isdigit():
-            return None
-        return max(0, min(100, int(raw)))
+        return self._media.get_volume()
 
     def set_app_volume(self, value: int) -> None:
-        player = self._volume_player()
-        if player is None:
-            raise Unsupported("Spotify n'est pas lance")
-
-        value = max(0, min(100, int(value)))
-        self._script(f'tell application "{player}" to set sound volume to {value}')
+        self._media.set_volume(value)
 
     # --- Microphone -----------------------------------------------------------
 
@@ -282,159 +235,17 @@ class MacPlatform(Platform):
 
     # --- Média ----------------------------------------------------------------
 
-    def _players_to_try(self) -> list[str]:
-        order = list(MEDIA_PLAYERS)
-        if self._preferred_player in order:
-            order.remove(self._preferred_player)
-            order.insert(0, self._preferred_player)
-        return [player for player in order if player not in self._blocked]
-
     def get_media(self) -> MediaInfo | None:
-        for player in self._players_to_try():
-            # Lancer `osascript` coûte environ 170 ms, quelle que soit la
-            # taille du script : le nombre d'appels compte, pas leur contenu.
-            # Le test de présence, l'état du morceau et le volume du lecteur
-            # sont donc réunis en une seule requête. Les mesurer séparément
-            # triplait le coût de la collecte, qui s'exécute chaque seconde.
-            #
-            # Les champs facultatifs sont protégés individuellement : Musique
-            # n'expose pas d'adresse de pochette, contrairement à Spotify.
-            # Les noms de variables sont préfixés : AppleScript réserve de
-            # nombreux mots courts et `st` ou `du` provoquent une erreur de
-            # syntaxe dans ce contexte.
-            script = (
-                f'if application "{player}" is not running then return ""\n'
-                f'tell application "{player}"\n'
-                "  set deckState to player state as text\n"
-                '  set deckTitle to ""\n'
-                '  set deckArtist to ""\n'
-                '  set deckAlbum to ""\n'
-                '  set deckArt to ""\n'
-                '  set deckPos to ""\n'
-                '  set deckDur to ""\n'
-                '  set deckVol to ""\n'
-                "  try\n"
-                "    set deckTrack to current track\n"
-                "    set deckTitle to name of deckTrack\n"
-                "    set deckArtist to artist of deckTrack\n"
-                "    set deckAlbum to album of deckTrack\n"
-                "    set deckDur to (duration of deckTrack) as text\n"
-                "  end try\n"
-                "  try\n"
-                "    set deckArt to artwork url of current track\n"
-                "  end try\n"
-                "  try\n"
-                "    set deckPos to (player position) as text\n"
-                "  end try\n"
-                "  try\n"
-                "    set deckVol to (sound volume) as text\n"
-                "  end try\n"
-                '  return deckState & "\\n" & deckTitle & "\\n" & deckArtist'
-                ' & "\\n" & deckAlbum & "\\n" & deckArt & "\\n" & deckPos'
-                ' & "\\n" & deckDur & "\\n" & deckVol\n'
-                "end tell"
-            )
-
-            raw = self._script_quiet(script)
-            if raw is None:
-                # Blocage ou refus d'automatisation : on n'insiste pas, sinon
-                # chaque collecte paierait le délai d'attente.
-                self._blocked.add(player)
-                continue
-
-            lines = raw.split("\n")
-            if not lines or not lines[0]:
-                # Lecteur absent, ou arrêté sans morceau chargé.
-                continue
-
-            def field(index: int) -> str:
-                return lines[index].strip() if len(lines) > index else ""
-
-            state = field(0).lower()
-            title = field(1)
-            if not title:
-                continue
-
-            duration = _parse_number(field(6))
-            position = _parse_number(field(5))
-
-            # Spotify exprime la durée en millisecondes, Musique en secondes.
-            # Une valeur supérieure à dix mille est nécessairement en
-            # millisecondes : aucun morceau ne dure trois heures.
-            if duration is not None and duration > 10000:
-                duration /= 1000.0
-
-            # Volume du lecteur relevé au passage : `snapshot` le réutilise
-            # sans payer un second appel. `None` signifie « non exposé par ce
-            # lecteur », ce que la console affiche différemment de zéro.
-            volume = _parse_number(field(7))
-            self._player_volume = (
-                None if volume is None else max(0, min(100, int(volume)))
-            )
-
-            self._preferred_player = player
-            return MediaInfo(
-                title=title,
-                artist=field(2),
-                app=player,
-                playing=state == "playing",
-                album=field(3),
-                art_url=field(4),
-                position=position,
-                duration=duration,
-            )
-
-        # Aucun lecteur : le volume mémorisé serait périmé.
-        self._player_volume = None
-        return None
-
-    def _media_key(self, key_code: int) -> None:
-        """Envoie une touche multimédia système.
-
-        Sert de solution de repli : les touches du clavier atteignent aussi les
-        navigateurs et les applications sans interface d'automatisation.
-        """
-        self._script(f"tell application \"System Events\" to key code {key_code}")
-
-    def _media_command(self, command: str, key_code: int) -> None:
-        """Pilote le lecteur directement, avec repli sur la touche système.
-
-        La commande directe est préférable : lorsque Spotify diffuse vers une
-        enceinte externe, la touche multimédia du système n'atteint pas la
-        lecture distante et le bouton semble sans effet. `playpause` adressé à
-        l'application fonctionne dans tous les cas.
-
-        La commande est simplement envoyée : on ne vérifie pas son
-        aboutissement ici, car la diffusion à distance introduit environ deux
-        secondes de latence avant que l'état ne change réellement.
-        """
-        player = self._preferred_player
-
-        if player is None or player in self._blocked:
-            # Aucun lecteur identifié : on tente d'en trouver un avant de se
-            # rabattre sur la touche clavier.
-            for candidate in self._players_to_try():
-                if self._script_quiet(f'application "{candidate}" is running') == "true":
-                    player = candidate
-                    break
-
-        if player is not None and player not in self._blocked:
-            try:
-                self._script(f'tell application "{player}" to {command}')
-                return
-            except (Unsupported, ActionFailed):
-                pass
-
-        self._media_key(key_code)
+        return self._media.get_media()
 
     def media_play_pause(self) -> None:
-        self._media_command("playpause", KEY_PLAY_PAUSE)
+        self._media.play_pause()
 
     def media_next(self) -> None:
-        self._media_command("next track", KEY_NEXT)
+        self._media.next()
 
     def media_previous(self) -> None:
-        self._media_command("previous track", KEY_PREVIOUS)
+        self._media.previous()
 
     # --- Applications ---------------------------------------------------------
 
@@ -454,6 +265,22 @@ class MacPlatform(Platform):
             return []
 
         return _visible_apps(raw)
+
+    def list_launchable_apps(self) -> list[str]:
+        """Applications installées proposées par le sélecteur de l'éditeur."""
+        roots = (
+            Path("/Applications"),
+            Path("/System/Applications"),
+            Path("/System/Applications/Utilities"),
+            Path.home() / "Applications",
+        )
+        names: set[str] = set(self.list_apps())
+        for root in roots:
+            try:
+                names.update(path.stem for path in root.glob("*.app") if path.is_dir())
+            except OSError:
+                continue
+        return sorted(names, key=str.casefold)
 
     def list_windows(self) -> list[tuple[str, str]]:
         # La borne est celle annoncée à l'interface par le schéma : en retenir
@@ -601,17 +428,22 @@ class MacPlatform(Platform):
         """
         snapshot = SystemSnapshot()
 
-        script = (
-            "set vs to (get volume settings)\n"
-            "set ov to output volume of vs\n"
-            "set om to output muted of vs\n"
-            "set iv to input volume of vs\n"
+        applications_script = (
             'tell application "System Events"\n'
             "  set fa to name of first application process whose frontmost is true\n"
             "  set al to name of every application process whose "
             "background only is false\n"
             "end tell\n"
             "set AppleScript's text item delimiters to \",\"\n"
+            if self.feature_enabled("windows")
+            else 'set fa to ""\nset al to ""\n'
+        )
+        script = (
+            "set vs to (get volume settings)\n"
+            "set ov to output volume of vs\n"
+            "set om to output muted of vs\n"
+            "set iv to input volume of vs\n"
+            f"{applications_script}"
             'return (ov as text) & "|" & (om as text) & "|" & (iv as text) '
             '& "|" & fa & "|" & (al as text)'
         )
@@ -643,39 +475,48 @@ class MacPlatform(Platform):
             snapshot.active_app = self.get_active_app()
             snapshot.apps = self.list_apps()
 
-        try:
-            snapshot.media = self.get_media()
-        except Exception:
-            snapshot.media = None
+        if self.feature_enabled("media"):
+            try:
+                snapshot.media = self.get_media()
+            except Exception:
+                snapshot.media = None
+            if (
+                snapshot.media is not None
+                and not self.feature_enabled("media_artwork")
+            ):
+                snapshot.media.art_url = ""
 
         # Le volume du lecteur a déjà été relevé par `get_media`, dans la même
         # requête AppleScript : aucun appel supplémentaire n'est nécessaire.
         if snapshot.media is not None:
-            snapshot.app_volume = self._player_volume
+            snapshot.app_volume = self._media.volume
 
         # CoreAudio répond en quelques millisecondes : la liste peut être
         # collectée à chaque cycle sans coût notable.
-        try:
-            devices = self._audio.outputs()
-            snapshot.audio_outputs = [device.name for device in devices]
-            snapshot.audio_output = next(
-                (device.name for device in devices if device.is_default), ""
-            )
-        except Exception:
-            snapshot.audio_outputs = []
-            snapshot.audio_output = ""
+        if self.feature_enabled("audio_output"):
+            try:
+                devices = self._audio.outputs()
+                snapshot.audio_outputs = [device.name for device in devices]
+                snapshot.audio_output = next(
+                    (device.name for device in devices if device.is_default), ""
+                )
+            except Exception:
+                snapshot.audio_outputs = []
+                snapshot.audio_output = ""
 
         # macOS conserve les notifications dans sa base interne ; le lecteur
         # reste isolé afin qu'un refus d'accès n'affecte pas le reste du relevé.
-        try:
-            snapshot.notifications = self.list_notifications()
-            snapshot.new_notification = self.take_new_notification()
-        except Exception:
-            snapshot.notifications = []
-            snapshot.new_notification = None
+        if self.feature_enabled("notifications"):
+            try:
+                snapshot.notifications = self.list_notifications()
+                snapshot.new_notification = self.take_new_notification()
+            except Exception:
+                snapshot.notifications = []
+                snapshot.new_notification = None
 
-        snapshot.cpu = self.get_cpu()
-        snapshot.memory = self.get_memory()
+        if self.feature_enabled("system_stats"):
+            snapshot.cpu = self.get_cpu()
+            snapshot.memory = self.get_memory()
         return snapshot
 
     def get_memory(self) -> int | None:

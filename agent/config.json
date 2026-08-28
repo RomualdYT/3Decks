@@ -1,11 +1,21 @@
 {
-  "revision": 20,
+  "revision": 21,
   "server": {
     "host": "0.0.0.0",
     "port": 38123,
     "token": "",
     "poll_interval": 1.0,
     "volume_step": 5
+  },
+  "features": {
+    "notifications": true,
+    "media": true,
+    "media_artwork": true,
+    "windows": true,
+    "audio_output": true,
+    "system_stats": true,
+    "apple_music": true,
+    "spotify": true
   },
   "integrations": {
     "obs": {
@@ -248,7 +258,7 @@
         },
         {
           "id": "silence",
-          "slot": 4,
+          "slot": 5,
           "label": "Silence",
           "icon": "volume-mute",
           "color": "#EF4444",
@@ -337,28 +347,6 @@
           "icon": "gear",
           "color": "#64748B",
           "action": "settings.open"
-        }
-      ]
-    },
-    {
-      "id": "page1",
-      "title": "New page",
-      "icon": "page",
-      "dashboard": "auto",
-      "buttons": [
-        {
-          "id": "button1",
-          "slot": 0,
-          "label": {
-            "en": "Keyboard shortcut",
-            "fr": "Raccourci clavier"
-          },
-          "icon": "video",
-          "color": "#7C6BF2",
-          "action": {
-            "type": "hotkey",
-            "keys": "a"
-          }
         }
       ]
     }

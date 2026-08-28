@@ -17,7 +17,7 @@ see what is currently playing — album artwork included.
 <img src="https://img.shields.io/badge/console-3DS%20%7C%202DS%20%7C%20New%203DS-6EE7B7?style=flat-square" alt="Consoles: 3DS, 2DS, New 3DS">
 <img src="https://img.shields.io/badge/python-3.9%2B-34D399?style=flat-square" alt="Python 3.9 or newer">
 <img src="https://img.shields.io/badge/dependencies-none-34D399?style=flat-square" alt="No dependencies">
-<img src="https://img.shields.io/badge/tests-314%20passing-34D399?style=flat-square" alt="314 tests passing">
+<img src="https://img.shields.io/badge/tests-319%20passing-34D399?style=flat-square" alt="319 tests passing">
 <img src="https://img.shields.io/badge/licence-GPL--3.0-F59E0B?style=flat-square" alt="Licence GPL-3.0">
 </p>
 
@@ -79,6 +79,7 @@ actions a matter of editing the agent alone — the console never needs rebuildi
 | [Action reference](#action-reference) | Every action, icon and dashboard mode |
 | [Security model](#security) | What the console may and may not ask for |
 | [Protocol specification](docs/PROTOCOL.md) | Wire format, message by message |
+| [Code quality](docs/CODE_QUALITY.md) | Architecture, checks and remaining refactor priorities |
 | [Documentation française](docs/README.fr.md) | Version française abrégée |
 | [Contributing](#contributing) | Adding an action, a language, a platform |
 

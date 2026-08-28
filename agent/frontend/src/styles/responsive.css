@@ -1,0 +1,71 @@
+@media (max-width: 1320px) {
+  .editor-layout, .settings-layout { grid-template-columns: 220px minmax(560px, 1fr); }
+  .inspector { border-left: 0; border-top: 1px solid var(--border); grid-column: 1 / -1; max-height: none; min-height: auto; position: static; }
+  .inspector-scroll { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); overflow: visible; }
+  .inspector-scroll > .form-divider, .inspector-scroll > .advanced-disclosure { grid-column: 1 / -1; }
+  .inspector-title, .inspector-footer { grid-column: 1 / -1; }
+  .settings-context { display: none; }
+  .device-shell-wrap { max-width: 610px; }
+  .device-stage { min-height: 650px; }
+}
+
+@media (max-width: 920px) {
+  .app-header { grid-template-columns: auto minmax(120px, 1fr) auto; padding: 0 12px; }
+  .brand span { display: none; }
+  .main-nav { justify-content: flex-start; }
+  .main-nav button { padding: 0 12px; }
+  .console-status span:not(.status-pulse) { display: none; }
+  .console-status { min-width: 40px !important; padding-inline: 8px !important; }
+  .editor-layout, .settings-layout { display: block; }
+  .app-sidebar, .settings-sidebar { border-bottom: 1px solid var(--border); border-right: 0; min-height: auto; padding: 13px; }
+  .settings-platform { display: none; }
+  .sidebar-heading { margin-bottom: 10px; }
+  .page-list, .settings-sidebar nav { flex-direction: row; overflow-x: auto; scrollbar-width: thin; }
+  .page-link { flex: 0 0 176px; }
+  .drag-handle { display: none; }
+  .sidebar-add { max-width: 190px; }
+  .settings-sidebar nav button { flex: 0 0 auto; grid-template-columns: 29px auto; }
+  .settings-sidebar nav button small { display: none; }
+  .editor-workspace, .settings-workspace { padding: 26px 18px 54px; }
+  .inspector { border-left: 0; }
+  .settings-sidebar .sidebar-heading { display: none; }
+  .status-summary { grid-template-columns: 1fr 1fr; }
+  .capability-grid { grid-template-columns: 1fr 1fr; }
+  .device-stage { min-height: auto; }
+}
+
+@media (max-width: 640px) {
+  .app-shell { padding-top: 60px; }
+  .app-header { height: 60px; }
+  .brand img { height: 32px; width: 32px; }
+  .main-nav button { font-size: 0; padding: 0 10px; }
+  .main-nav button svg { display: block; }
+  .language-switch { display: none; }
+  .workspace-heading { display: block; }
+  .layout-chip { display: none; }
+  .editor-workspace { padding: 20px 10px 52px; }
+  .device-stage { border-radius: 18px; padding: 8px 2px; }
+  .device-shell-wrap { width: 100%; }
+  .preview-caption { padding-inline: 12px; }
+  .inspector-scroll { display: flex; }
+  .two-fields, .localized-fields, .dashboard-options { grid-template-columns: 1fr; }
+  .action-browser { display: block; overflow: hidden; }
+  .category-nav { border-bottom: 1px solid var(--border); border-right: 0; flex-direction: row; overflow-x: auto; padding: 4px 12px 10px; }
+  .category-nav button { white-space: nowrap; }
+  .action-results { max-height: calc(100vh - 260px); padding: 12px; }
+  .action-card { grid-template-columns: 38px 1fr; }
+  .availability { display: none; }
+  .feature-row { grid-template-columns: 38px 1fr; }
+  .feature-state { grid-column: 2; justify-content: space-between; }
+  .feature-row.nested { padding-left: 17px; }
+  .settings-title > span { display: none; }
+  .language-cards, .status-summary, .capability-grid { grid-template-columns: 1fr; }
+  .status-workspace { padding: 25px 14px; }
+  .token-panel, .address-card [data-slot="card-content"] { align-items: flex-start; flex-direction: column; gap: 12px; }
+  .token-panel code { max-width: calc(100vw - 70px); }
+  .save-bar { align-items: stretch; bottom: 8px; flex-direction: column; gap: 8px; padding: 10px; }
+  .save-bar-copy small { display: none; }
+  .save-bar-actions { display: grid; grid-template-columns: 1fr 1fr; }
+  .save-bar-actions [data-slot="button"] { width: 100%; }
+  .connection-address { align-items: flex-start; flex-direction: column; gap: 10px; }
+}

@@ -13,6 +13,8 @@ venv/
 .python/
 python-*-embed-amd64.zip
 agent/agent-windows*.log
+agent/node_modules/
+agent/frontend/coverage/
 
 # Configuration locale
 # Dupliquez config.json en config.local.json pour vos reglages personnels.

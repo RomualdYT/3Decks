@@ -23,6 +23,7 @@ class ConfigWatchMixin:
     def _install_config(self, loaded: config_module.Config) -> None:
         """Installe une configuration déjà validée dans tous ses consommateurs."""
         self.config = loaded
+        self.platform.configure_features(loaded.features)
         self.dispatcher.set_config(loaded)
         self._published_windows = []
         self._config_mtime = self._config_stamp()
@@ -81,7 +82,9 @@ class ConfigWatchMixin:
         await self._broadcast(self._config_message())
 
     def _has_dynamic_pages(self) -> bool:
-        return any(page.source == "windows" for page in self.config.pages)
+        return self.config.features.windows and any(
+            page.source == "windows" for page in self.config.pages
+        )
 
     def _fill_dynamic_pages(
         self, windows: list[tuple[str, str]], active_app: str = ""

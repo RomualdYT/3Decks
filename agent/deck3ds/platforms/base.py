@@ -181,6 +181,15 @@ class Platform:
 
     name = "generique"
 
+    def configure_features(self, features: object) -> None:
+        """Applique les collectes activées sans coupler la plateforme au parseur."""
+        self._features = features
+
+    def feature_enabled(self, name: str) -> bool:
+        """Retourne le choix utilisateur, vrai pour les anciens appelants."""
+        features = getattr(self, "_features", None)
+        return bool(getattr(features, name, True))
+
     # --- Capacités ------------------------------------------------------------
 
     def capabilities(self) -> Capabilities:
@@ -279,6 +288,14 @@ class Platform:
     def list_apps(self) -> list[str]:
         return []
 
+    def list_launchable_apps(self) -> list[str]:
+        """Applications que l'utilisateur peut choisir dans l'éditeur.
+
+        La liste des applications ouvertes reste un repli utile sur une
+        plateforme qui ne sait pas parcourir les applications installées.
+        """
+        return self.list_apps()
+
     def list_windows(self) -> list[tuple[str, str]]:
         """Fenêtres ouvertes, sous forme de paires (application, titre).
 
@@ -372,13 +389,19 @@ class Platform:
         snapshot.volume = safe(self.get_volume)
         snapshot.muted = safe(self.is_muted)
         snapshot.mic_muted = safe(self.is_mic_muted)
-        snapshot.media = safe(self.get_media)
-        snapshot.active_app = safe(self.get_active_app, "") or ""
-        snapshot.apps = safe(self.list_apps, []) or []
-        snapshot.notifications = safe(self.list_notifications, []) or []
-        snapshot.new_notification = safe(self.take_new_notification)
-        snapshot.cpu = safe(self.get_cpu)
-        snapshot.memory = safe(self.get_memory)
+        if self.feature_enabled("media"):
+            snapshot.media = safe(self.get_media)
+            if snapshot.media is not None and not self.feature_enabled("media_artwork"):
+                snapshot.media.art_url = ""
+        if self.feature_enabled("windows"):
+            snapshot.active_app = safe(self.get_active_app, "") or ""
+            snapshot.apps = safe(self.list_apps, []) or []
+        if self.feature_enabled("notifications"):
+            snapshot.notifications = safe(self.list_notifications, []) or []
+            snapshot.new_notification = safe(self.take_new_notification)
+        if self.feature_enabled("system_stats"):
+            snapshot.cpu = safe(self.get_cpu)
+            snapshot.memory = safe(self.get_memory)
         return snapshot
 
     # --- Utilitaires partagés -------------------------------------------------

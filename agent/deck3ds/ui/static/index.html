@@ -1,59 +1,15 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#071527">
-<title>3Decks — Configuration</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23071527'/%3E%3Cpath d='M17 18h30v8H17zm0 12h30v8H17zm0 12h30v8H17z' fill='%233787ff'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="/app.css">
-</head>
-<body>
-
-<header class="app-header">
-  <button id="brand" class="brand" type="button" aria-label="Ouvrir l’éditeur">
-    <img class="brand-logo" src="/3decks-logo.png" alt="" aria-hidden="true">
-    <span>3Decks</span>
-  </button>
-
-  <button id="mobile-menu" class="icon-button mobile-only" type="button"
-    aria-label="Ouvrir le menu" aria-expanded="false">
-    <span></span><span></span><span></span>
-  </button>
-
-  <nav id="main-nav" class="main-nav" aria-label="Navigation principale">
-    <button type="button" data-view="editor"></button>
-    <button type="button" data-view="settings"></button>
-    <button type="button" data-view="status"></button>
-  </nav>
-
-  <div class="header-actions">
-    <label class="language-select" for="locale">
-      <span class="sr-only">Langue</span>
-      <select id="locale" aria-label="Langue de l’interface">
-        <option value="fr">FR</option>
-        <option value="en">EN</option>
-      </select>
-    </label>
-    <span id="clients" class="connection-chip"><i></i><span>…</span></span>
-    <span id="dirty" class="dirty-note hidden"></span>
-    <button id="reload" class="button secondary compact" type="button"></button>
-    <button id="save" class="button primary" type="button" disabled></button>
-  </div>
-</header>
-
-<div id="banner" class="banner hidden" role="status" aria-live="polite"></div>
-
-<main id="app-shell" class="app-shell" aria-busy="true">
-  <aside id="sidebar" class="sidebar"></aside>
-  <section id="workspace" class="workspace"></section>
-  <aside id="detail-panel" class="detail-panel"></aside>
-</main>
-
-<div id="drawer-backdrop" class="drawer-backdrop hidden"></div>
-<aside id="action-drawer" class="action-drawer hidden" role="dialog"
-  aria-modal="true" aria-labelledby="action-drawer-title"></aside>
-
-<script type="module" src="/app.js"></script>
-</body>
+<!doctype html>
+<html lang="fr" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#080d1a" />
+    <link rel="icon" href="/3decks-logo.png" />
+    <title>3Decks</title>
+    <script type="module" crossorigin src="/assets/index-BuxB9Rca.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-DyfwHpmY.css">
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
 </html>

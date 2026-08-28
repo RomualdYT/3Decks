@@ -28,17 +28,17 @@ from .server import VERSION, Options as ServerOptions, Server
 DEFAULT_UI_PORT = 38124
 
 
-def build_platform() -> Platform:
+def build_platform(features: object | None = None) -> Platform:
     """Choisit l'adaptateur correspondant au système hôte."""
     if sys.platform == "darwin":
         from .platforms.macos import MacPlatform
 
-        return MacPlatform()
+        return MacPlatform(features)
 
     if sys.platform in ("win32", "cygwin"):
         from .platforms.windows import WindowsPlatform
 
-        return WindowsPlatform()
+        return WindowsPlatform(features)
 
     # Aucun adaptateur : l'agent démarre quand même, mais les actions
     # échoueront avec un message explicite plutôt qu'en silence.
@@ -253,7 +253,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.port:
         loaded.port = args.port
 
-    platform = build_platform()
+    platform = build_platform(loaded.features)
     server = Server(
         loaded,
         platform,

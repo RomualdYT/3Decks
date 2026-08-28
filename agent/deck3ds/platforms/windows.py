@@ -30,7 +30,7 @@ from pathlib import Path
 from ..config import MAX_LIST_ENTRIES
 from ..keys import MODIFIER_BY_NAME, InvalidHotkey, parse_hotkey
 from ..messages import msg
-from ..windows_notifications import WindowsNotificationReader
+from .windows_notifications import WindowsNotificationReader
 from .base import (
     ActionFailed,
     Capabilities,
@@ -173,11 +173,16 @@ class _PowerShellSession:
 class WindowsPlatform(Platform):
     name = "win32"
 
-    def __init__(self) -> None:
+    def __init__(self, features: object | None = None) -> None:
+        if features is not None:
+            self.configure_features(features)
         self._shell = _PowerShellSession()
         # API officielle Windows. L'absence d'identité de paquet ou le refus de
         # permission désactive la capacité ; aucun repli SQLite n'est utilisé.
-        self._notifications = WindowsNotificationReader(self._shell.run)
+        self._notifications = WindowsNotificationReader(
+            self._shell.run,
+            request_access=self.feature_enabled("notifications"),
+        )
         self._pending_notification: NotificationInfo | None = None
         self._mic_muted: bool | None = None
         self._user32 = ctypes.WinDLL("user32", use_last_error=True)
@@ -234,8 +239,14 @@ class WindowsPlatform(Platform):
         """Permission et disponibilité de UserNotificationListener."""
         return {
             "provider": "windows_user_notification_listener",
-            "available": self._notifications.available,
-            "access": self._notifications.access_status,
+            "enabled": self.feature_enabled("notifications"),
+            "available": self.feature_enabled("notifications")
+            and self._notifications.available,
+            "access": (
+                self._notifications.access_status
+                if self.feature_enabled("notifications")
+                else "Disabled"
+            ),
             "error": self._notifications.last_error,
         }
 
@@ -714,6 +725,24 @@ if ($s) {
 
         return [line.strip() for line in raw.splitlines() if line.strip()][:16]
 
+    def list_launchable_apps(self) -> list[str]:
+        """Applications du menu Démarrer, complétées par celles déjà ouvertes."""
+        roots = [
+            Path(os.environ.get("ProgramData", ""))
+            / "Microsoft/Windows/Start Menu/Programs",
+            Path(os.environ.get("APPDATA", ""))
+            / "Microsoft/Windows/Start Menu/Programs",
+        ]
+        names: set[str] = set(self.list_apps())
+        for root in roots:
+            if not str(root) or not root.exists():
+                continue
+            try:
+                names.update(path.stem for path in root.rglob("*.lnk"))
+            except OSError:
+                continue
+        return sorted(names, key=str.casefold)
+
     def _window_records(self) -> list[tuple[int, str, str]]:
         """Fenêtres visibles avec leur handle, exécutable et titre."""
         records: list[tuple[int, str, str]] = []
@@ -925,12 +954,13 @@ if ($s) {
         # inconnu, on complète avec le suivi local.
         if snapshot.mic_muted is None:
             snapshot.mic_muted = self._mic_muted
-        try:
-            snapshot.audio_outputs = self.list_audio_outputs()
-            snapshot.audio_output = self.get_audio_output()
-        except Exception:
-            snapshot.audio_outputs = []
-            snapshot.audio_output = ""
+        if self.feature_enabled("audio_output"):
+            try:
+                snapshot.audio_outputs = self.list_audio_outputs()
+                snapshot.audio_output = self.get_audio_output()
+            except Exception:
+                snapshot.audio_outputs = []
+                snapshot.audio_output = ""
         return snapshot
 
     def close(self) -> None:

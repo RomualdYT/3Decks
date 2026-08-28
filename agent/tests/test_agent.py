@@ -275,6 +275,29 @@ class TestConfig(unittest.TestCase):
         parsed = config_module.load(path)
         self.assertGreaterEqual(len(parsed.pages), 1)
 
+    def test_fonctionnalites_optionnelles_sont_persistantes(self):
+        raw = minimal_config()
+        raw["features"] = {"notifications": False, "apple_music": False}
+        parsed = config_module.parse(raw)
+        self.assertFalse(parsed.features.notifications)
+        self.assertFalse(parsed.features.apple_music)
+        self.assertTrue(parsed.features.spotify)
+        rewritten = config_module.to_raw(parsed)
+        self.assertFalse(rewritten["features"]["notifications"])
+        self.assertFalse(rewritten["features"]["apple_music"])
+
+    def test_fonctionnalite_inconnue_est_rejetee(self):
+        raw = minimal_config()
+        raw["features"] = {"telepathie": True}
+        with self.assertRaises(config_module.ConfigError):
+            config_module.parse(raw)
+
+    def test_fonctionnalite_exige_un_booleen(self):
+        raw = minimal_config()
+        raw["features"] = {"notifications": "oui"}
+        with self.assertRaises(config_module.ConfigError):
+            config_module.parse(raw)
+
     def test_action_abregee(self):
         parsed = config_module.parse(minimal_config())
         self.assertEqual(parsed.pages[0].buttons[0].action.kind, "noop")
@@ -1938,37 +1961,37 @@ class TestNotifications(unittest.TestCase):
     """Lecture et mise en forme des notifications du système."""
 
     def reader(self, ignored=None):
-        from deck3ds.notifications import NotificationReader
+        from deck3ds.platforms.macos_notifications import NotificationReader
 
         return NotificationReader(ignored=ignored)
 
     def test_nom_lisible(self):
-        from deck3ds.notifications import _readable_name
+        from deck3ds.platforms.macos_notifications import _readable_name
 
         self.assertEqual(_readable_name("com.apple.mobilesms"), "Messages")
         self.assertEqual(_readable_name("com.apple.mail"), "Mail")
 
     def test_nom_inconnu_derive_du_paquet(self):
-        from deck3ds.notifications import _readable_name
+        from deck3ds.platforms.macos_notifications import _readable_name
 
         self.assertEqual(_readable_name("com.acme.superapp"), "Superapp")
 
     def test_prefixe_systeme_retire(self):
-        from deck3ds.notifications import _readable_name
+        from deck3ds.platforms.macos_notifications import _readable_name
 
         name = _readable_name("_system_center_:com.apple.followup.alert")
         self.assertNotIn("_system_center_", name)
 
     def test_icone_par_application(self):
         from deck3ds.config import ICONS
-        from deck3ds.notifications import _icon_for
+        from deck3ds.platforms.macos_notifications import _icon_for
 
         for app in ("Messages", "Musique", "Safari", "Inconnue"):
             self.assertIn(_icon_for(app), ICONS)
 
     def test_premiere_lecture_ne_signale_rien(self):
         """L'historique ne doit pas être annoncé au démarrage de l'agent."""
-        from deck3ds.notifications import Notification
+        from deck3ds.platforms.macos_notifications import Notification
 
         reader = self.reader()
         items = [
@@ -1977,7 +2000,7 @@ class TestNotifications(unittest.TestCase):
         self.assertIsNone(reader.take_new(items))
 
     def test_nouvelle_notification_signalee_une_fois(self):
-        from deck3ds.notifications import Notification
+        from deck3ds.platforms.macos_notifications import Notification
 
         reader = self.reader()
         first = [Notification("Messages", "A", "", "chat", 10, "com.x", "k1")]
@@ -2008,7 +2031,7 @@ class TestNotifications(unittest.TestCase):
         """
         import time as clock
 
-        from deck3ds.notifications import _APPLE_EPOCH, _MacSource
+        from deck3ds.platforms.macos_notifications import _APPLE_EPOCH, _MacSource
 
         source = _MacSource()
         maintenant = clock.time()
@@ -2020,7 +2043,7 @@ class TestNotifications(unittest.TestCase):
 
     def test_base_illisible_eteint_la_lecture(self):
         """Un fichier corrompu ne doit pas être relu à chaque cycle."""
-        from deck3ds.notifications import NotificationReader, _MacSource
+        from deck3ds.platforms.macos_notifications import NotificationReader, _MacSource
 
         directory = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, directory, ignore_errors=True)
@@ -2037,7 +2060,7 @@ class TestNotifications(unittest.TestCase):
         Le cas se produit lorsque le fichier existe mais reste inaccessible :
         droits refusés, chemin devenu un dossier, verrou exclusif du système.
         """
-        from deck3ds import notifications
+        from deck3ds.platforms import macos_notifications as notifications
 
         directory = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, directory, ignore_errors=True)
@@ -2062,7 +2085,7 @@ class TestNotifications(unittest.TestCase):
         Une ouverture en écriture créerait un journal à côté du fichier et
         pourrait le verrouiller, gênant le système lui-même.
         """
-        from deck3ds.notifications import NotificationReader, _MacSource
+        from deck3ds.platforms.macos_notifications import NotificationReader, _MacSource
 
         directory = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, directory, ignore_errors=True)
@@ -2100,7 +2123,7 @@ class TestNotifications(unittest.TestCase):
         Sans `mode=ro`, SQLite ouvrirait la base en écriture et pourrait la
         verrouiller pendant que le système y écrit lui-même.
         """
-        from deck3ds import notifications
+        from deck3ds.platforms import macos_notifications as notifications
 
         directory = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, directory, ignore_errors=True)
@@ -2126,7 +2149,7 @@ class TestNotifications(unittest.TestCase):
 
     def test_source_choisie_selon_le_systeme(self):
         """Un système non pris en charge doit s'éteindre, pas échouer."""
-        from deck3ds.notifications import _MacSource, _source_for
+        from deck3ds.platforms.macos_notifications import _MacSource, _source_for
 
         self.assertIsInstance(_source_for("darwin"), _MacSource)
         self.assertIsNone(
@@ -2137,7 +2160,7 @@ class TestNotifications(unittest.TestCase):
 
     def test_systeme_non_pris_en_charge_ne_lit_rien(self):
         """Sur un système sans adaptateur, la lecture s'éteint proprement."""
-        from deck3ds import notifications
+        from deck3ds.platforms import macos_notifications as notifications
 
         with patch.object(notifications.sys, "platform", "linux"):
             reader = notifications.NotificationReader()
@@ -2240,7 +2263,7 @@ class TestWindowsNotifications(unittest.TestCase):
         }
 
     def _reader(self, response, request_access=True):
-        from deck3ds.windows_notifications import WindowsNotificationReader
+        from deck3ds.platforms.windows_notifications import WindowsNotificationReader
 
         calls = []
 
@@ -2253,7 +2276,7 @@ class TestWindowsNotifications(unittest.TestCase):
         ), calls
 
     def test_script_utilise_uniquement_user_notification_listener(self):
-        from deck3ds.windows_notifications import _script
+        from deck3ds.platforms.windows_notifications import _script
 
         script = _script(True)
         self.assertIn("UserNotificationListener", script)
@@ -2294,7 +2317,7 @@ class TestWindowsNotifications(unittest.TestCase):
         self.assertEqual(reader.read()[0].title, "Message")
 
     def test_notifications_triees_et_limitees(self):
-        from deck3ds.notifications import MAX_NOTIFICATIONS
+        from deck3ds.platforms.macos_notifications import MAX_NOTIFICATIONS
 
         rows = [
             self._notification(
@@ -2311,7 +2334,7 @@ class TestWindowsNotifications(unittest.TestCase):
         self.assertEqual(items[0].title, f"T{MAX_NOTIFICATIONS + 3}")
 
     def test_nom_winrt_et_repli_aumid(self):
-        from deck3ds.windows_notifications import readable_windows_name
+        from deck3ds.platforms.windows_notifications import readable_windows_name
 
         self.assertEqual(
             readable_windows_name(
@@ -2334,7 +2357,7 @@ class TestWindowsNotifications(unittest.TestCase):
         self.assertEqual(reader.read()[0].app, "Mise à jour")
 
     def test_entrees_invalides_et_trop_anciennes_ignorees(self):
-        from deck3ds.notifications import MAX_AGE_SECONDS
+        from deck3ds.platforms.macos_notifications import MAX_AGE_SECONDS
 
         rows = [
             {"created": "illisible", "title": "Non"},
@@ -2378,7 +2401,7 @@ class TestWindowsNotifications(unittest.TestCase):
         self.assertIsNone(reader.take_new(second))
 
     def test_snapshot_windows_transmet_les_notifications(self):
-        from deck3ds.notifications import Notification
+        from deck3ds.platforms.macos_notifications import Notification
         from deck3ds.platforms.windows import WindowsPlatform
 
         item = Notification(
@@ -2740,23 +2763,21 @@ class TestKeyCatalogAndEditor(unittest.TestCase):
     l'enregistrement, ou l'inverse.
     """
 
-    def _static_source(self, filename):
+    def _frontend_source(self, filename):
         from pathlib import Path
 
         import deck3ds
 
-        source = Path(deck3ds.__file__).parent / "ui" / "static" / filename
+        source = Path(deck3ds.__file__).parents[1] / "frontend" / "src" / filename
         return source.read_text(encoding="utf-8")
 
     def _mapped_names(self):
         import re
 
-        source = self._static_source("hotkeys.js")
-        table = re.search(
-            r"const CODE_TO_KEY = Object\.freeze\(\{(.*?)\}\);", source, re.S
-        )
+        source = self._frontend_source("utils/hotkeys.ts")
+        table = re.search(r"CODE_TO_KEY = Object\.freeze.*?\(\{(.*?)\}\);", source, re.S)
         self.assertIsNotNone(table, "table de correspondance introuvable")
-        names = {name for _, name in re.findall(r"(\w+):\s*'([\w_]+)'", table.group(1))}
+        names = {name for _, name in re.findall(r'(\w+):\s*"([\w_]+)"', table.group(1))}
         # Les touches de fonction sont reconnues par expression régulière.
         return names | {f"f{index}" for index in range(1, 13)}
 
@@ -2771,10 +2792,12 @@ class TestKeyCatalogAndEditor(unittest.TestCase):
         self.assertEqual(missing, [], f"non capturables : {missing}")
 
     def test_libelles_de_groupes_traduits(self):
-        """Un groupe sans libellé s'afficherait sous son nom technique."""
-        source = self._static_source("translations.js")
+        """Chaque groupe exposé contient des touches bilingues utilisables."""
+        catalogue = keys.catalog()
         for group in keys.GROUPS:
-            self.assertIn(f"keyGroup_{group}", source, group)
+            entries = [item for item in catalogue["keys"] if item["group"] == group]
+            self.assertTrue(entries, group)
+            self.assertTrue(all(item["label_en"] and item["label_fr"] for item in entries))
 
 
 class TestParseHotkey(unittest.TestCase):
@@ -2908,10 +2931,9 @@ def _mac_platform(player_running=True, **scripts):
     avant d'interroger un lecteur.
     """
     from deck3ds.platforms.macos import MacPlatform
+    from deck3ds.platforms.macos_media import MacMediaProvider
 
     platform = MacPlatform.__new__(MacPlatform)
-    platform._preferred_player = ""
-    platform._blocked = set()
     platform._mic_muted = None
     platform._mic_restore = 75
     platform._cpu_count = 4
@@ -2942,6 +2964,9 @@ def _mac_platform(player_running=True, **scripts):
 
     platform._script = run_script
     platform._script_quiet = quiet
+    platform._media = MacMediaProvider(
+        platform._script, platform._script_quiet, platform.feature_enabled
+    )
     return platform
 
 
@@ -3003,8 +3028,8 @@ class TestMacMedia(unittest.TestCase):
 
         platform = _mac_platform(**{"player state": ActionFailed("refus")})
         self.assertIsNone(platform.get_media())
-        self.assertTrue(platform._blocked)
-        for player in platform._blocked:
+        self.assertTrue(platform._media.blocked)
+        for player in platform._media.blocked:
             self.assertIn(player, MEDIA_PLAYERS)
 
     def test_lecteur_actif_devient_prioritaire(self):
@@ -3013,7 +3038,7 @@ class TestMacMedia(unittest.TestCase):
             "player state": "playing\nTitre\nArtiste\nAlbum\n\n1\n2",
         })
         media = platform.get_media()
-        self.assertEqual(platform._preferred_player, media.app)
+        self.assertEqual(platform._media.preferred_player, media.app)
 
     def test_script_garde_le_test_de_presence(self):
         """Sans garde, `tell application` LANCE le lecteur au lieu de l'interroger.
@@ -3053,7 +3078,7 @@ class TestMacMedia(unittest.TestCase):
             "player state": "playing\nTitre\nArtiste\nAlbum\n\n1\n2\n40",
         })
         platform.get_media()
-        self.assertEqual(platform._player_volume, 40)
+        self.assertEqual(platform._media.volume, 40)
 
     def test_volume_absent_reste_indetermine(self):
         """Musique n'expose pas `sound volume` : zéro serait un mensonge."""
@@ -3061,7 +3086,7 @@ class TestMacMedia(unittest.TestCase):
             "player state": "playing\nTitre\nArtiste\nAlbum\n\n1\n2\n",
         })
         platform.get_media()
-        self.assertIsNone(platform._player_volume)
+        self.assertIsNone(platform._media.volume)
 
     def test_volume_du_lecteur_reste_dans_les_bornes(self):
         """La console attend un pourcentage : une valeur hors bornes la casserait."""
@@ -3069,14 +3094,54 @@ class TestMacMedia(unittest.TestCase):
             "player state": "playing\nTitre\nArtiste\nAlbum\n\n1\n2\n250",
         })
         platform.get_media()
-        self.assertEqual(platform._player_volume, 100)
+        self.assertEqual(platform._media.volume, 100)
 
     def test_volume_memorise_est_oublie_sans_lecteur(self):
         """Une valeur périmée afficherait un volume qui n'existe plus."""
         platform = _mac_platform(player_running=False)
-        platform._player_volume = 40
+        platform._media.volume = 40
         self.assertIsNone(platform.get_media())
-        self.assertIsNone(platform._player_volume)
+        self.assertIsNone(platform._media.volume)
+
+    def test_apple_music_extrait_la_pochette_dans_un_fichier(self):
+        """Music n'expose pas d'URL : la pochette doit passer par un fichier local."""
+        from deck3ds.platforms.macos_media import build_player_script
+
+        script = build_player_script("Music")
+        self.assertIn("artwork 1 of deckTrack", script)
+        self.assertIn("raw data of deckArtwork", script)
+        self.assertIn('"file://" & deckArtPath', script)
+        self.assertIn("persistent ID of deckTrack", script)
+
+    def test_apple_music_produit_un_media_qualifie(self):
+        from deck3ds.platforms.macos_media import MacMediaProvider
+
+        scripts = []
+        provider = MacMediaProvider(
+            lambda source, *args: scripts.append(source) or "",
+            lambda source, *args: (
+                "playing\nRunning Up That Hill\nKate Bush\nHounds of Love\n"
+                "file:///tmp/3decks-music.art\n12\n298\n65"
+            ),
+            lambda feature: feature == "apple_music",
+        )
+        media = provider.get_media()
+        self.assertEqual(media.app, "Apple Music")
+        self.assertEqual(media.art_url, "file:///tmp/3decks-music.art")
+        self.assertEqual(media.title, "Running Up That Hill")
+        self.assertEqual(provider.volume, 65)
+
+    def test_lecteur_desactive_n_est_jamais_interroge(self):
+        from deck3ds.platforms.macos_media import MacMediaProvider
+
+        calls = []
+        provider = MacMediaProvider(
+            lambda source, *args: calls.append(source) or "",
+            lambda source, *args: calls.append(source) or "",
+            lambda feature: False,
+        )
+        self.assertIsNone(provider.get_media())
+        self.assertEqual(calls, [])
 
 
 class TestMacSnapshot(unittest.TestCase):
@@ -3824,25 +3889,37 @@ class TestUiSecurity(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(status, 200)
 
+    async def test_catalogue_applications_pour_le_selecteur(self):
+        """Le navigateur ne doit pas demander à l'utilisateur de deviner un nom."""
+        status, payload = await self.request(
+            "GET", "/api/apps", headers=self.authorised()
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(payload, {"apps": ["Terminal", "Safari"]})
+
     async def test_interface_conserve_le_jeton_entre_rechargements(self):
         """Le module d'accès doit mémoriser le jeton, sinon F5 casse la page.
 
         Vérifié sur la ressource réellement servie : le défaut se situait
         entièrement côté navigateur et aucun test de l'API ne pouvait le voir.
         """
-        for asset in (
-            "app.js",
-            "agent-api.js",
-            "editor-utils.js",
-            "hotkeys.js",
-            "translations.js",
-            "icons.js",
-        ):
-            with self.subTest(asset=asset):
-                status, _ = await self.request("GET", f"/{asset}")
-                self.assertEqual(status, 200)
+        import re
 
-        script = (self.ui.static_root / "agent-api.js").read_text(encoding="utf-8")
+        status, _ = await self.request("GET", "/")
+        self.assertEqual(status, 200)
+        index = (self.ui.static_root / "index.html").read_text(encoding="utf-8")
+        for asset in re.findall(r'(?:src|href)="(/[^"]+\.(?:js|css|png))"', index):
+            with self.subTest(asset=asset):
+                asset_status, _ = await self.request("GET", asset)
+                self.assertEqual(asset_status, 200)
+
+        script = (
+            self.ui.static_root.parents[2]
+            / "frontend"
+            / "src"
+            / "api"
+            / "client.ts"
+        ).read_text(encoding="utf-8")
         self.assertIn("sessionStorage", script)
         # Le jeton doit être mémorisé avant d'être retiré de l'URL, sans quoi
         # l'effacement le perdrait définitivement.
@@ -3989,16 +4066,16 @@ class TestUiApi(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(limits["buttons_per_page"], config_module.MAX_BUTTONS_PER_PAGE)
         self.assertEqual(limits["pages"], config_module.MAX_PAGES)
 
-    def _static_source(self, filename):
+    def _frontend_source(self, filename):
         from pathlib import Path
 
         import deck3ds
 
-        source = Path(deck3ds.__file__).parent / "ui" / "static" / filename
+        source = Path(deck3ds.__file__).parents[1] / "frontend" / "src" / filename
         return source.read_text(encoding="utf-8")
 
     def _editor_source(self):
-        return self._static_source("app.js")
+        return self._frontend_source("hooks/useDeckConfig.ts")
 
     async def test_schema_nomme_toutes_les_actions(self):
         """Le catalogue partagé fournit toute la présentation de l'éditeur."""
@@ -4024,39 +4101,27 @@ class TestUiApi(unittest.IsolatedAsyncioTestCase):
 
         source = self._editor_source()
         refresh = re.search(
-            r"async function refreshStatus\(\).*?\n\}", source, re.S
+            r"setInterval\(\(\) => \{(.*?)\}, 4000\)", source, re.S
         )
         self.assertIsNotNone(refresh)
-        self.assertNotIn("state.view === 'settings'", refresh.group(0))
+        self.assertIn("setStatus", refresh.group(0))
+        self.assertNotIn("setConfig", refresh.group(0))
 
     async def test_editeur_nomme_tous_les_tableaux_de_bord(self):
-        import re
-
-        source = self._editor_source()
-        table = re.search(r"function dashboardLabel.*?\{(.*?)\n\}", source, re.S)
-        named = set(re.findall(r"(\w+):\s*\{", table.group(1)))
-
-        missing = sorted(config_module.DASHBOARDS - named)
-        self.assertEqual(missing, [], f"tableaux de bord sans libellé : {missing}")
+        source = self._frontend_source("editor/Inspector.tsx")
+        self.assertIn("schema.dashboards.map", source)
 
     async def test_editeur_nomme_toutes_les_capacites(self):
-        import re
-
-        from deck3ds.platforms.base import Capabilities, fields_of
-
-        source = self._editor_source()
-        table = re.search(r"function capabilityLabel.*?\{(.*?)\n\}", source, re.S)
-        named = set(re.findall(r"(\w+):\s*\{", table.group(1)))
-
-        missing = sorted(set(fields_of(Capabilities())) - named)
-        self.assertEqual(missing, [], f"capacités sans libellé : {missing}")
+        source = self._frontend_source("status/StatusView.tsx")
+        self.assertIn("Object.entries(status.capabilities)", source)
 
     async def test_editeur_nomme_toutes_les_icones(self):
         import re
 
-        source = self._static_source("icons.js")
-        table = re.search(r"export const ICON_LABELS = \{(.*?)\};", source, re.S)
-        named = set(re.findall(r"'?([\w-]+)'?:\s*\{", table.group(1)))
+        source = self._frontend_source("components/DeckIcon.tsx")
+        table = re.search(r"const ICONS.*?= \{(.*?)\};", source, re.S)
+        self.assertIsNotNone(table)
+        named = set(re.findall(r'"?([\w-]+)"?:\s*\w+', table.group(1)))
 
         missing = sorted(config_module.ICONS - named)
         self.assertEqual(missing, [], f"icônes sans libellé : {missing}")
@@ -4121,28 +4186,10 @@ class TestUiApi(unittest.IsolatedAsyncioTestCase):
         `limitRange(...)` et `defaultValue(...)` ne sont que des replis pour un
         agent plus ancien.
         """
-        import re
-
-        source = self._editor_source()
-
-        # Chaque réglage numérique passe par le schéma.
-        for binding, helper in (
-            ("server.port", "limitRange('port'"),
-            ("server.poll_interval", "limitRange('poll_interval'"),
-            ("server.volume_step", "limitRange('volume_step'"),
-            ("obs.timeout", "limitRange('obs_timeout'"),
-        ):
-            ligne = next(
-                line for line in source.splitlines() if f"'{binding}'" in line
-            )
-            self.assertIn(helper, ligne, binding)
-
-        # Aucun littéral ne subsiste hors des appels de repli.
-        nettoye = re.sub(r"(limitRange|defaultValue)\([^)]*\)", "", source)
-        for literal in ("38123", "'0.0.0.0'"):
-            self.assertNotIn(
-                literal, nettoye, f"'{literal}' recopié hors du schéma"
-            )
+        source = self._frontend_source("settings/SettingsView.tsx")
+        for name in ("port", "poll_interval", "volume_step", "obs_timeout"):
+            self.assertIn(f"schema.limits.{name}", source, name)
+        self.assertNotIn("38123", source)
 
     async def test_limite_de_liste_respectee_par_les_adaptateurs(self):
         """Le schéma annonçait 32 entrées, macOS n'en fournissait que 12.

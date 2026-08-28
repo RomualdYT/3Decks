@@ -15,11 +15,11 @@ import json
 import time
 from collections.abc import Callable
 
-from .notifications import (
+from .notification_types import (
     MAX_AGE_SECONDS,
     MAX_NOTIFICATIONS,
     Notification,
-    _icon_for,
+    icon_for_app,
 )
 
 _CLOCK_TOLERANCE = 60.0
@@ -240,7 +240,7 @@ class WindowsNotificationReader:
                         app=app,
                         title=title or app,
                         body=body,
-                        icon=_icon_for(app),
+                        icon=icon_for_app(app),
                         age=int(age),
                         bundle=identifier,
                         key=key,

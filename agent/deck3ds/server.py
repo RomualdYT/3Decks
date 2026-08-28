@@ -71,6 +71,7 @@ class Server(
         self.config_path = options.config_path
         self._config_mtime = self._config_stamp()
         self.platform = platform
+        self.platform.configure_features(config.features)
         self.dispatcher = Dispatcher(platform, config)
         self.verbose = options.verbose
 

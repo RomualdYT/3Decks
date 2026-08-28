@@ -20,20 +20,41 @@ from typing import Any
 
 from .. import config as config_module
 from .. import keys as keys_module
+from ..feature_catalog import FEATURE_SPECS
 from ..platforms.base import Capabilities
 from ..obs import ObsError, test_connection
 from .http import HttpError, Request, Response
 
 
+def effective_capabilities(
+    capabilities: Capabilities, features: config_module.FeaturesConfig
+) -> dict[str, bool]:
+    """Capacités de la machine, masquées par les choix de l'utilisateur."""
+    available = capabilities.as_payload()
+    for key, spec in FEATURE_SPECS.items():
+        if spec.capability is not None and not getattr(features, key):
+            available[spec.capability] = False
+    # Le volume du lecteur dépend du même fournisseur que les informations
+    # multimédia, même s'il possède sa propre capacité d'exécution.
+    if not features.media:
+        available["app_volume"] = False
+    return available
+
+
 def build_schema(
-    capabilities: Capabilities, obs_enabled: bool = False
+    capabilities: Capabilities,
+    obs_enabled: bool = False,
+    features: config_module.FeaturesConfig | None = None,
+    platform: str = "",
 ) -> dict[str, Any]:
     """Décrit ce que l'interface peut proposer, capacités comprises.
 
     Le schéma est engendré depuis le catalogue unique : contrat, capacités,
     libellés et apparence restent donc alignés avec le validateur.
     """
-    available = capabilities.as_payload()
+    feature_config = features or config_module.FeaturesConfig()
+    hardware = capabilities.as_payload()
+    available = effective_capabilities(capabilities, feature_config)
     # OBS est transversal aux plateformes : son support depend de la
     # configuration, pas de macOS ou Windows.
     available["obs"] = obs_enabled
@@ -64,6 +85,23 @@ def build_schema(
             }
         )
 
+    feature_items = []
+    for key, spec in FEATURE_SPECS.items():
+        item = spec.as_payload()
+        supported_platform = not platform or platform in spec.platforms
+        capability_available = (
+            True
+            if spec.capability is None
+            else hardware.get(spec.capability, False)
+        )
+        item.update(
+            {
+                "enabled": getattr(feature_config, key),
+                "available": supported_platform and capability_available,
+            }
+        )
+        feature_items.append(item)
+
     return {
         "actions": actions,
         "dashboards": dashboards,
@@ -75,6 +113,7 @@ def build_schema(
         "keys": keys_module.catalog(),
         "locales": list(config_module.LOCALES),
         "capabilities": available,
+        "features": feature_items,
         "limits": {
             "pages": config_module.MAX_PAGES,
             "buttons_per_page": config_module.MAX_BUTTONS_PER_PAGE,
@@ -119,6 +158,7 @@ class Api:
             ("PUT", "/api/config"): self.put_config,
             ("POST", "/api/config/validate"): self.validate_config,
             ("POST", "/api/obs/test"): self.test_obs,
+            ("GET", "/api/apps"): self.get_apps,
             ("GET", "/api/state"): self.get_state,
         }
 
@@ -127,7 +167,10 @@ class Api:
     async def get_schema(self, request: Request) -> Response:
         return Response.json(
             build_schema(
-                self.server.platform.capabilities(), self.server.config.obs.enabled
+                self.server.platform.capabilities(),
+                self.server.config.obs.enabled,
+                self.server.config.features,
+                self.server.platform.name,
             )
         )
 
@@ -144,6 +187,11 @@ class Api:
         except ObsError as error:
             raise HttpError(409, str(error)) from error
         return Response.json(status.as_payload())
+
+    async def get_apps(self, request: Request) -> Response:
+        """Catalogue des applications installées pour le sélecteur d'action."""
+        apps = await asyncio.to_thread(self.server.platform.list_launchable_apps)
+        return Response.json({"apps": apps})
 
     # --- Configuration ---------------------------------------------------------
 
@@ -253,7 +301,7 @@ class Api:
         """
         server = self.server
         capabilities = server.platform.capabilities()
-        available = capabilities.as_payload()
+        available = effective_capabilities(capabilities, server.config.features)
         available["obs"] = server.config.obs.enabled
 
         return Response.json(
@@ -269,6 +317,10 @@ class Api:
                     if client.authenticated
                 ],
                 "capabilities": available,
+                "features": {
+                    key: getattr(server.config.features, key)
+                    for key in FEATURE_SPECS
+                },
                 "notifications": server.platform.notification_status(),
                 "snapshot": server.last_state_payload(),
                 "logs": server.recent_logs(),

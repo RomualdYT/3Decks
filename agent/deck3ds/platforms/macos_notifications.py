@@ -23,20 +23,20 @@ import plistlib
 import sqlite3
 import sys
 import time
-from dataclasses import dataclass
 from pathlib import Path
+
+from .notification_types import (
+    MAX_AGE_SECONDS,
+    MAX_NOTIFICATIONS,
+    Notification,
+    icon_for_app,
+)
 
 #: Base du centre de notifications de macOS.
 _MAC_DB_PATH = "~/Library/Group Containers/group.com.apple.usernoted/db2/db"
 
 #: Les dates de macOS sont comptées depuis le 1er janvier 2001.
 _APPLE_EPOCH = 978307200
-
-#: Notifications conservées et transmises à la console.
-MAX_NOTIFICATIONS = 8
-
-#: Au-delà, une notification n'a plus d'intérêt immédiat.
-MAX_AGE_SECONDS = 6 * 3600
 
 #: Avance tolérée sur l'horloge, la date de la base et l'heure courante n'étant
 #: pas lues au même instant. Au-delà, la date est jugée aberrante.
@@ -67,56 +67,6 @@ _APP_NAMES = {
     "com.github.GitHubClient": "GitHub",
 }
 
-#: Icônes de l'interface associées aux applications connues.
-_APP_ICONS = {
-    "Messages": "chat",
-    "Mail": "page",
-    "FaceTime": "video",
-    "Rappels": "star",
-    "Calendrier": "page",
-    "Musique": "music",
-    "Spotify": "music",
-    "Podcasts": "music",
-    "Slack": "chat",
-    "Discord": "chat",
-    "Safari": "browser",
-    "Chrome": "browser",
-    "ChatGPT": "app",
-    "Codex": "terminal",
-    "VS Code": "app",
-    "Docker": "app",
-    "Finder": "folder",
-    "GitHub": "app",
-}
-
-
-@dataclass
-class Notification:
-    """Notification prête à être affichée."""
-
-    app: str
-    title: str
-    body: str
-    icon: str
-    #: Ancienneté en secondes, arrondie.
-    age: int
-    #: Identifiant de paquet, pour ouvrir l'application concernée.
-    bundle: str
-    #: Empreinte servant à détecter les doublons et les nouveautés.
-    key: str
-
-    def as_payload(self) -> dict[str, object]:
-        payload: dict[str, object] = {
-            "app": self.app,
-            "title": self.title,
-            "icon": self.icon,
-            "age": self.age,
-        }
-        if self.body:
-            payload["body"] = self.body
-        return payload
-
-
 def _readable_name(bundle: str) -> str:
     """Nom lisible d'une application à partir de son identifiant de paquet."""
     # Les notifications du système portent un préfixe technique.
@@ -132,7 +82,8 @@ def _readable_name(bundle: str) -> str:
 
 
 def _icon_for(name: str) -> str:
-    return _APP_ICONS.get(name, "star")
+    """Alias interne conservé pour les appels historiques et les tests."""
+    return icon_for_app(name)
 
 
 class _Source:

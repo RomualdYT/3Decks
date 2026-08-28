@@ -276,7 +276,12 @@ class UiServer:
             # état vivant, et une version périmée induirait en erreur.
             "Cache-Control: no-store",
             # Défense en profondeur : aucune ressource distante n'est chargée.
-            "Content-Security-Policy: default-src 'self'; img-src 'self' data:",
+            # HeroUI et les couleurs choisies par l'utilisateur passent par
+            # des attributs `style`; eux seuls nécessitent l'inline. Les
+            # scripts restent strictement limités au bundle local.
+            "Content-Security-Policy: default-src 'self'; script-src 'self'; "
+            "style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; "
+            "connect-src 'self'",
             "X-Content-Type-Options: nosniff",
             # Empêche la fuite du jeton présent dans l'URL vers un tiers.
             "Referrer-Policy: no-referrer",
