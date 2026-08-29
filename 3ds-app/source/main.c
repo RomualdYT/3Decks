@@ -45,6 +45,15 @@
 static App s_app;
 static Setup s_setup;
 static Modal s_modal;
+static volatile bool s_network_resume_requested = false;
+
+static void apt_status_hook(APT_HookType hook, void *param)
+{
+	(void)param;
+	if (hook == APTHOOK_ONRESTORE || hook == APTHOOK_ONWAKEUP) {
+		s_network_resume_requested = true;
+	}
+}
 
 /** Suivi de l'appui tactile en cours. */
 typedef struct {
@@ -508,11 +517,18 @@ int main(int argc, char *argv[])
 		app_notify(&s_app, tr(STR_NETWORK_UNAVAILABLE), true);
 	}
 
+	aptHookCookie apt_cookie;
+	aptHook(&apt_cookie, apt_status_hook, NULL);
+
 	/* Mesure du temps réel : les animations restent correctes même si le
 	 * nombre d'images par seconde varie. */
 	u64 previous_tick = svcGetSystemTick();
 
 	while (aptMainLoop()) {
+		if (s_network_resume_requested) {
+			s_network_resume_requested = false;
+			app_force_reconnect(&s_app);
+		}
 		/* --- Temps écoulé --- */
 		const u64 now = svcGetSystemTick();
 		float dt = (float)((double)(now - previous_tick) /
@@ -534,6 +550,10 @@ int main(int argc, char *argv[])
 		/* --- Réseau et logique --- */
 		if (network_ready) {
 			app_pump_network(&s_app);
+		}
+		if (s_app.pairing_requested) {
+			s_app.pairing_requested = false;
+			setup_handle_pairing_request(&s_setup, &s_app);
 		}
 		app_update(&s_app, dt);
 		setup_update(&s_setup, &s_app, dt);
@@ -603,6 +623,7 @@ int main(int argc, char *argv[])
 	}
 
 	/* --- Libération --- */
+	aptUnhook(&apt_cookie);
 	net_exit();
 	ptmuExit();
 	sound_exit();

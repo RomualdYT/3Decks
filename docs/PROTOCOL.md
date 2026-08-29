@@ -10,6 +10,33 @@ Pas de HTTP, pas de WebSocket, pas de TLS. Le choix est délibéré : la 3DS n'a
 alors besoin d'aucune bibliothèque externe et le framing reste trivial à
 implémenter sans allocation dynamique.
 
+### Découverte locale
+
+Avant la connexion TCP, la 3DS diffuse sur UDP `38122` :
+
+```json
+{ "type": "deck3ds.discover", "protocol": 1, "nonce": 42 }
+```
+
+Chaque agent compatible répond directement à l'adresse source :
+
+```json
+{
+  "type": "deck3ds.agent",
+  "protocol": 1,
+  "name": "Mac du bureau",
+  "platform": "macos",
+  "port": 38123,
+  "version": "0.1.0",
+  "pairing_required": true,
+  "nonce": 42
+}
+```
+
+L'adresse IP n'est volontairement pas placée dans le JSON : la console utilise
+l'adresse source du datagramme, qui correspond à l'interface réellement
+joignable. La saisie manuelle reste disponible si les broadcasts sont filtrés.
+
 ### Framing
 
 Chaque message est précédé de sa taille sur 4 octets, big-endian (ordre réseau) :
@@ -61,12 +88,16 @@ Premier message obligatoire après connexion.
   "type": "hello",
   "protocol": 1,
   "device": "new3dsxl",
-  "token": "optionnel"
+  "token": "optionnel",
+  "pair_code": "optionnel, six chiffres"
 }
 ```
 
 Si l'agent est configuré avec un token et que celui fourni ne correspond pas, il
-répond `hello.error` puis ferme la connexion.
+accepte à la place le code court visible dans son interface locale. Un code
+valide est consommé immédiatement ; `hello.ok` renvoie alors une seule fois le
+jeton durable, que la console stocke sur sa carte SD. Sinon l'agent répond
+`hello.error` avec `code: "pairing_required"` puis ferme la connexion.
 
 ### `button.press`
 
@@ -107,14 +138,19 @@ Demande explicite de renvoi de la configuration.
   "protocol": 1,
   "agent": "0.1.0",
   "host": "MacBook-Pro",
-  "platform": "darwin"
+  "platform": "darwin",
+  "token": "présent uniquement après un appairage réussi"
 }
 ```
 
 ### `hello.error`
 
 ```json
-{ "type": "hello.error", "reason": "bad_token" }
+{
+  "type": "hello.error",
+  "reason": "jeton invalide, appairage requis",
+  "code": "pairing_required"
+}
 ```
 
 ### `config.snapshot`
@@ -245,6 +281,17 @@ patch, la 3DS conserve les valeurs qu'elle possède déjà.
   "apps": ["Safari", "Spotify", "Terminal"],
   "cpu": 24,
   "memory": 51,
+  "memory_used_mb": 8350,
+  "memory_total_mb": 16384,
+  "disk": 72,
+  "disk_free_mb": 138420,
+  "disk_total_mb": 500000,
+  "network_down_kbps": 18400,
+  "network_up_kbps": 1250,
+  "top_process": "Blender",
+  "top_process_cpu": 38,
+  "gpu": 61,
+  "temperature": 68,
   "time": "14:32",
   "date": "22 août"
 }
@@ -253,6 +300,13 @@ patch, la 3DS conserve les valeurs qu'elle possède déjà.
 `time` et `date` viennent du PC pour garantir la cohérence avec l'affichage de
 l'ordinateur, mais la 3DS utilise son horloge interne en repli si le champ est
 absent ou la connexion perdue.
+
+Les mesures de performances enrichies sont elles aussi facultatives. Les
+volumes mémoire et disque sont exprimés en mébioctets ; les débits réseau en
+kilobits par seconde ; la température en degrés Celsius. `gpu` et
+`temperature` peuvent rester absents lorsque le pilote ou le système ne les
+expose pas. La console adapte alors sa quatrième carte au stockage, sans
+afficher de valeur inventée.
 
 ### `action.result`
 

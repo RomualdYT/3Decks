@@ -21,12 +21,14 @@ from typing import Any, Callable
 
 from .actions import Dispatcher
 from .config import Config
+from .pairing import PairingManager
 from .platforms.base import Platform
 from .srv.broadcast import BroadcastMixin
 from .srv.collect import CollectMixin
 from .srv.commands import CommandMixin
 from .srv.configwatch import ConfigWatchMixin
 from .srv.connection import ConnectionMixin
+from .srv.discovery import DiscoveryMixin
 from .srv.handshake import HandshakeMixin
 from .srv.lifecycle import LifecycleMixin
 from .srv.logs import LoggingMixin
@@ -55,6 +57,7 @@ class Server(
     CommandMixin,
     HandshakeMixin,
     ConnectionMixin,
+    DiscoveryMixin,
     LifecycleMixin,
 ):
     """Serveur de l'agent : un état partagé, des responsabilités assemblées."""
@@ -86,6 +89,8 @@ class Server(
         # de rafraîchissement de l'état, et un écran figé sur la console.
         self._refresh_event: asyncio.Event | None = None
         self._server: asyncio.base_events.Server | None = None
+        self._discovery_transport: asyncio.DatagramTransport | None = None
+        self.pairing = PairingManager()
         self._artwork = ArtworkCache()
         #: Demande une seconde lecture différée, pour les commandes dont l'effet
         #: met plusieurs secondes à devenir visible.

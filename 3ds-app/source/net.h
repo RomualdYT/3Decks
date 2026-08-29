@@ -20,6 +20,9 @@
 /** Taille maximale d'un message, doit rester alignée sur PROTOCOL.md. */
 #define NET_MAX_MESSAGE 65536
 
+/** Les messages émis par la console sont volontairement compacts. */
+#define NET_MAX_OUTBOUND 508
+
 typedef enum {
 	NET_IDLE = 0,      /**< Socket fermée, aucune tentative en cours. */
 	NET_CONNECTING,    /**< `connect` en cours. */
@@ -55,8 +58,9 @@ void net_poll(void);
 bool net_receive(char *out, size_t out_size, size_t *out_length);
 
 /**
- * Envoie un message. Le framing est ajouté automatiquement.
- * Retourne `false` si la connexion est absente ou l'envoi a échoué.
+ * Place un message dans la file d'émission. Le framing est ajouté
+ * automatiquement et `net_poll` l'envoie sans bloquer la boucle de rendu.
+ * Retourne `false` si la connexion est absente ou la file pleine.
  */
 bool net_send(const char *payload, size_t length);
 

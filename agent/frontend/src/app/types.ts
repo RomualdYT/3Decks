@@ -104,6 +104,12 @@ export interface AgentState {
   listen: string;
   hints: string[];
   token_set: boolean;
+  pairing: {
+    required: boolean;
+    code: string;
+    expires_in: number;
+  };
+  discovery_port: number;
   clients: Array<{ id: string; address: string }>;
   capabilities: Record<string, boolean>;
   features: Record<string, boolean>;

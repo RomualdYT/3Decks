@@ -1,5 +1,7 @@
 import type { AgentState, DeckConfig, ObsConfig, Schema } from "../app/types";
 
+type PairingState = AgentState["pairing"];
+
 const TOKEN_KEY = "deck3ds.token";
 
 function readToken(): string {
@@ -43,6 +45,7 @@ export const agentApi = {
   state: () => request<AgentState>("GET", "/api/state"),
   apps: () => request<{ apps: string[] }>("GET", "/api/apps"),
   pickPath: (kind: "file" | "folder") => request<{ cancelled: boolean; path: string; kind: "file" | "folder" }>("POST", "/api/paths/pick", { kind }),
+  rotatePairing: () => request<PairingState>("POST", "/api/pairing/rotate"),
   openPermissionSettings: (permission: string) => request<{ opened: boolean; permission: string }>("POST", "/api/permissions/open", { permission }),
   testObs: (config: ObsConfig) => request<{ connected: boolean; obs_version?: string; current_scene?: string; scenes?: string[] }>("POST", "/api/obs/test", config),
 };

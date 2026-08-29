@@ -26,16 +26,31 @@ class HandshakeMixin:
             )
             return False
 
-        # Comparaison simple : le jeton protège d'un usage accidentel sur le
-        # réseau local, il ne prétend pas résister à une analyse temporelle.
         if self.config.token and message.get("token") != self.config.token:
-            await self._reject_handshake(client, "jeton invalide", "jeton refuse")
-            return False
+            # Une nouvelle console peut échanger le code court visible dans
+            # l'interface locale contre le jeton durable. Le code est consommé
+            # immédiatement : le réutiliser ne donnera jamais un second jeton.
+            if self.pairing.consume(message.get("pair_code")):
+                client.paired_now = True
+            else:
+                await self._reject_handshake(
+                    client,
+                    "jeton invalide, appairage requis",
+                    "appairage requis",
+                    code="pairing_required",
+                )
+                return False
 
         return True
-    async def _reject_handshake(self, client: Client, reason: str, note: str) -> None:
+    async def _reject_handshake(
+        self,
+        client: Client,
+        reason: str,
+        note: str,
+        code: str = "",
+    ) -> None:
         """Refuse une console et ferme la connexion."""
-        await client.send(protocol.hello_error(reason))
+        await client.send(protocol.hello_error(reason, code=code))
         self.log(f"Console #{client.id}: {note}")
         await client.close()
     async def _send_initial_state(self, client: Client) -> None:
@@ -74,10 +89,16 @@ class HandshakeMixin:
 
         await client.send(
             protocol.hello_ok(
-                VERSION, platform_module.node() or "PC", self.platform.name
+                VERSION,
+                getattr(self, "_discovery_name", None)
+                or platform_module.node()
+                or "PC",
+                self.platform.name,
+                self.config.token if client.paired_now else "",
             )
         )
         await client.send(self._config_message(client.language))
         await self._send_initial_state(client)
 
-        self.log(f"Console #{client.id}: handshake accepte")
+        suffix = " apres appairage" if client.paired_now else ""
+        self.log(f"Console #{client.id}: handshake accepte{suffix}")

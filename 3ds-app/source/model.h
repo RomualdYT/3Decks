@@ -163,6 +163,18 @@ typedef struct {
 
 	int cpu;    /**< 0..100, -1 si inconnu. */
 	int memory; /**< 0..100, -1 si inconnu. */
+	/** Détails facultatifs du cockpit de performances. */
+	int memory_used_mb;
+	int memory_total_mb;
+	int disk; /**< Occupation du disque système, 0..100. */
+	int disk_free_mb;
+	int disk_total_mb;
+	int network_down_kbps;
+	int network_up_kbps;
+	char top_process[LEN_APP_NAME];
+	int top_process_cpu;
+	int gpu;         /**< 0..100, -1 si le pilote ne l'expose pas. */
+	int temperature; /**< Degrés Celsius, -1 si indisponible. */
 
 	char host[LEN_APP_NAME];
 	char time[8];  /**< "HH:MM" fourni par le PC. */

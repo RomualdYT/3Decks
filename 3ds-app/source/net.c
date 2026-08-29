@@ -43,6 +43,24 @@ static char s_error[96] = {0};
 static char s_rx[NET_MAX_MESSAGE + 4];
 static size_t s_rx_used = 0;
 
+/*
+ * Les requêtes de la console sont petites (appui, valeur, ping). Une file
+ * statique évite toute allocation et, surtout, toute attente active lorsque
+ * le tampon TCP est momentanément plein.
+ */
+#define NET_TX_QUEUE_SIZE 8
+#define NET_TX_FRAME_MAX (NET_MAX_OUTBOUND + 4)
+
+typedef struct {
+	unsigned char data[NET_TX_FRAME_MAX];
+	size_t length;
+	size_t offset;
+} TxFrame;
+
+static TxFrame s_tx[NET_TX_QUEUE_SIZE];
+static int s_tx_head = 0;
+static int s_tx_count = 0;
+
 static void set_error(const char *message)
 {
 	snprintf(s_error, sizeof(s_error), "%s", message);
@@ -100,6 +118,8 @@ void net_disconnect(void)
 	}
 	s_state = NET_IDLE;
 	s_rx_used = 0;
+	s_tx_head = 0;
+	s_tx_count = 0;
 }
 
 NetState net_state(void)
@@ -266,6 +286,37 @@ static void poll_reading(void)
 	}
 }
 
+/** Vide autant que possible la file d'émission, sans jamais attendre. */
+static void poll_writing(void)
+{
+	while (s_state == NET_CONNECTED && s_tx_count > 0) {
+		TxFrame *frame = &s_tx[s_tx_head];
+		const ssize_t sent = send(s_socket, frame->data + frame->offset,
+		                          frame->length - frame->offset, 0);
+
+		if (sent > 0) {
+			frame->offset += (size_t)sent;
+			if (frame->offset >= frame->length) {
+				memset(frame, 0, sizeof(*frame));
+				s_tx_head = (s_tx_head + 1) % NET_TX_QUEUE_SIZE;
+				s_tx_count--;
+			}
+			continue;
+		}
+
+		if (sent < 0 && (errno == EWOULDBLOCK || errno == EAGAIN)) {
+			return;
+		}
+		if (sent < 0 && errno == EINTR) {
+			continue;
+		}
+
+		set_error_errno("send");
+		net_disconnect();
+		return;
+	}
+}
+
 void net_poll(void)
 {
 	if (s_socket < 0) {
@@ -278,6 +329,10 @@ void net_poll(void)
 	}
 
 	if (s_state == NET_CONNECTED) {
+		poll_writing();
+		if (s_state != NET_CONNECTED) {
+			return;
+		}
 		poll_reading();
 	}
 }
@@ -335,83 +390,28 @@ bool net_send(const char *payload, size_t length)
 	if (s_state != NET_CONNECTED || s_socket < 0) {
 		return false;
 	}
-	if (payload == NULL || length == 0 || length > NET_MAX_MESSAGE) {
+	if (payload == NULL || length == 0 || length > NET_MAX_OUTBOUND) {
+		return false;
+	}
+	if (s_tx_count >= NET_TX_QUEUE_SIZE) {
+		set_error("file d'envoi pleine");
 		return false;
 	}
 
-	unsigned char header[4];
-	header[0] = (unsigned char)((length >> 24) & 0xFF);
-	header[1] = (unsigned char)((length >> 16) & 0xFF);
-	header[2] = (unsigned char)((length >> 8) & 0xFF);
-	header[3] = (unsigned char)(length & 0xFF);
+	const int tail = (s_tx_head + s_tx_count) % NET_TX_QUEUE_SIZE;
+	TxFrame *frame = &s_tx[tail];
+	memset(frame, 0, sizeof(*frame));
+	frame->data[0] = (unsigned char)((length >> 24) & 0xFF);
+	frame->data[1] = (unsigned char)((length >> 16) & 0xFF);
+	frame->data[2] = (unsigned char)((length >> 8) & 0xFF);
+	frame->data[3] = (unsigned char)(length & 0xFF);
+	memcpy(frame->data + 4, payload, length);
+	frame->length = length + 4;
+	s_tx_count++;
 
-	/*
-	 * Envoi en deux temps avec boucle sur les écritures partielles.
-	 *
-	 * Un abandon après avoir écrit une partie du cadre désynchroniserait le
-	 * flux : le pair attendrait des octets qui ne viendront jamais. On ferme
-	 * donc la connexion dans ce cas précis, ce qui laisse la reconnexion
-	 * automatique repartir d'un état propre.
-	 */
-	struct {
-		const char *data;
-		size_t size;
-	} parts[2] = {
-	    {(const char *)header, sizeof(header)},
-	    {payload, length},
-	};
-
-	size_t total_written = 0;
-
-	for (int i = 0; i < 2; i++) {
-		size_t sent = 0;
-		int attempts = 0;
-
-		while (sent < parts[i].size) {
-			const ssize_t rc =
-			    send(s_socket, parts[i].data + sent, parts[i].size - sent, 0);
-
-			if (rc > 0) {
-				sent += (size_t)rc;
-				total_written += (size_t)rc;
-				attempts = 0;
-				continue;
-			}
-
-			if (rc < 0 && (errno == EWOULDBLOCK || errno == EAGAIN)) {
-				/*
-				 * Tampon d'émission momentanément plein. Juste après un connect
-				 * non bloquant, la pile de la console a parfois besoin de
-				 * quelques millisecondes avant d'accepter le premier octet.
-				 *
-				 * On patiente donc, mais sans fermer la connexion en cas
-				 * d'épuisement des tentatives : l'appelant réessaiera à la
-				 * frame suivante. Couper ici provoquait un cycle sans fin de
-				 * connexion puis déconnexion immédiate.
-				 */
-				if (++attempts > 200) {
-					set_error("tampon d'envoi sature");
-					if (total_written > 0) {
-						/* Cadre incomplet : le flux n'est plus fiable. */
-						net_disconnect();
-					}
-					return false;
-				}
-				svcSleepThread(1000000LL); /* 1 ms */
-				continue;
-			}
-
-			if (rc < 0 && errno == EINTR) {
-				continue;
-			}
-
-			set_error_errno("send");
-			net_disconnect();
-			return false;
-		}
-	}
-
-	return true;
+	/* Tente immédiatement une écriture, puis laisse `net_poll` poursuivre. */
+	poll_writing();
+	return s_state == NET_CONNECTED;
 }
 
 bool net_send_text(const char *payload)

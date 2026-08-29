@@ -1570,6 +1570,22 @@ class TestStatePayload(unittest.TestCase):
         payload = _snapshot_payload(FakePlatform().snapshot())
         self.assertTrue(protocol.encode(payload))
 
+    def test_mesures_de_performance_facultatives_sont_transmises(self):
+        snapshot = FakePlatform().snapshot()
+        snapshot.memory_used_mb = 8192
+        snapshot.memory_total_mb = 16384
+        snapshot.disk = 72
+        snapshot.network_down_kbps = 12500
+        snapshot.top_process = "Blender"
+        snapshot.top_process_cpu = 44
+
+        payload = _snapshot_payload(snapshot)
+
+        self.assertEqual(payload["memory_total_mb"], 16384)
+        self.assertEqual(payload["network_down_kbps"], 12500)
+        self.assertEqual(payload["top_process"], "Blender")
+        self.assertEqual(payload["top_process_cpu"], 44)
+
 
 # --- Serveur, de bout en bout --------------------------------------------------
 
@@ -1636,13 +1652,15 @@ class TestServerEndToEnd(unittest.IsolatedAsyncioTestCase):
                 raise AssertionError("connexion fermee")
             frames.feed(data)
 
-    async def handshake(self, token=None, language=None):
+    async def handshake(self, token=None, language=None, pair_code=None):
         reader, writer, frames = await self.connect()
         hello = {"type": "hello", "protocol": 1, "device": "test"}
         if token is not None:
             hello["token"] = token
         if language is not None:
             hello["language"] = language
+        if pair_code is not None:
+            hello["pair_code"] = pair_code
         writer.write(protocol.encode(hello))
         await writer.drain()
         return reader, writer, frames
@@ -1822,6 +1840,23 @@ class TestServerEndToEnd(unittest.IsolatedAsyncioTestCase):
 
         writer.close()
         await writer.wait_closed()
+
+    async def test_code_court_appaire_et_renvoie_le_jeton(self):
+        self.config.token = "jeton-durable"
+        code = self.server.pairing.snapshot(required=True)["code"]
+
+        reader, writer, frames = await self.handshake(pair_code=code)
+        ok = await self.receive(reader, frames, "hello.ok")
+        self.assertEqual(ok["token"], "jeton-durable")
+        writer.close()
+        await writer.wait_closed()
+
+        # Un code consommé ne peut pas autoriser une seconde console.
+        reader2, writer2, frames2 = await self.handshake(pair_code=code)
+        error = await self.receive(reader2, frames2, "hello.error")
+        self.assertEqual(error["code"], "pairing_required")
+        writer2.close()
+        await writer2.wait_closed()
 
     async def test_trame_invalide_ferme_sans_crash(self):
         reader, writer, frames = await self.connect()
@@ -3486,6 +3521,43 @@ class TestCapabilities(unittest.TestCase):
 class TestWindowsAdapter(unittest.TestCase):
     """Comportements Windows testables sans appeler l'OS hôte."""
 
+    def test_collecte_performance_parse_les_compteurs_groupes(self):
+        from deck3ds.platforms.windows import WindowsPlatform
+
+        class Shell:
+            @staticmethod
+            def run(_script, timeout=0):
+                self.assertEqual(timeout, 12.0)
+                return json.dumps(
+                    {
+                        "cpu": 31,
+                        "memory": 62,
+                        "memory_used_mb": 10158,
+                        "memory_total_mb": 16384,
+                        "disk": 74,
+                        "disk_free_mb": 120000,
+                        "disk_total_mb": 500000,
+                        "network_down_kbps": 8500,
+                        "network_up_kbps": 920,
+                        "top_process": "Blender",
+                        "top_process_cpu": 48,
+                        "gpu": 71,
+                        "temperature": None,
+                    }
+                )
+
+        platform = WindowsPlatform.__new__(WindowsPlatform)
+        platform._shell = Shell()
+
+        performance = platform.get_performance()
+
+        self.assertEqual(performance.cpu, 31)
+        self.assertEqual(performance.memory_total_mb, 16384)
+        self.assertEqual(performance.network_down_kbps, 8500)
+        self.assertEqual(performance.top_process, "Blender")
+        self.assertEqual(performance.gpu, 71)
+        self.assertIsNone(performance.temperature)
+
     def test_focus_fenetre_filtre_application_et_titre(self):
         from deck3ds.platforms.windows import WindowsPlatform
 
@@ -4477,6 +4549,64 @@ class TestUiApi(unittest.IsolatedAsyncioTestCase):
             for index in range(1000):
                 self.server.log(f"ligne {index}")
         self.assertLessEqual(len(self.server.recent_logs()), 300)
+
+
+class TestDiscovery(unittest.TestCase):
+    class Owner:
+        def __init__(self):
+            self.debugged = []
+
+        def discovery_payload(self):
+            return {
+                "type": "deck3ds.agent",
+                "protocol": 1,
+                "name": "Mac de test",
+                "platform": "macos",
+                "port": 38123,
+                "pairing_required": True,
+            }
+
+        def debug(self, message):
+            self.debugged.append(message)
+
+    class Transport:
+        def __init__(self):
+            self.sent = []
+
+        def sendto(self, payload, address):
+            self.sent.append((payload, address))
+
+    def test_annonce_repond_a_une_console_compatible(self):
+        from deck3ds.srv.discovery import _DiscoveryProtocol
+
+        owner = self.Owner()
+        transport = self.Transport()
+        discovery = _DiscoveryProtocol(owner)
+        discovery.connection_made(transport)
+        discovery.datagram_received(
+            json.dumps(
+                {"type": "deck3ds.discover", "protocol": 1, "nonce": 42}
+            ).encode(),
+            ("192.168.1.50", 50000),
+        )
+
+        self.assertEqual(len(transport.sent), 1)
+        payload = json.loads(transport.sent[0][0])
+        self.assertEqual(payload["name"], "Mac de test")
+        self.assertEqual(payload["nonce"], 42)
+        self.assertTrue(payload["pairing_required"])
+
+    def test_annonce_ignore_un_protocole_incompatible(self):
+        from deck3ds.srv.discovery import _DiscoveryProtocol
+
+        transport = self.Transport()
+        discovery = _DiscoveryProtocol(self.Owner())
+        discovery.connection_made(transport)
+        discovery.datagram_received(
+            b'{"type":"deck3ds.discover","protocol":999}',
+            ("192.168.1.50", 50000),
+        )
+        self.assertEqual(transport.sent, [])
 
 
 if __name__ == "__main__":

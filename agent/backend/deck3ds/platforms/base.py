@@ -173,6 +173,48 @@ class SystemSnapshot:
     apps: list[str] = field(default_factory=list)
     cpu: int | None = None
     memory: int | None = None
+    #: Détails du tableau de bord de performances. Chaque mesure reste
+    #: facultative : les API disponibles diffèrent selon le matériel et l'OS.
+    memory_used_mb: int | None = None
+    memory_total_mb: int | None = None
+    disk: int | None = None
+    disk_free_mb: int | None = None
+    disk_total_mb: int | None = None
+    network_down_kbps: int | None = None
+    network_up_kbps: int | None = None
+    top_process: str = ""
+    top_process_cpu: int | None = None
+    gpu: int | None = None
+    temperature: int | None = None
+
+    def apply_performance(self, performance: PerformanceInfo) -> None:
+        """Recopie une collecte groupée sans dupliquer sa liste de champs."""
+        for field_name in fields_of(performance):
+            setattr(self, field_name, getattr(performance, field_name))
+
+
+@dataclass
+class PerformanceInfo:
+    """Mesures portables du poste, regroupées en une seule collecte.
+
+    Les adaptateurs peuvent ainsi mutualiser les appels natifs coûteux. Un
+    champ à ``None`` signifie « non exposé sur cette machine », ce qui permet à
+    la console de composer sa vue sans inventer de valeur.
+    """
+
+    cpu: int | None = None
+    memory: int | None = None
+    memory_used_mb: int | None = None
+    memory_total_mb: int | None = None
+    disk: int | None = None
+    disk_free_mb: int | None = None
+    disk_total_mb: int | None = None
+    network_down_kbps: int | None = None
+    network_up_kbps: int | None = None
+    top_process: str = ""
+    top_process_cpu: int | None = None
+    gpu: int | None = None
+    temperature: int | None = None
 
 
 class Platform:
@@ -386,6 +428,24 @@ class Platform:
     def get_memory(self) -> int | None:
         return None
 
+    def get_performance(self) -> PerformanceInfo:
+        """Collecte minimale, conservant les accesseurs historiques.
+
+        Chaque valeur est isolée pour qu'un capteur défaillant ne masque pas
+        l'autre. macOS et Windows remplacent cette méthode par une collecte
+        groupée plus riche.
+        """
+        performance = PerformanceInfo()
+        try:
+            performance.cpu = self.get_cpu()
+        except Exception:
+            pass
+        try:
+            performance.memory = self.get_memory()
+        except Exception:
+            pass
+        return performance
+
     # --- Collecte -------------------------------------------------------------
 
     def snapshot(self) -> SystemSnapshot:
@@ -416,8 +476,8 @@ class Platform:
             snapshot.notifications = safe(self.list_notifications, []) or []
             snapshot.new_notification = safe(self.take_new_notification)
         if self.feature_enabled("system_stats"):
-            snapshot.cpu = safe(self.get_cpu)
-            snapshot.memory = safe(self.get_memory)
+            performance = safe(self.get_performance, PerformanceInfo())
+            snapshot.apply_performance(performance)
         return snapshot
 
     # --- Utilitaires partagés -------------------------------------------------

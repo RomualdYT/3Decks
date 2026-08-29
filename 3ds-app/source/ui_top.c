@@ -7,13 +7,14 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "artwork.h"
 #include "draw.h"
 #include "i18n.h"
 #include "icons.h"
 #include "text.h"
 #include "theme.h"
 #include "ui.h"
+#include "ui_top_media.h"
+#include "ui_top_system.h"
 
 /*
  * L'écran supérieur est un tableau de bord contextuel. Il n'est pas un miroir
@@ -23,11 +24,10 @@
  * Mise en page :
  *   - un bandeau supérieur avec heure, hôte et état de connexion ;
  *   - une zone centrale variable selon le mode ;
- *   - un bandeau inférieur avec volume et micro.
+ *   - un dock de volumes reserve a la page Audio.
  */
 
 #define HEADER_H 30.0f
-#define FOOTER_H 34.0f
 #define PAD 12.0f
 
 /** Dessine le fond, légèrement dégradé pour éviter un aplat terne. */
@@ -146,248 +146,6 @@ static void draw_header(const App *app)
 	draw_link_badge(app, badge_left, 7.0f);
 }
 
-/** Jauge horizontale avec libellé, utilisée pour le volume, le CPU, etc. */
-static void draw_gauge(float x, float y, float w, const char *label, int value,
-                       u32 color, bool known)
-{
-	text_draw(x, y, Z_CONTENT, TEXT_SMALL, COL_TEXT_FAINT, ALIGN_LEFT, label);
-
-	char text[16];
-	if (known) {
-		snprintf(text, sizeof(text), "%d%%", value);
-	} else {
-		snprintf(text, sizeof(text), "--");
-	}
-	text_draw(x + w, y, Z_CONTENT, TEXT_SMALL, COL_TEXT_DIM, ALIGN_RIGHT, text);
-
-	const float ratio = known ? (float)value / 100.0f : 0.0f;
-	draw_progress(x, y + 14.0f, w, 5.0f, ratio, Z_CONTENT, COL_SURFACE_HI,
-	              color);
-}
-
-static void draw_footer(const App *app)
-{
-	const float y = SCREEN_H - FOOTER_H;
-	draw_rect(0.0f, y, SCREEN_TOP_W, FOOTER_H, Z_CARD,
-	          theme_alpha(COL_SURFACE_LO, 0xE0));
-	draw_rect(0.0f, y, SCREEN_TOP_W, 1.0f, Z_CARD, COL_BORDER);
-
-	/*
-	 * Volume à gauche. Lorsque le lecteur expose son propre volume, les deux
-	 * sont affichés : c'est indispensable quand la musique sort sur une enceinte
-	 * externe, car le volume du système n'agit alors plus sur elle.
-	 */
-	const bool vol_known = app->state.volume >= 0;
-	const int volume = vol_known ? app->state.volume : 0;
-	const u32 vol_color = app->state.muted ? COL_ERR : COL_ACCENT;
-	const bool has_app_volume = app->state.app_volume >= 0;
-
-	icons_draw(app->state.muted ? ICON_VOLUME_MUTE : ICON_VOLUME_UP, PAD + 8.0f,
-	           has_app_volume ? y + 11.0f : y + 17.0f, has_app_volume ? 14.0f : 20.0f,
-	           Z_CONTENT, vol_color);
-
-	if (has_app_volume) {
-		/*
-		 * Deux jauges compactes empilées, chacune précédée d'un libellé.
-		 *
-		 * La colonne des barres est calculée depuis la largeur réelle du plus
-		 * long libellé : un écart fixe faisait chevaucher la barre et le texte
-		 * « MUS », plus large que « PC ».
-		 */
-		const float label_x = PAD + 19.0f;
-		const float label_w = text_width("MUS", TEXT_MICRO);
-		const float bar_x = label_x + label_w + 7.0f;
-		const float bar_w = 78.0f;
-		const float value_x = bar_x + bar_w + 6.0f;
-
-		/* Le libellé est centré sur sa barre, pour un alignement optique net. */
-		const float bar_h = 4.0f;
-		const float label_offset = (bar_h - TEXT_LINE_PX(TEXT_MICRO)) * 0.5f;
-
-		const float pc_bar_y = y + 8.0f;
-		const float mus_bar_y = y + 21.0f;
-
-		text_draw(label_x, pc_bar_y + label_offset, Z_CONTENT, TEXT_MICRO,
-		          COL_TEXT_FAINT, ALIGN_LEFT, "PC");
-		draw_progress(bar_x, pc_bar_y, bar_w, bar_h,
-		              vol_known ? (float)volume / 100.0f : 0.0f, Z_CONTENT,
-		              COL_SURFACE_HI, vol_color);
-
-		/*
-		 * Les volumes sont bornés à l'analyse du message, mais le compilateur
-		 * ne peut pas le déduire : le modulo le lui garantit et écarte tout
-		 * risque de troncature.
-		 */
-		char pc_text[8];
-		snprintf(pc_text, sizeof(pc_text), "%u", (unsigned)volume % 101u);
-		text_draw(value_x, pc_bar_y + label_offset, Z_CONTENT, TEXT_MICRO,
-		          COL_TEXT_DIM, ALIGN_LEFT, pc_text);
-
-		text_draw(label_x, mus_bar_y + label_offset, Z_CONTENT, TEXT_MICRO,
-		          COL_TEXT_FAINT, ALIGN_LEFT, "MUS");
-		draw_progress(bar_x, mus_bar_y, bar_w, bar_h,
-		              (float)app->state.app_volume / 100.0f, Z_CONTENT,
-		              COL_SURFACE_HI, COL_BLUE);
-
-		char app_text[8];
-		snprintf(app_text, sizeof(app_text), "%u",
-		         (unsigned)app->state.app_volume % 101u);
-		text_draw(value_x, mus_bar_y + label_offset, Z_CONTENT, TEXT_MICRO,
-		          COL_TEXT_DIM, ALIGN_LEFT, app_text);
-	} else {
-		draw_progress(PAD + 24.0f, y + 14.0f, 110.0f, 6.0f,
-		              vol_known ? (float)volume / 100.0f : 0.0f, Z_CONTENT,
-		              COL_SURFACE_HI, vol_color);
-
-		char vol_text[16];
-		if (vol_known) {
-			snprintf(vol_text, sizeof(vol_text), "%d", volume);
-		} else {
-			snprintf(vol_text, sizeof(vol_text), "--");
-		}
-		text_draw(PAD + 142.0f, y + 10.0f, Z_CONTENT, TEXT_BODY, COL_TEXT_DIM,
-		          ALIGN_LEFT, vol_text);
-	}
-
-	/*
-	 * Micro à droite, l'information la plus critique en visioconférence.
-	 *
-	 * L'indicateur n'est affiché que si l'état est réellement connu. Sur
-	 * certaines cartes son, le niveau d'entrée n'est pas lisible : afficher un
-	 * point d'interrogation occuperait alors une place précieuse sans rien
-	 * apprendre. Le bouton de la grille reste évidemment fonctionnel.
-	 */
-	if (app->state.mic_known) {
-		const bool mic_muted = app->state.mic_muted;
-		const u32 mic_color = mic_muted ? COL_ERR : COL_OK;
-		const char *mic_label =
-		    mic_muted ? tr(STR_MIC_MUTED) : tr(STR_MIC_ACTIVE);
-
-		const float label_w = text_width(mic_label, TEXT_SMALL);
-		const float icon_cx = SCREEN_TOP_W - PAD - label_w - 13.0f;
-		const float middle = y + FOOTER_H * 0.5f;
-
-		icons_draw(mic_muted ? ICON_MIC_OFF : ICON_MIC, icon_cx, middle, 18.0f,
-		           Z_CONTENT, mic_color);
-		text_draw(SCREEN_TOP_W - PAD,
-		          middle - TEXT_LINE_PX(TEXT_SMALL) * 0.5f, Z_CONTENT,
-		          TEXT_SMALL, mic_color, ALIGN_RIGHT, mic_label);
-	}
-}
-
-/** Vue média : titre, artiste, pochette symbolique et état de lecture. */
-static void draw_media(const App *app)
-{
-	const float top = HEADER_H + 6.0f;
-	const float height = SCREEN_H - FOOTER_H - top - 8.0f;
-
-	draw_shadow(PAD, top, SCREEN_TOP_W - PAD * 2.0f, height, 10.0f, Z_BG);
-	draw_round_rect_vgrad(PAD, top, SCREEN_TOP_W - PAD * 2.0f, height, 10.0f,
-	                      Z_CARD, COL_SURFACE, COL_SURFACE_LO);
-
-	if (!app->state.media_present) {
-		icons_draw(ICON_MUSIC, SCREEN_TOP_W * 0.5f, top + height * 0.42f, 42.0f,
-		           Z_CONTENT, COL_TEXT_FAINT);
-		text_draw(SCREEN_TOP_W * 0.5f, top + height * TEXT_TITLE, Z_CONTENT, TEXT_SMALL,
-		          COL_TEXT_FAINT, ALIGN_CENTER, tr(STR_NOTHING_PLAYING));
-		return;
-	}
-
-	/* Vignette carrée à gauche : la pochette réelle si le PC l'a transmise. */
-	const float art = height - 26.0f;
-	const float art_x = PAD + 13.0f;
-	const float art_y = top + 13.0f;
-
-	const u32 tint = app->state.media_playing ? COL_ACCENT : COL_TEXT_FAINT;
-
-	draw_shadow(art_x, art_y, art, art, 7.0f, Z_CARD);
-
-	if (artwork_available()) {
-		/*
-		 * L'image est dessinée puis encadrée d'un liseré sombre : sans lui, une
-		 * pochette claire se fondrait dans le fond de la carte.
-		 */
-		artwork_draw(art_x, art_y, art, Z_CONTENT, 0xFF);
-		draw_round_rect_outline(art_x, art_y, art, art, 4.0f, 1.0f, Z_OVERLAY,
-		                        theme_alpha(COL_WHITE, 0x28));
-	} else {
-		/* Substitut : le morceau est connu mais l'image n'est pas encore là. */
-		draw_round_rect_vgrad(art_x, art_y, art, art, 7.0f, Z_CONTENT,
-		                      theme_alpha(tint, 0x30),
-		                      theme_alpha(tint, 0x14));
-		draw_round_rect_outline(art_x, art_y, art, art, 7.0f, 1.2f, Z_CONTENT,
-		                        theme_alpha(tint, 0x55));
-		icons_draw(ICON_MUSIC, art_x + art * 0.5f, art_y + art * 0.5f,
-		           art * 0.50f, Z_OVERLAY, theme_alpha(tint, 0xCC));
-	}
-
-	/* Bloc texte à droite de la vignette. */
-	const float text_x = art_x + art + 15.0f;
-	const float text_w = SCREEN_TOP_W - PAD - 13.0f - text_x;
-
-	/* Nom du lecteur, en petites capitales colorées. */
-	if (app->state.media_app[0] != '\0') {
-		icons_draw(ICON_MUSIC, text_x + 5.0f, art_y + 7.0f, 11.0f, Z_CONTENT,
-		           tint);
-		text_draw_clipped(text_x + 14.0f, art_y + 1.0f, Z_CONTENT, TEXT_SMALL, tint,
-		                  ALIGN_LEFT, text_w - 14.0f, app->state.media_app);
-	}
-
-	text_draw_clipped(text_x, art_y + 18.0f, Z_CONTENT, TEXT_TITLE, COL_TEXT,
-	                  ALIGN_LEFT, text_w, app->state.media_title);
-
-	if (app->state.media_artist[0] != '\0') {
-		text_draw_clipped(text_x, art_y + 42.0f, Z_CONTENT, TEXT_BODY, COL_TEXT_DIM,
-		                  ALIGN_LEFT, text_w, app->state.media_artist);
-	}
-
-	if (app->state.media_album[0] != '\0') {
-		text_draw_clipped(text_x, art_y + 60.0f, Z_CONTENT, TEXT_SMALL,
-		                  COL_TEXT_FAINT, ALIGN_LEFT, text_w,
-		                  app->state.media_album);
-	}
-
-	/*
-	 * Progression de lecture, si le PC la connaît. Une barre pleine largeur est
-	 * plus lisible qu'un simple texte et donne une notion immédiate d'avancement.
-	 */
-	const float bar_y = art_y + art - 15.0f;
-
-	if (app->state.media_duration > 0) {
-		const int position = (app->state.media_position >= 0)
-		                         ? app->state.media_position
-		                         : 0;
-		const float ratio =
-		    (float)position / (float)app->state.media_duration;
-
-		char elapsed[16];
-		char total[16];
-		snprintf(elapsed, sizeof(elapsed), "%d:%02d", position / 60,
-		         position % 60);
-		snprintf(total, sizeof(total), "%d:%02d",
-		         app->state.media_duration / 60,
-		         app->state.media_duration % 60);
-
-		const float time_w = 30.0f;
-		text_draw(text_x, bar_y - 3.0f, Z_CONTENT, TEXT_MICRO, COL_TEXT_DIM,
-		          ALIGN_LEFT, elapsed);
-		text_draw(text_x + text_w, bar_y - 3.0f, Z_CONTENT, TEXT_MICRO,
-		          COL_TEXT_FAINT, ALIGN_RIGHT, total);
-
-		draw_progress(text_x + time_w, bar_y + 2.0f,
-		              text_w - time_w * 2.0f - 4.0f, 4.0f, ratio, Z_CONTENT,
-		              theme_alpha(COL_SURFACE_HI, 0xEE), tint);
-	} else {
-		/* Sans durée connue, on se limite à l'état de lecture. */
-		const IconId icon = app->state.media_playing ? ICON_PLAY : ICON_PAUSE;
-		const char *label = app->state.media_playing ? tr(STR_PLAYING) : tr(STR_PAUSED);
-
-		icons_draw(icon, text_x + 6.0f, bar_y + 3.0f, 13.0f, Z_CONTENT, tint);
-		text_draw(text_x + 16.0f, bar_y - 3.0f, Z_CONTENT, TEXT_SMALL, COL_TEXT_DIM,
-		          ALIGN_LEFT, label);
-	}
-}
-
 /** Vue applications : application active mise en avant, puis les autres. */
 static void draw_apps(const App *app)
 {
@@ -402,7 +160,7 @@ static void draw_apps(const App *app)
 		const ListEntry *entry = &current->entries[app->list_focus];
 
 		const float top = HEADER_H + 6.0f;
-		const float height = SCREEN_H - FOOTER_H - top - 8.0f;
+		const float height = SCREEN_H - top - 8.0f;
 		const float card_w = SCREEN_TOP_W - PAD * 2.0f;
 
 		draw_shadow(PAD, top, card_w, height, 10.0f, Z_BG);
@@ -437,7 +195,7 @@ static void draw_apps(const App *app)
 	}
 
 	const float top = HEADER_H + 6.0f;
-	const float height = SCREEN_H - FOOTER_H - top - 8.0f;
+	const float height = SCREEN_H - top - 8.0f;
 	const float card_w = SCREEN_TOP_W - PAD * 2.0f;
 
 	draw_shadow(PAD, top, card_w, height, 10.0f, Z_BG);
@@ -512,311 +270,6 @@ static void draw_apps(const App *app)
 	}
 }
 
-/** Vue système : jauges CPU, mémoire, volume et batterie de la console. */
-static void draw_system(const App *app)
-{
-	const float top = HEADER_H + 6.0f;
-	const float height = SCREEN_H - FOOTER_H - top - 8.0f;
-	const float card_w = SCREEN_TOP_W - PAD * 2.0f;
-
-	draw_shadow(PAD, top, card_w, height, 10.0f, Z_BG);
-	draw_round_rect_vgrad(PAD, top, card_w, height, 10.0f, Z_CARD, COL_SURFACE,
-	                      COL_SURFACE_LO);
-
-	const float col_w = (card_w - 48.0f) * 0.5f;
-	const float left = PAD + 16.0f;
-	const float right = left + col_w + 16.0f;
-
-	draw_gauge(left, top + 16.0f, col_w, tr(STR_PROCESSOR), app->state.cpu, COL_BLUE,
-	           app->state.cpu >= 0);
-	draw_gauge(right, top + 16.0f, col_w, tr(STR_MEMORY), app->state.memory,
-	           COL_WARN, app->state.memory >= 0);
-
-	draw_gauge(left, top + 58.0f, col_w, tr(STR_VOLUME), app->state.volume,
-	           app->state.muted ? COL_ERR : COL_ACCENT, app->state.volume >= 0);
-
-	/* Hôte connecté. */
-	text_draw(right, top + 58.0f, Z_CONTENT, TEXT_SMALL, COL_TEXT_FAINT, ALIGN_LEFT,
-	          tr(STR_COMPUTER));
-	text_draw_clipped(right, top + 72.0f, Z_CONTENT, TEXT_BODY, COL_TEXT,
-	                  ALIGN_LEFT, col_w,
-	                  app->state.host[0] != '\0' ? app->state.host : "--");
-}
-
-/**
- * Barre verticale d'égaliseur.
- *
- * L'animation n'est pas une analyse du son : la console ne reçoit pas le flux
- * audio. Les hauteurs sont dérivées du volume et d'oscillations déphasées, ce
- * qui produit un mouvement crédible et vivant sans coût de calcul. Les barres
- * se figent lorsque la lecture est en pause, afin que l'affichage reste honnête.
- */
-static void draw_equalizer(const App *app, float x, float y, float w, float h,
-                           u32 color, int level, bool animated)
-{
-	const int bars = 14;
-	const float gap = 2.0f;
-	const float bar_w = (w - gap * (float)(bars - 1)) / (float)bars;
-
-	const float base = (level > 0) ? (float)level / 100.0f : 0.0f;
-
-	for (int i = 0; i < bars; i++) {
-		float amount;
-
-		if (animated && base > 0.01f) {
-			/*
-			 * Deux sinusoïdes de fréquences différentes par barre : le motif ne
-			 * se répète pas de façon perceptible et évoque un vrai spectre.
-			 */
-			const float phase = (float)i * 0.7f;
-			const float slow = sinf(app->uptime * 3.1f + phase);
-			const float fast = sinf(app->uptime * 7.3f + phase * 1.9f);
-
-			/* Les basses fréquences, à gauche, bougent plus amplement. */
-			const float weight = 1.0f - (float)i / (float)bars * 0.45f;
-
-			amount = base * weight * (0.55f + 0.30f * slow + 0.15f * fast);
-		} else {
-			/* En pause : profil statique, symétrique et discret. */
-			const float centre = 1.0f - fabsf((float)i - 6.5f) / 7.0f;
-			amount = base * centre * 0.35f;
-		}
-
-		if (amount < 0.05f) {
-			amount = 0.05f;
-		}
-		if (amount > 1.0f) {
-			amount = 1.0f;
-		}
-
-		const float bar_h = h * amount;
-		const float bx = x + (float)i * (bar_w + gap);
-		const float by = y + h - bar_h;
-
-		/* Rail sombre en fond : la barre reste lisible même très basse. */
-		draw_round_rect(bx, y, bar_w, h, bar_w * 0.4f, Z_CONTENT,
-		                theme_alpha(COL_SURFACE_LO, 0xAA));
-
-		/*
-		 * Dégradé du bas vers le haut : la crête est plus claire, ce qui donne
-		 * l'impression d'une intensité qui monte.
-		 */
-		draw_round_rect_vgrad(bx, by, bar_w, bar_h, bar_w * 0.4f, Z_OVERLAY,
-		                      theme_mix(color, COL_WHITE, 0.45f), color);
-	}
-}
-
-/** Vue audio : volumes, sortie active et égaliseur. */
-static void draw_audio(const App *app)
-{
-	const float top = HEADER_H + 6.0f;
-	const float height = SCREEN_H - FOOTER_H - top - 8.0f;
-	const float card_w = SCREEN_TOP_W - PAD * 2.0f;
-
-	draw_shadow(PAD, top, card_w, height, 10.0f, Z_BG);
-	draw_round_rect_vgrad(PAD, top, card_w, height, 10.0f, Z_CARD, COL_SURFACE,
-	                      COL_SURFACE_LO);
-
-	/* Sortie audio active, mise en avant : c'est l'information structurante. */
-	const bool has_output = app->state.audio_output[0] != '\0';
-
-	icons_draw(ICON_VOLUME_UP, PAD + 22.0f, top + 20.0f, 17.0f, Z_CONTENT,
-	           COL_ACCENT);
-	text_draw(PAD + 36.0f, top + 8.0f, Z_CONTENT, TEXT_MICRO, COL_TEXT_FAINT,
-	          ALIGN_LEFT, tr(STR_AUDIO_OUTPUT));
-	text_draw_clipped(PAD + 36.0f, top + 20.0f, Z_CONTENT, TEXT_SMALL,
-	                  has_output ? COL_TEXT : COL_TEXT_FAINT, ALIGN_LEFT,
-	                  card_w - 60.0f,
-	                  has_output ? app->state.audio_output : tr(STR_OUTPUT_UNKNOWN));
-
-	/* Pastilles des autres sorties : montre ce vers quoi on peut basculer. */
-	if (app->state.audio_output_count > 1) {
-		float chip_x = PAD + 36.0f;
-		const float chip_y = top + 42.0f;
-		const float limit = PAD + card_w - 12.0f;
-
-		for (int i = 0; i < app->state.audio_output_count; i++) {
-			const char *name = app->state.audio_outputs[i];
-			if (name[0] == '\0') {
-				continue;
-			}
-
-			const bool current =
-			    has_output && strcmp(name, app->state.audio_output) == 0;
-
-			const float label_w = text_width(name, TEXT_MICRO);
-			const float chip_w = label_w + 14.0f;
-			if (chip_x + chip_w > limit) {
-				break;
-			}
-
-			draw_round_rect(chip_x, chip_y, chip_w, 15.0f, 7.5f, Z_CONTENT,
-			                current ? theme_alpha(COL_ACCENT, 0x40)
-			                        : theme_alpha(COL_SURFACE_HI, 0xAA));
-			text_draw(chip_x + 7.0f, chip_y + 2.0f, Z_OVERLAY, TEXT_MICRO,
-			          current ? COL_ACCENT : COL_TEXT_FAINT, ALIGN_LEFT, name);
-
-			chip_x += chip_w + 5.0f;
-		}
-	}
-
-	/* Égaliseur, sur la moitié basse de la carte. */
-	const float eq_y = top + 64.0f;
-	const float eq_h = height - 64.0f - 32.0f;
-
-	const int level = (app->state.app_volume >= 0) ? app->state.app_volume
-	                                               : app->state.volume;
-	const bool animated = app->state.media_playing && !app->state.muted;
-	const u32 eq_color = app->state.muted ? COL_ERR : COL_ACCENT;
-
-	if (eq_h > 10.0f) {
-		draw_equalizer(app, PAD + 16.0f, eq_y, card_w - 32.0f, eq_h, eq_color,
-		               level, animated);
-	}
-
-	/* Deux valeurs chiffrées sous l'égaliseur. */
-	const float info_y = top + height - 24.0f;
-	const float half = card_w * 0.5f;
-
-	char text[24];
-
-	snprintf(text, sizeof(text), "PC %u %%",
-	         (unsigned)(app->state.volume < 0 ? 0 : app->state.volume) % 101u);
-	text_draw(PAD + 16.0f, info_y, Z_CONTENT, TEXT_SMALL,
-	          app->state.muted ? COL_ERR : COL_TEXT_DIM, ALIGN_LEFT, text);
-
-	if (app->state.app_volume >= 0) {
-		snprintf(text, sizeof(text), "%s %u %%", tr(STR_MUSIC),
-		         (unsigned)app->state.app_volume % 101u);
-		text_draw(PAD + half + 16.0f, info_y, Z_CONTENT, TEXT_SMALL, COL_BLUE,
-		          ALIGN_LEFT, text);
-	} else if (app->state.media_present) {
-		text_draw(PAD + half + 16.0f, info_y, Z_CONTENT, TEXT_SMALL, COL_TEXT_FAINT,
-		          ALIGN_LEFT, tr(STR_MUSIC));
-	}
-}
-
-/**
- * Mode cadre à musique : la console devient un objet posé sur le bureau.
- *
- * La pochette occupe la hauteur disponible, le fond reprend sa couleur
- * dominante et les bandeaux habituels disparaissent. L'heure reste affichée,
- * discrètement, pour que l'objet garde une utilité au repos.
- */
-static void draw_frame_mode(const App *app)
-{
-	const u32 accent = app->state.media_accent_known ? app->state.media_accent
-	                                                 : COL_ACCENT;
-
-	/*
-	 * Fond teinté : un dégradé sombre vers la couleur de la pochette suffit à
-	 * donner une impression d'ambiance sans nuire à la lisibilité du texte.
-	 */
-	draw_rect_vgrad(0.0f, 0.0f, SCREEN_TOP_W, SCREEN_H, Z_BG,
-	                theme_mix(COL_BG, accent, 0.16f),
-	                theme_mix(COL_BG, accent, 0.04f));
-
-	if (!app->state.media_present) {
-		icons_draw(ICON_MUSIC, SCREEN_TOP_W * 0.5f, SCREEN_H * 0.42f, 56.0f,
-		           Z_CONTENT, theme_alpha(COL_TEXT_FAINT, 0xAA));
-		text_draw(SCREEN_TOP_W * 0.5f, SCREEN_H * TEXT_LARGE, Z_CONTENT, TEXT_BODY,
-		          COL_TEXT_FAINT, ALIGN_CENTER, tr(STR_NOTHING_PLAYING));
-		text_draw(SCREEN_TOP_W * 0.5f, SCREEN_H - 24.0f, Z_CONTENT, TEXT_BODY,
-		          COL_TEXT_FAINT, ALIGN_CENTER,
-		          app->state.time[0] != '\0' ? app->state.time
-		                                     : app->local_time);
-		return;
-	}
-
-	/* Pochette carrée, centrée verticalement, occupant presque tout l'écran. */
-	const float art = SCREEN_H - 34.0f;
-	const float art_x = 18.0f;
-	const float art_y = 17.0f;
-
-	/* Halo coloré derrière la pochette : suggère une lumière diffuse. */
-	draw_round_rect(art_x - 4.0f, art_y - 4.0f, art + 8.0f, art + 8.0f, 12.0f,
-	                Z_BG, theme_alpha(accent, 0x3A));
-
-	if (artwork_available()) {
-		artwork_draw(art_x, art_y, art, Z_CARD, 0xFF);
-		draw_round_rect_outline(art_x, art_y, art, art, 4.0f, 1.2f, Z_CONTENT,
-		                        theme_alpha(COL_WHITE, 0x33));
-	} else {
-		draw_round_rect_vgrad(art_x, art_y, art, art, 10.0f, Z_CARD,
-		                      theme_alpha(accent, 0x44),
-		                      theme_alpha(accent, 0x1A));
-		icons_draw(ICON_MUSIC, art_x + art * 0.5f, art_y + art * 0.5f,
-		           art * 0.45f, Z_OVERLAY, theme_alpha(COL_WHITE, 0xAA));
-	}
-
-	/* Bloc d'informations à droite de la pochette. */
-	const float text_x = art_x + art + 18.0f;
-	const float text_w = SCREEN_TOP_W - 16.0f - text_x;
-
-	/*
-	 * Heure discrète en haut, sauf en veille : l'écran tactile l'affiche alors
-	 * en grand avec la date, la répéter ici n'apporterait rien et chargerait
-	 * inutilement l'image.
-	 */
-	if (!app->frame_from_idle) {
-		text_draw(SCREEN_TOP_W - 16.0f, art_y, Z_CONTENT, TEXT_SMALL,
-		          theme_alpha(COL_TEXT, 0xAA), ALIGN_RIGHT,
-		          app->state.time[0] != '\0' ? app->state.time
-		                                     : app->local_time);
-	}
-
-	/* Titre sur deux niveaux de taille selon la place disponible. */
-	text_draw_clipped(text_x, art_y + 42.0f, Z_CONTENT, TEXT_TITLE, COL_TEXT,
-	                  ALIGN_LEFT, text_w, app->state.media_title);
-
-	if (app->state.media_artist[0] != '\0') {
-		text_draw_clipped(text_x, art_y + 68.0f, Z_CONTENT, TEXT_BODY,
-		                  theme_mix(COL_TEXT_DIM, accent, 0.45f), ALIGN_LEFT,
-		                  text_w, app->state.media_artist);
-	}
-
-	if (app->state.media_album[0] != '\0') {
-		text_draw_clipped(text_x, art_y + 88.0f, Z_CONTENT, TEXT_SMALL,
-		                  COL_TEXT_FAINT, ALIGN_LEFT, text_w,
-		                  app->state.media_album);
-	}
-
-	/* Progression, en bas du bloc. */
-	if (app->state.media_duration > 0) {
-		const int position =
-		    (app->state.media_position >= 0) ? app->state.media_position : 0;
-
-		char elapsed[16];
-		snprintf(elapsed, sizeof(elapsed), "%d:%02d", position / 60,
-		         position % 60);
-		char total[16];
-		snprintf(total, sizeof(total), "%d:%02d",
-		         app->state.media_duration / 60,
-		         app->state.media_duration % 60);
-
-		const float bar_y = art_y + art - 26.0f;
-
-		draw_progress(text_x, bar_y, text_w, 5.0f,
-		              (float)position / (float)app->state.media_duration,
-		              Z_CONTENT, theme_alpha(COL_SURFACE_HI, 0xDD), accent);
-
-		text_draw(text_x, bar_y + 8.0f, Z_CONTENT, TEXT_MICRO, COL_TEXT_FAINT,
-		          ALIGN_LEFT, elapsed);
-		text_draw(text_x + text_w, bar_y + 8.0f, Z_CONTENT, TEXT_MICRO,
-		          COL_TEXT_FAINT, ALIGN_RIGHT, total);
-	}
-
-	/* État de lecture, sous forme de pastille discrète. */
-	const IconId icon = app->state.media_playing ? ICON_PLAY : ICON_PAUSE;
-	icons_draw(icon, text_x + 7.0f, art_y + 22.0f, 13.0f, Z_CONTENT, accent);
-
-	if (app->state.media_app[0] != '\0') {
-		text_draw_clipped(text_x + 18.0f, art_y + 16.0f, Z_CONTENT, TEXT_MICRO,
-		                  theme_alpha(accent, 0xEE), ALIGN_LEFT, text_w - 18.0f,
-		                  app->state.media_app);
-	}
-}
-
 /** Met en forme une ancienneté : « 45 s », « 12 min », « 3 h ». */
 static void format_age(int seconds, char *dest, size_t size)
 {
@@ -833,7 +286,7 @@ static void format_age(int seconds, char *dest, size_t size)
 static void draw_notifications(const App *app)
 {
 	const float top = HEADER_H + 6.0f;
-	const float height = SCREEN_H - FOOTER_H - top - 8.0f;
+	const float height = SCREEN_H - top - 8.0f;
 	const float card_w = SCREEN_TOP_W - PAD * 2.0f;
 
 	draw_shadow(PAD, top, card_w, height, 10.0f, Z_BG);
@@ -1024,23 +477,34 @@ void ui_draw_top(const App *app)
 	 * se passe des bandeaux, il est donc traité avant eux.
 	 */
 	if (mode == DASH_FRAME) {
-		draw_frame_mode(app);
+		ui_top_frame_draw(app);
 		draw_toast(app);
 		return;
 	}
 
 	draw_background(app);
+
+	/*
+	 * La vue pochette reprend le fond immersif du mode cadre. Le bandeau est
+	 * dessine ensuite par-dessus afin de conserver heure, date et connexion.
+	 */
+	if (mode == DASH_MEDIA) {
+		ui_top_media_draw(app);
+		draw_header(app);
+		draw_toast(app);
+		return;
+	}
+
 	draw_header(app);
 
 	switch (mode) {
 	case DASH_MEDIA:
-		draw_media(app);
-		break;
+		break; /* traite plus haut pour respecter l'ordre des plans */
 	case DASH_SYSTEM:
-		draw_system(app);
+		ui_top_system_draw(app);
 		break;
 	case DASH_AUDIO:
-		draw_audio(app);
+		ui_top_audio_draw(app);
 		break;
 	case DASH_NOTIFICATIONS:
 		draw_notifications(app);
@@ -1054,6 +518,5 @@ void ui_draw_top(const App *app)
 		break;
 	}
 
-	draw_footer(app);
 	draw_toast(app);
 }

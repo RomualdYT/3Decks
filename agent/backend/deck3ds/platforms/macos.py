@@ -16,7 +16,10 @@ Points vérifiés sur macOS 27 avant écriture de ce module :
 
 from __future__ import annotations
 
+import os
 import re
+import shutil
+import time
 from pathlib import Path
 
 from ..config import MAX_LIST_ENTRIES
@@ -32,6 +35,7 @@ from .base import (
     Capabilities,
     MediaInfo,
     NotificationInfo,
+    PerformanceInfo,
     Platform,
     SelectionCancelled,
     SystemSnapshot,
@@ -84,6 +88,9 @@ class MacPlatform(Platform):
             self._script, self._script_quiet, self.feature_enabled
         )
         self._cpu_count: int | None = None
+        # Compteurs bruts de l'interface réseau, nécessaires pour calculer un
+        # débit entre deux photographies sans processus résident externe.
+        self._network_sample: tuple[float, int, int] | None = None
 
     # --- Capacités ------------------------------------------------------------
 
@@ -560,18 +567,25 @@ class MacPlatform(Platform):
                 snapshot.new_notification = None
 
         if self.feature_enabled("system_stats"):
-            snapshot.cpu = self.get_cpu()
-            snapshot.memory = self.get_memory()
+            snapshot.apply_performance(self.get_performance())
         return snapshot
 
     def get_memory(self) -> int | None:
+        return self._memory_stats()[0]
+
+    def _memory_stats(self) -> tuple[int | None, int | None, int | None]:
+        """Occupation, mémoire utilisée et mémoire totale en mébioctets."""
         try:
             output = self.run(["vm_stat"], timeout=3.0)
         except (Unsupported, ActionFailed):
-            return None
+            return None, None, None
 
         pages: dict[str, int] = {}
+        page_size = 4096
         for line in output.splitlines():
+            size_match = re.search(r"page size of (\d+) bytes", line)
+            if size_match:
+                page_size = max(1, int(size_match.group(1)))
             match = re.match(r'^"?([^":]+)"?:\s+(\d+)\.?', line.strip())
             if match:
                 pages[match.group(1).strip().lower()] = int(match.group(2))
@@ -584,7 +598,146 @@ class MacPlatform(Platform):
 
         total = free + active + inactive + wired + compressed
         if total <= 0:
-            return None
+            return None, None, None
 
         used = active + wired + compressed
-        return max(0, min(100, int(round(used * 100.0 / total))))
+        percent = max(0, min(100, int(round(used * 100.0 / total))))
+
+        raw_total = self._sysctl("hw.memsize")
+        try:
+            total_bytes = int(raw_total) if raw_total else total * page_size
+        except ValueError:
+            total_bytes = total * page_size
+        used_bytes = min(total_bytes, used * page_size)
+
+        return percent, used_bytes // (1024 * 1024), total_bytes // (1024 * 1024)
+
+    def _network_totals(self) -> tuple[int, int] | None:
+        """Octets reçus/émis, en dédupliquant les lignes par interface."""
+        try:
+            output = self.run(["netstat", "-ibn"], timeout=2.0)
+        except (Unsupported, ActionFailed):
+            return None
+
+        indexes: tuple[int, int] | None = None
+        interfaces: dict[str, tuple[int, int]] = {}
+        for line in output.splitlines():
+            columns = line.split()
+            if not columns:
+                continue
+            if columns[0] == "Name" and "Ibytes" in columns and "Obytes" in columns:
+                indexes = (columns.index("Ibytes"), columns.index("Obytes"))
+                continue
+            if indexes is None or columns[0].startswith("lo"):
+                continue
+            receive_index, send_index = indexes
+            if max(receive_index, send_index) >= len(columns):
+                continue
+            try:
+                received = int(columns[receive_index])
+                sent = int(columns[send_index])
+            except ValueError:
+                continue
+
+            previous = interfaces.get(columns[0], (0, 0))
+            interfaces[columns[0]] = (
+                max(previous[0], received),
+                max(previous[1], sent),
+            )
+
+        if not interfaces:
+            return None
+        return (
+            sum(value[0] for value in interfaces.values()),
+            sum(value[1] for value in interfaces.values()),
+        )
+
+    def _network_rates(self) -> tuple[int | None, int | None]:
+        """Débits descendants/montants en kilobits par seconde."""
+        totals = self._network_totals()
+        now = time.monotonic()
+        previous = getattr(self, "_network_sample", None)
+        if totals is None:
+            return None, None
+
+        self._network_sample = (now, totals[0], totals[1])
+        if previous is None:
+            return 0, 0
+
+        elapsed = now - previous[0]
+        received = totals[0] - previous[1]
+        sent = totals[1] - previous[2]
+        if elapsed <= 0.05 or received < 0 or sent < 0:
+            return 0, 0
+        return (
+            max(0, int(round(received * 8.0 / elapsed / 1000.0))),
+            max(0, int(round(sent * 8.0 / elapsed / 1000.0))),
+        )
+
+    def _top_process(self) -> tuple[str, int | None]:
+        """Processus le plus actif, rapporté à l'ensemble des cœurs."""
+        try:
+            output = self.run(["ps", "-A", "-o", "pcpu=,comm="], timeout=2.0)
+        except (Unsupported, ActionFailed):
+            return "", None
+
+        best_name = ""
+        best_cpu = -1.0
+        for line in output.splitlines():
+            fields = line.strip().split(None, 1)
+            if len(fields) != 2:
+                continue
+            value = _parse_number(fields[0])
+            if value is None or value <= best_cpu:
+                continue
+            best_cpu = value
+            best_name = os.path.basename(fields[1].strip())
+
+        if best_cpu < 0.0:
+            return "", None
+        cpu_count = max(1, self._cpu_count or 1)
+        normalized = max(0, min(100, int(round(best_cpu / cpu_count))))
+        return best_name, normalized
+
+    def get_performance(self) -> PerformanceInfo:
+        """Collecte enrichie macOS, sans dépendance ni accès privilégié."""
+        performance = PerformanceInfo()
+
+        try:
+            performance.cpu = self.get_cpu()
+        except Exception:
+            pass
+
+        try:
+            (
+                performance.memory,
+                performance.memory_used_mb,
+                performance.memory_total_mb,
+            ) = self._memory_stats()
+        except Exception:
+            pass
+
+        try:
+            disk = shutil.disk_usage("/")
+            performance.disk = max(
+                0, min(100, int(round((disk.total - disk.free) * 100.0 / disk.total)))
+            )
+            performance.disk_free_mb = disk.free // (1024 * 1024)
+            performance.disk_total_mb = disk.total // (1024 * 1024)
+        except (OSError, ZeroDivisionError):
+            pass
+
+        try:
+            (
+                performance.network_down_kbps,
+                performance.network_up_kbps,
+            ) = self._network_rates()
+        except Exception:
+            pass
+
+        try:
+            performance.top_process, performance.top_process_cpu = self._top_process()
+        except Exception:
+            pass
+
+        return performance

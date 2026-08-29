@@ -40,8 +40,9 @@ cd agent
 python3 -m deck3ds
 ```
 
-L'agent affiche l'adresse à saisir sur la console. Avant cela, il est utile de
-vérifier ce que votre machine expose réellement :
+L'agent s'annonce automatiquement sur le réseau local. L'adresse affichée dans
+le terminal ne sert plus qu'à la configuration manuelle de secours. Il reste
+utile de vérifier ce que votre machine expose réellement :
 
 ```bash
 python3 -m deck3ds --probe
@@ -54,14 +55,16 @@ fonctionner.
 ### 3. Installer sur la console
 
 Copiez `deck3ds.3dsx` dans `sdmc:/3ds/`, puis lancez Deck3DS depuis le Homebrew
-Launcher. **Un assistant vous guide pour choisir la langue et saisir l'adresse
-de votre ordinateur**, et vous permet de tester la connexion avant de
-commencer. Aucun fichier n'est à modifier à la main.
+Launcher. **Un assistant vous guide pour choisir la langue et sélectionner
+l'ordinateur par son nom.** Si la sécurité réseau est activée, saisissez le
+code court affiché dans l'interface de l'agent : la console récupère et conserve
+automatiquement le jeton durable. L'adresse et le port restent dans
+**Configuration manuelle**. Aucun fichier n'est à modifier à la main.
 
 ### Envoi par Wi-Fi pendant le développement
 
 ```bash
-python3 tools/send3ds.py -a 192.168.1.88
+python3 tools/send3ds.py
 ```
 
 Activez d'abord 3dslink sur la console (Homebrew Launcher, touche `Y`).
@@ -89,8 +92,9 @@ L'écran de réglages intégré (`L` + `SELECT`, ou un bouton avec l'action
 `settings.open`) permet de changer :
 
 - la langue de l'interface
-- l'adresse et le port de l'ordinateur, au clavier système
-- le retour au toucher
+- l'ordinateur découvert et appairé automatiquement
+- l'adresse et le port de secours, dans la configuration manuelle
+- le retour sonore
 - le délai d'assombrissement de l'écran
 - le relancement de l'assistant
 

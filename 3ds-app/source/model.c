@@ -21,6 +21,16 @@ void model_state_clear(PcState *state)
 	state->app_volume = -1;
 	state->cpu = -1;
 	state->memory = -1;
+	state->memory_used_mb = -1;
+	state->memory_total_mb = -1;
+	state->disk = -1;
+	state->disk_free_mb = -1;
+	state->disk_total_mb = -1;
+	state->network_down_kbps = -1;
+	state->network_up_kbps = -1;
+	state->top_process_cpu = -1;
+	state->gpu = -1;
+	state->temperature = -1;
 	state->mic_known = false;
 	state->media_present = false;
 	state->media_art = 0;

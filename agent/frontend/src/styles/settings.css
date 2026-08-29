@@ -26,6 +26,19 @@
 .address-card [data-slot="card-content"] { align-items: center; display: flex; flex-direction: row; justify-content: space-between; padding: 18px; }
 .address-card code { color: var(--text); display: block; font-size: 16px; font-weight: 700; margin-top: 6px; }
 .address-card small { color: var(--muted); display: block; font-size: 9px; margin-top: 5px; }
+.pairing-card { background: linear-gradient(145deg, rgba(31,33,29,.96), rgba(24,24,28,.92)); border: 1px solid rgba(102,203,16,.24); border-radius: var(--radius); box-shadow: 0 18px 48px rgba(0,0,0,.16); margin-bottom: 16px; overflow: hidden; }
+.pairing-card-head { align-items: center; display: grid; gap: 13px; grid-template-columns: 42px 1fr auto; padding: 17px; }
+.pairing-card-head > span { align-items: center; background: var(--accent-soft); border: 1px solid rgba(102,203,16,.2); border-radius: 12px; color: var(--accent); display: flex; height: 40px; justify-content: center; width: 40px; }
+.pairing-card-head h3 { margin-bottom: 4px; }
+.pairing-card-head p { font-size: 10px; }
+.pairing-live { background: var(--accent-soft); border: 1px solid rgba(102,203,16,.2); border-radius: 999px; color: var(--accent); font-size: 8px; font-style: normal; font-weight: 850; letter-spacing: .1em; padding: 6px 8px; }
+.pairing-code { align-items: center; background: rgba(10,10,12,.5); border-top: 1px solid var(--border); display: flex; justify-content: space-between; min-height: 100px; padding: 16px 17px; }
+.pairing-code small { color: var(--muted); display: block; font-size: 9px; font-weight: 700; margin-bottom: 5px; }
+.pairing-code strong { color: var(--text); display: block; font-size: 29px; font-variant-numeric: tabular-nums; letter-spacing: .13em; line-height: 1; text-shadow: 0 0 28px rgba(102,203,16,.2); }
+.pairing-code strong span { color: var(--accent); }
+.pairing-code .pairing-open-label { color: var(--accent); font-size: 16px; letter-spacing: -.01em; }
+.pairing-code p { font-size: 9px; margin-top: 8px; }
+.manual-address-card { opacity: .86; }
 .token-panel { align-items: center; background: var(--surface-input); border-top: 1px solid var(--border); display: flex; justify-content: space-between; padding: 13px 17px; }
 .token-panel small, .token-panel code { display: block; }
 .token-panel small { color: var(--muted); font-size: 9px; margin-bottom: 5px; }

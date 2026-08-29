@@ -144,6 +144,41 @@ bool ui_waiting_settings_at(float x, float y)
 	       y >= rect.y - 3.0f && y < rect.y + rect.h + 3.0f;
 }
 
+/** Retour compact d'une action, sans recouvrir son libellé. */
+static void draw_action_feedback(ActionFeedbackState state, float cx, float cy,
+                                 float uptime)
+{
+	if (state == ACTION_FEEDBACK_NONE) {
+		return;
+	}
+
+	draw_circle(cx, cy, 7.5f, Z_OVERLAY, theme_alpha(COL_BG, 0xE8));
+
+	if (state == ACTION_FEEDBACK_PENDING) {
+		draw_ring(cx, cy, 5.4f, 1.2f, Z_OVERLAY,
+		          theme_alpha(COL_ACCENT, 0x42));
+		draw_arc(cx, cy, 5.4f, 1.8f, fmodf(uptime * 1.4f, 1.0f), 0.30f,
+		         Z_OVERLAY, COL_ACCENT);
+		return;
+	}
+
+	const u32 fill =
+	    state == ACTION_FEEDBACK_SUCCESS ? COL_OK : COL_ERR;
+	draw_circle(cx, cy, 5.7f, Z_OVERLAY, fill);
+
+	if (state == ACTION_FEEDBACK_SUCCESS) {
+		draw_line(cx - 3.0f, cy, cx - 0.8f, cy + 2.3f, 1.4f,
+		          Z_OVERLAY, COL_BG);
+		draw_line(cx - 0.8f, cy + 2.3f, cx + 3.4f, cy - 2.7f, 1.4f,
+		          Z_OVERLAY, COL_BG);
+	} else {
+		draw_line(cx - 2.4f, cy - 2.4f, cx + 2.4f, cy + 2.4f, 1.4f,
+		          Z_OVERLAY, COL_WHITE);
+		draw_line(cx - 2.4f, cy + 2.4f, cx + 2.4f, cy - 2.4f, 1.4f,
+		          Z_OVERLAY, COL_WHITE);
+	}
+}
+
 /** Dessine un bouton de la grille. */
 static void draw_button(const App *app, const Button *button, int slot)
 {
@@ -170,6 +205,10 @@ static void draw_button(const App *app, const Button *button, int slot)
 	}
 
 	const bool active = model_toggle_active(&app->state, button->toggle);
+	const Page *page = app_current_page(app);
+	const ActionFeedbackState feedback =
+	    page != NULL ? app_action_feedback(app, page->id, button->id)
+	                 : ACTION_FEEDBACK_NONE;
 	const float press = button->press;
 
 	/*
@@ -229,6 +268,13 @@ static void draw_button(const App *app, const Button *button, int slot)
 		top = COL_SURFACE_HI;
 		bottom = COL_SURFACE_LO;
 	}
+	if (feedback == ACTION_FEEDBACK_PENDING) {
+		top = theme_mix(top, COL_ACCENT, 0.08f);
+	} else if (feedback == ACTION_FEEDBACK_SUCCESS) {
+		top = theme_mix(top, COL_OK, 0.13f);
+	} else if (feedback == ACTION_FEEDBACK_ERROR) {
+		top = theme_mix(top, COL_ERR, 0.13f);
+	}
 
 	if (press > 0.01f) {
 		top = theme_mix(top, COL_WHITE, press * 0.12f);
@@ -247,16 +293,14 @@ static void draw_button(const App *app, const Button *button, int slot)
 	/*
 	 * Répartition verticale, calculée depuis le bas.
 	 *
-	 * La police système mesure trente pixels de haut à l'échelle 1 : un libellé
-	 * en TEXT_BODY occupe donc seize pixels, et l'indice d'appui long treize.
-	 * On réserve ces hauteurs avant de placer l'icône, sinon le texte
-	 * chevaucherait le pictogramme.
+	 * L'action secondaire ne réserve plus une ligne permanente. Son marqueur
+	 * reste visible dans un coin, et son nom ne remplace le libellé principal
+	 * que pendant le geste de maintien.
 	 */
 	const bool has_hold = button->hold_label[0] != '\0';
 
-	const float hold_h = has_hold ? TEXT_LINE_PX(TEXT_MICRO) : 0.0f;
 	const float label_h = TEXT_LINE_PX(TEXT_BODY);
-	const float text_block = label_h + hold_h + 4.0f;
+	const float text_block = label_h + 5.0f;
 
 	const float cx = x + w * 0.5f;
 	/* L'icône se centre dans l'espace laissé au-dessus du texte. */
@@ -287,6 +331,16 @@ static void draw_button(const App *app, const Button *button, int slot)
 	if (selected) {
 		outline = 2.2f;
 		outline_color = COL_WHITE;
+	}
+	if (feedback == ACTION_FEEDBACK_PENDING) {
+		outline = 1.6f;
+		outline_color = theme_alpha(COL_ACCENT, 0xD0);
+	} else if (feedback == ACTION_FEEDBACK_SUCCESS) {
+		outline = 2.0f;
+		outline_color = COL_OK;
+	} else if (feedback == ACTION_FEEDBACK_ERROR) {
+		outline = 2.0f;
+		outline_color = COL_ERR;
 	}
 
 	draw_round_rect_outline(x, y, w, h, radius, outline, Z_CONTENT,
@@ -322,25 +376,43 @@ static void draw_button(const App *app, const Button *button, int slot)
 
 	icons_draw(icon, cx, icon_cy, icon_size, Z_OVERLAY, icon_color);
 
-	/* Libellé, puis indice d'appui long juste en dessous. */
+	/* Anneau qui se remplit autour de l'icône pendant l'appui long. */
+	const float hold_progress = app_hold_progress(app, slot);
+	if (hold_progress > 0.0f) {
+		const float ring_radius = icon_size * 0.80f;
+		draw_ring(cx, icon_cy, ring_radius, 1.3f, Z_OVERLAY,
+		          theme_alpha(COL_ACCENT, 0x3A));
+		draw_arc(cx, icon_cy, ring_radius, 2.2f, 0.0f, hold_progress,
+		         Z_OVERLAY, COL_ACCENT);
+	}
+
+	/* Le nom secondaire n'apparaît que pendant le geste qui le déclenche. */
 	const float label_y = y + h - text_block + 2.0f;
+	const bool showing_hold =
+	    has_hold && app->pressed_slot == slot && app->press_time > 0.08f;
 
 	text_draw_clipped(cx, label_y, Z_OVERLAY, TEXT_BODY,
 	                  active ? COL_WHITE : COL_TEXT, ALIGN_CENTER, w - 8.0f,
-	                  button->label);
+	                  showing_hold ? button->hold_label : button->label);
 
-	if (has_hold) {
-		text_draw_clipped(cx, label_y + label_h, Z_OVERLAY, TEXT_MICRO,
-		                  active ? theme_alpha(COL_WHITE, 0xB0)
-		                         : COL_TEXT_FAINT,
-		                  ALIGN_CENTER, w - 8.0f, button->hold_label);
+	/* Trois points signalent sans texte qu'une action secondaire existe. */
+	if (has_hold && !showing_hold) {
+		const u32 marker = active ? theme_alpha(COL_WHITE, 0x8A)
+		                          : theme_alpha(COL_TEXT_DIM, 0xB0);
+		for (int i = 0; i < 3; i++) {
+			draw_circle(x + w - 15.0f + (float)i * 4.0f, y + h - 8.0f,
+			            1.0f, Z_OVERLAY, marker);
+		}
 	}
 
 	/*
 	 * Pastille d'état : rend l'activation lisible d'un seul coup d'œil, même
 	 * de loin ou de biais.
 	 */
-	if (active) {
+	if (feedback != ACTION_FEEDBACK_NONE) {
+		draw_action_feedback(feedback, x + w - 11.0f, y + 11.0f,
+		                     app->uptime);
+	} else if (active) {
 		draw_circle(x + w - 10.0f, y + 10.0f, 3.0f, Z_OVERLAY, COL_WHITE);
 	}
 }
@@ -454,6 +526,10 @@ static void draw_list_item(const App *app, const ListEntry *entry, int index)
 	}
 
 	const bool focused = (index == app->list_focus);
+	const Page *page = app_current_page(app);
+	const ActionFeedbackState feedback =
+	    page != NULL ? app_action_feedback(app, page->id, entry->id)
+	                 : ACTION_FEEDBACK_NONE;
 	const float radius = 8.0f;
 
 	/*
@@ -472,15 +548,33 @@ static void draw_list_item(const App *app, const ListEntry *entry, int index)
 		top = COL_SURFACE;
 		bottom = COL_SURFACE_LO;
 	}
+	if (feedback == ACTION_FEEDBACK_PENDING) {
+		top = theme_mix(top, COL_ACCENT, 0.08f);
+	} else if (feedback == ACTION_FEEDBACK_SUCCESS) {
+		top = theme_mix(top, COL_OK, 0.12f);
+	} else if (feedback == ACTION_FEEDBACK_ERROR) {
+		top = theme_mix(top, COL_ERR, 0.12f);
+	}
 
 	draw_round_rect_vgrad(rect.x, rect.y, rect.w, rect.h, radius, Z_CARD, top,
 	                      bottom);
 
-	if (entry->active || focused) {
+	if (entry->active || focused || feedback != ACTION_FEEDBACK_NONE) {
+		u32 outline_color = theme_alpha(
+		    entry->color, entry->active ? 0xDD : 0x77);
+		float outline = entry->active ? 1.4f : 1.0f;
+		if (feedback == ACTION_FEEDBACK_PENDING) {
+			outline_color = theme_alpha(COL_ACCENT, 0xD0);
+			outline = 1.4f;
+		} else if (feedback == ACTION_FEEDBACK_SUCCESS) {
+			outline_color = COL_OK;
+			outline = 1.6f;
+		} else if (feedback == ACTION_FEEDBACK_ERROR) {
+			outline_color = COL_ERR;
+			outline = 1.6f;
+		}
 		draw_round_rect_outline(rect.x, rect.y, rect.w, rect.h, radius,
-		                        entry->active ? 1.4f : 1.0f, Z_CONTENT,
-		                        theme_alpha(entry->color,
-		                                    entry->active ? 0xDD : 0x77));
+		                        outline, Z_CONTENT, outline_color);
 	}
 
 	/* Bandeau vertical coloré : repère discret, aligné à gauche. */
@@ -498,7 +592,7 @@ static void draw_list_item(const App *app, const ListEntry *entry, int index)
 
 	/* Deux lignes : l'application, puis le détail qui la précise. */
 	const float text_x = rect.x + 32.0f;
-	const float text_w = rect.w - 38.0f;
+	const float text_w = rect.w - 48.0f;
 
 	const bool has_detail = entry->detail[0] != '\0';
 	const float label_y =
@@ -515,6 +609,9 @@ static void draw_list_item(const App *app, const ListEntry *entry, int index)
 		                                : COL_TEXT_FAINT,
 		                  ALIGN_LEFT, text_w, entry->detail);
 	}
+
+	draw_action_feedback(feedback, rect.x + rect.w - 14.0f, middle,
+	                     app->uptime);
 }
 
 /** Barre de position, à droite, indiquant l'étendue du défilement. */

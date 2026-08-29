@@ -29,6 +29,14 @@ typedef enum {
 	MSG_PONG,
 } MessageKind;
 
+/** Annonce UDP d'un agent détecté sur le réseau local. */
+typedef struct {
+	char name[64];
+	char platform[24];
+	int port;
+	bool pairing_required;
+} AgentAnnouncement;
+
 /** Résultat du décodage d'un message entrant. */
 typedef struct {
 	MessageKind kind;
@@ -48,6 +56,10 @@ typedef struct {
 
 	/* MSG_HELLO_ERROR */
 	char reason[LEN_TEXT];
+	bool pairing_required;
+
+	/* MSG_HELLO_OK, uniquement après consommation d'un code court. */
+	char paired_token[64];
 
 	/* MSG_PONG */
 	int ping_id;
@@ -72,9 +84,14 @@ typedef struct {
 bool protocol_decode(const char *json, size_t length, IncomingMessage *out,
                      Config *config, PcState *state);
 
+/** Décode une réponse de découverte locale. */
+bool protocol_decode_discovery(const char *json, size_t length,
+                               AgentAnnouncement *out);
+
 /** Construit le message `hello`. Retourne le nombre d'octets écrits. */
 int protocol_encode_hello(char *dest, size_t dest_size, const char *device,
-                          const char *token, const char *language);
+                          const char *token, const char *pair_code,
+                          const char *language);
 
 /** Construit un message `button.press`. */
 int protocol_encode_button(char *dest, size_t dest_size, int id,

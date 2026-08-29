@@ -2,7 +2,7 @@ import type { LucideIcon } from "lucide-react";
 import {
   AppWindow, Bell, Check, ChevronDown, ChevronLeft, ChevronRight, CirclePower, Copy, FileText, Folder, Gauge,
   Globe2, Grid2X2, Info, Keyboard, Languages, Link2, List, Lock, MessageCircle, Mic, MicOff, Monitor, MoonStar,
-  Music2, Pause, Play, Plus, Radio, Settings, SlidersHorizontal, Sparkles, Square, Star, Terminal, Trash2,
+  Music2, Pause, Play, Plus, Radio, RefreshCw, Settings, SlidersHorizontal, Sparkles, Square, Star, Terminal, Trash2,
   GripVertical, MoreHorizontal, Pencil, Save, Undo2, Video, Volume1, Volume2, VolumeOff, Wifi, Workflow, X,
 } from "lucide-react";
 
@@ -14,7 +14,7 @@ const ICONS: Record<string, LucideIcon> = {
   info: Info, grid: Grid2X2, list: List, language: Languages, sliders: SlidersHorizontal, link: Link2,
   status: Gauge, wifi: Wifi, monitor: Monitor, sparkle: Sparkles, theme: MoonStar, workflow: Workflow,
   globe: Globe2, square: Square, down: ChevronDown, bell: Bell, keyboard: Keyboard,
-  copy: Copy, grip: GripVertical, more: MoreHorizontal, edit: Pencil, save: Save, undo: Undo2, check: Check,
+  copy: Copy, refresh: RefreshCw, grip: GripVertical, more: MoreHorizontal, edit: Pencil, save: Save, undo: Undo2, check: Check,
 };
 
 export function DeckIcon({ name, size = 20, className }: { name: string; size?: number; className?: string }) {

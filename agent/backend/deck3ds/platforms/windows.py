@@ -25,6 +25,7 @@ import re
 import subprocess
 import tempfile
 import threading
+import time
 from pathlib import Path
 
 from ..config import MAX_LIST_ENTRIES
@@ -36,6 +37,7 @@ from .base import (
     Capabilities,
     MediaInfo,
     NotificationInfo,
+    PerformanceInfo,
     Platform,
     SelectionCancelled,
     SystemSnapshot,
@@ -208,6 +210,8 @@ class WindowsPlatform(Platform):
         self._media_key = ""
         self._media_art_url = ""
         self._media_error = ""
+        self._performance_cache: PerformanceInfo | None = None
+        self._performance_cache_at = 0.0
 
     # --- Capacités ------------------------------------------------------------
 
@@ -991,6 +995,152 @@ if ($s) {
 
         match = re.search(r"\d+", raw)
         return max(0, min(100, int(match.group()))) if match else None
+
+    def get_performance(self) -> PerformanceInfo:
+        """Collecte Windows groupée dans la session PowerShell persistante.
+
+        CPU, mémoire, disque, réseau et processus ne démarrent donc pas chacun
+        leur propre PowerShell. GPU et température sont essayés sans devenir
+        requis : tous les pilotes Windows n'exposent pas ces compteurs.
+        """
+        now = time.monotonic()
+        cached = getattr(self, "_performance_cache", None)
+        cached_at = getattr(self, "_performance_cache_at", 0.0)
+        if cached is not None and now - cached_at < 1.8:
+            return cached
+
+        script = r'''
+$cpuValue = $null
+$memoryValue = $null
+$memoryUsedMb = $null
+$memoryTotalMb = $null
+$diskValue = $null
+$diskFreeMb = $null
+$diskTotalMb = $null
+$downKbps = $null
+$upKbps = $null
+$topName = ''
+$topCpu = $null
+$gpuValue = $null
+$temperatureValue = $null
+
+try {
+  $cpuValue = [int][math]::Round((Get-CimInstance Win32_Processor |
+    Measure-Object -Property LoadPercentage -Average).Average)
+} catch {}
+
+try {
+  $os = Get-CimInstance Win32_OperatingSystem
+  $totalKb = [double]$os.TotalVisibleMemorySize
+  $freeKb = [double]$os.FreePhysicalMemory
+  if ($totalKb -gt 0) {
+    $memoryValue = [int][math]::Round((1.0 - $freeKb / $totalKb) * 100.0)
+    $memoryUsedMb = [int][math]::Round(($totalKb - $freeKb) / 1024.0)
+    $memoryTotalMb = [int][math]::Round($totalKb / 1024.0)
+  }
+} catch {}
+
+try {
+  $drive = Get-CimInstance Win32_LogicalDisk -Filter ("DeviceID='" + $env:SystemDrive + "'")
+  if ($drive -and [double]$drive.Size -gt 0) {
+    $diskValue = [int][math]::Round((1.0 - [double]$drive.FreeSpace / [double]$drive.Size) * 100.0)
+    $diskFreeMb = [int][math]::Round([double]$drive.FreeSpace / 1MB)
+    $diskTotalMb = [int][math]::Round([double]$drive.Size / 1MB)
+  }
+} catch {}
+
+try {
+  $network = Get-CimInstance Win32_PerfFormattedData_Tcpip_NetworkInterface |
+    Where-Object { $_.Name -notmatch 'Loopback|isatap|Teredo' }
+  $received = ($network | Measure-Object -Property BytesReceivedPersec -Sum).Sum
+  $sent = ($network | Measure-Object -Property BytesSentPersec -Sum).Sum
+  $downKbps = [int][math]::Round([double]$received * 8.0 / 1000.0)
+  $upKbps = [int][math]::Round([double]$sent * 8.0 / 1000.0)
+} catch {}
+
+try {
+  $top = Get-CimInstance Win32_PerfFormattedData_PerfProc_Process |
+    Where-Object { $_.Name -ne '_Total' -and $_.Name -ne 'Idle' } |
+    Sort-Object PercentProcessorTime -Descending | Select-Object -First 1
+  if ($top) {
+    $topName = [string]$top.Name
+    $topCpu = [int][math]::Min(100, [math]::Round(
+      [double]$top.PercentProcessorTime / [math]::Max(1, [Environment]::ProcessorCount)))
+  }
+} catch {}
+
+try {
+  $gpuRows = Get-CimInstance Win32_PerfFormattedData_GPUPerformanceCounters_GPUEngine
+  $gpuSum = ($gpuRows | Measure-Object -Property UtilizationPercentage -Sum).Sum
+  if ($null -ne $gpuSum) {
+    $gpuValue = [int][math]::Min(100, [math]::Round([double]$gpuSum))
+  }
+} catch {}
+
+try {
+  $thermal = Get-CimInstance -Namespace root/wmi -ClassName MSAcpi_ThermalZoneTemperature |
+    Where-Object { $_.CurrentTemperature -gt 0 } | Select-Object -First 1
+  if ($thermal) {
+    $temperatureValue = [int][math]::Round([double]$thermal.CurrentTemperature / 10.0 - 273.15)
+    if ($temperatureValue -lt 0 -or $temperatureValue -gt 125) { $temperatureValue = $null }
+  }
+} catch {}
+
+[PSCustomObject]@{
+  cpu=$cpuValue; memory=$memoryValue;
+  memory_used_mb=$memoryUsedMb; memory_total_mb=$memoryTotalMb;
+  disk=$diskValue; disk_free_mb=$diskFreeMb; disk_total_mb=$diskTotalMb;
+  network_down_kbps=$downKbps; network_up_kbps=$upKbps;
+  top_process=$topName; top_process_cpu=$topCpu;
+  gpu=$gpuValue; temperature=$temperatureValue
+} | ConvertTo-Json -Compress
+'''
+
+        try:
+            raw = self._shell.run(script, timeout=12.0)
+        except (Unsupported, ActionFailed):
+            return PerformanceInfo()
+
+        data: dict[str, object] | None = None
+        for line in reversed(raw.splitlines()):
+            try:
+                candidate = json.loads(line)
+            except (TypeError, json.JSONDecodeError):
+                continue
+            if isinstance(candidate, dict):
+                data = candidate
+                break
+        if data is None:
+            return PerformanceInfo()
+
+        def number(name: str, maximum: int | None = None) -> int | None:
+            value = data.get(name)
+            if value is None or isinstance(value, bool):
+                return None
+            try:
+                result = max(0, int(round(float(value))))
+            except (TypeError, ValueError):
+                return None
+            return min(maximum, result) if maximum is not None else result
+
+        performance = PerformanceInfo(
+            cpu=number("cpu", 100),
+            memory=number("memory", 100),
+            memory_used_mb=number("memory_used_mb"),
+            memory_total_mb=number("memory_total_mb"),
+            disk=number("disk", 100),
+            disk_free_mb=number("disk_free_mb"),
+            disk_total_mb=number("disk_total_mb"),
+            network_down_kbps=number("network_down_kbps"),
+            network_up_kbps=number("network_up_kbps"),
+            top_process=str(data.get("top_process") or "").strip(),
+            top_process_cpu=number("top_process_cpu", 100),
+            gpu=number("gpu", 100),
+            temperature=number("temperature", 125),
+        )
+        self._performance_cache = performance
+        self._performance_cache_at = now
+        return performance
 
     def snapshot(self) -> SystemSnapshot:
         snapshot = super().snapshot()

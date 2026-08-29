@@ -287,6 +287,37 @@ static void parse_state(const JsonDoc *doc, const JsonToken *root,
 		state->memory = json_int(doc, token, state->memory);
 	}
 
+	/*
+	 * Mesures enrichies : toutes sont optionnelles afin qu'une console récente
+	 * reste compatible avec un agent plus ancien et avec un capteur absent.
+	 */
+	#define PARSE_PERFORMANCE_INT(json_name, member)                         \
+		do {                                                               \
+			token = json_get(doc, root, json_name);                        \
+			if (token != NULL && token->type == JSON_NUMBER) {             \
+				state->member = json_int(doc, token, state->member);       \
+			}                                                              \
+		} while (0)
+
+	PARSE_PERFORMANCE_INT("memory_used_mb", memory_used_mb);
+	PARSE_PERFORMANCE_INT("memory_total_mb", memory_total_mb);
+	PARSE_PERFORMANCE_INT("disk", disk);
+	PARSE_PERFORMANCE_INT("disk_free_mb", disk_free_mb);
+	PARSE_PERFORMANCE_INT("disk_total_mb", disk_total_mb);
+	PARSE_PERFORMANCE_INT("network_down_kbps", network_down_kbps);
+	PARSE_PERFORMANCE_INT("network_up_kbps", network_up_kbps);
+	PARSE_PERFORMANCE_INT("top_process_cpu", top_process_cpu);
+	PARSE_PERFORMANCE_INT("gpu", gpu);
+	PARSE_PERFORMANCE_INT("temperature", temperature);
+
+	#undef PARSE_PERFORMANCE_INT
+
+	token = json_get(doc, root, "top_process");
+	if (token != NULL && token->type == JSON_STRING) {
+		json_copy_string(doc, token, state->top_process,
+		                 sizeof(state->top_process));
+	}
+
 	token = json_get(doc, root, "active_app");
 	if (token != NULL && token->type == JSON_STRING) {
 		json_copy_string(doc, token, state->active_app,
@@ -473,6 +504,8 @@ bool protocol_decode(const char *json, size_t length, IncomingMessage *out,
 	if (strcmp(type, "hello.ok") == 0) {
 		out->kind = MSG_HELLO_OK;
 		json_get_string(&s_doc, root, "host", state->host, sizeof(state->host));
+		json_get_string(&s_doc, root, "token", out->paired_token,
+		                sizeof(out->paired_token));
 		return true;
 	}
 
@@ -480,6 +513,9 @@ bool protocol_decode(const char *json, size_t length, IncomingMessage *out,
 		out->kind = MSG_HELLO_ERROR;
 		json_get_string(&s_doc, root, "reason", out->reason,
 		                sizeof(out->reason));
+		char code[32];
+		json_get_string(&s_doc, root, "code", code, sizeof(code));
+		out->pairing_required = strcmp(code, "pairing_required") == 0;
 		return true;
 	}
 
@@ -539,20 +575,66 @@ bool protocol_decode(const char *json, size_t length, IncomingMessage *out,
 	return true;
 }
 
+bool protocol_decode_discovery(const char *json, size_t length,
+                               AgentAnnouncement *out)
+{
+	if (out == NULL) {
+		return false;
+	}
+	memset(out, 0, sizeof(*out));
+
+	if (!json_parse(&s_doc, json, length)) {
+		return false;
+	}
+	const JsonToken *root = json_root(&s_doc);
+	if (root == NULL || root->type != JSON_OBJECT) {
+		return false;
+	}
+
+	char type[32];
+	if (!json_get_string(&s_doc, root, "type", type, sizeof(type)) ||
+	    strcmp(type, "deck3ds.agent") != 0) {
+		return false;
+	}
+	if (json_get_int(&s_doc, root, "protocol", -1) != PROTOCOL_VERSION) {
+		return false;
+	}
+
+	json_get_string(&s_doc, root, "name", out->name, sizeof(out->name));
+	json_get_string(&s_doc, root, "platform", out->platform,
+	                sizeof(out->platform));
+	out->port = json_get_int(&s_doc, root, "port", 0);
+	out->pairing_required =
+	    json_get_bool(&s_doc, root, "pairing_required", false);
+
+	return out->name[0] != '\0' && out->port > 0 && out->port < 65536;
+}
+
 int protocol_encode_hello(char *dest, size_t dest_size, const char *device,
-                          const char *token, const char *language)
+                          const char *token, const char *pair_code,
+                          const char *language)
 {
 	char safe_device[32];
 	char safe_token[64];
+	char safe_pair_code[16];
 	char safe_language[8];
 	escape_json(device, safe_device, sizeof(safe_device));
 	escape_json(token, safe_token, sizeof(safe_token));
+	escape_json(pair_code, safe_pair_code, sizeof(safe_pair_code));
 	escape_json(language, safe_language, sizeof(safe_language));
 
 	/*
 	 * La langue est transmise afin que les notifications renvoyées par
 	 * l'ordinateur soient rédigées dans la langue choisie sur la console.
 	 */
+	if (safe_pair_code[0] != '\0') {
+		return snprintf(dest, dest_size,
+		                "{\"type\":\"hello\",\"protocol\":%d,\"device\":\"%s\""
+		                ",\"pair_code\":\"%s\",\"language\":\"%s\"}",
+		                PROTOCOL_VERSION, safe_device, safe_pair_code,
+		                safe_language);
+	}
+
 	if (safe_token[0] == '\0') {
 		return snprintf(dest, dest_size,
 		                "{\"type\":\"hello\",\"protocol\":%d,\"device\":\"%s\""

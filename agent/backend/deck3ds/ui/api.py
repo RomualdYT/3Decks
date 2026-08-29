@@ -28,6 +28,7 @@ from ..platforms.base import (
     Unsupported,
 )
 from ..obs import ObsError, test_connection
+from ..srv.discovery import DISCOVERY_PORT
 from .http import HttpError, Request, Response
 
 
@@ -165,6 +166,7 @@ class Api:
             ("POST", "/api/obs/test"): self.test_obs,
             ("POST", "/api/permissions/open"): self.open_permission_settings,
             ("POST", "/api/paths/pick"): self.pick_path,
+            ("POST", "/api/pairing/rotate"): self.rotate_pairing,
             ("GET", "/api/apps"): self.get_apps,
             ("GET", "/api/state"): self.get_state,
         }
@@ -228,6 +230,14 @@ class Api:
             raise HttpError(409, str(error)) from error
         return Response.json(
             {"cancelled": False, "path": path, "kind": kind}
+        )
+
+    async def rotate_pairing(self, request: Request) -> Response:
+        """Renouvelle le code court affiché uniquement dans l'interface locale."""
+        self.server.pairing.rotate()
+        self.server.log("Code d'appairage renouvele depuis l'interface")
+        return Response.json(
+            self.server.pairing.snapshot(bool(self.server.config.token))
         )
 
     # --- Configuration ---------------------------------------------------------
@@ -348,6 +358,8 @@ class Api:
                 "listen": f"{server.config.host}:{server.config.port}",
                 "hints": server.local_addresses(),
                 "token_set": bool(server.config.token),
+                "pairing": server.pairing.snapshot(bool(server.config.token)),
+                "discovery_port": DISCOVERY_PORT,
                 "clients": [
                     {"id": client.id, "address": client.address}
                     for client in sorted(server.clients, key=lambda item: item.id)

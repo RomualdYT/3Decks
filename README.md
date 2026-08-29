@@ -109,11 +109,13 @@ cd agent
 python3 -m deck3ds
 ```
 
-The agent prints the address to enter on the console:
+The agent advertises itself automatically on the local network. The printed
+address is only useful as a manual fallback:
 
 ```text
 [14:32:10] Deck3DS agent 0.1.0 listening on 0.0.0.0:38123
-[14:32:10]   address to enter on the 3DS: 192.168.1.24:38123
+[14:32:10] Automatic discovery active on UDP 38122
+[14:32:10]   manual connection fallback: 192.168.1.24:38123
 ```
 
 Before that, it is worth checking what your machine actually exposes:
@@ -134,13 +136,15 @@ sdmc:/3ds/deck3ds.3dsx
 ```
 
 Then launch Deck3DS from the Homebrew Launcher. **A setup assistant guides you
-through choosing a language and entering your computer's address**, and lets you
-test the connection before you start. Nothing needs to be edited by hand.
+through choosing a language and selecting the computer by name.** If network
+security is enabled, enter the short pairing code shown in the agent UI; the
+console stores the durable token automatically. IP address and port live only
+under **Manual setup**. Nothing needs to be edited by hand.
 
 ### Sending over Wi-Fi during development
 
 ```bash
-python3 tools/send3ds.py -a 192.168.1.88
+python3 tools/send3ds.py
 ```
 
 Enable 3dslink on the console first (Homebrew Launcher, `Y`). The app is sent
@@ -168,8 +172,9 @@ The built-in settings screen (`L` + `SELECT`, or a button with the
 `settings.open` action) covers:
 
 - interface language
-- computer address and port, entered with the system keyboard
-- touch feedback
+- automatically discovered and paired computer
+- manual address and port fallback
+- sound feedback
 - screen dimming delay
 - rerunning the setup assistant
 

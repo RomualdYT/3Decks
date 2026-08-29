@@ -41,7 +41,24 @@ _MONTHS = (
     "novembre",
     "decembre",
 )
-_OPTIONAL_FIELDS = ("volume", "muted", "mic_muted", "app_volume", "cpu", "memory")
+_OPTIONAL_FIELDS = (
+    "volume",
+    "muted",
+    "mic_muted",
+    "app_volume",
+    "cpu",
+    "memory",
+    "memory_used_mb",
+    "memory_total_mb",
+    "disk",
+    "disk_free_mb",
+    "disk_total_mb",
+    "network_down_kbps",
+    "network_up_kbps",
+    "top_process_cpu",
+    "gpu",
+    "temperature",
+)
 def _snapshot_payload(snapshot: SystemSnapshot) -> dict[str, Any]:
     """Traduit une photographie du poste en message `state.update`."""
     now = datetime.now()
@@ -58,6 +75,9 @@ def _snapshot_payload(snapshot: SystemSnapshot) -> dict[str, Any]:
         value = getattr(snapshot, field_name)
         if value is not None:
             payload[field_name] = value
+
+    if snapshot.top_process:
+        payload["top_process"] = snapshot.top_process
 
     # La sortie audio est omise lorsqu'elle est vide, et non lorsqu'elle est
     # nulle : une chaîne vide ne désigne aucun périphérique.
@@ -270,6 +290,9 @@ class Client:
         self.writer = writer
         self.reader_state = protocol.FrameReader()
         self.authenticated = False
+        # Vrai uniquement pour le handshake ayant consommé le code court. Le
+        # jeton durable est alors renvoyé une fois à cette console.
+        self.paired_now = False
         # La langue appartient à la console, pas au serveur. Deux consoles
         # peuvent ainsi recevoir simultanément leurs propres libellés.
         self.language = "en"

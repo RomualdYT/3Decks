@@ -12,6 +12,7 @@
 #include <string.h>
 
 #include "draw.h"
+#include "discovery.h"
 #include "i18n.h"
 #include "icons.h"
 #include "net.h"
@@ -23,13 +24,12 @@
 #define PROBE_TIMEOUT 4.0f
 
 /** Nombre de lignes de l'écran de réglages. */
-#define SETTINGS_ROWS 7
+#define SETTINGS_ROWS 6
 
 /* Indices des lignes de réglages. */
 enum {
 	ROW_LANGUAGE = 0,
-	ROW_HOST,
-	ROW_PORT,
+	ROW_CONNECTION,
 	ROW_SOUND,
 	ROW_DIM,
 	ROW_STEREO,
@@ -43,6 +43,7 @@ void setup_begin(Setup *setup, bool first_run)
 	setup->first_run = first_run;
 	setup->step = first_run ? SETUP_LANGUAGE : SETUP_DONE;
 	setup->probe = PROBE_IDLE;
+	setup->selected_agent = -1;
 }
 
 void setup_open_settings(Setup *setup)
@@ -52,13 +53,28 @@ void setup_open_settings(Setup *setup)
 	setup->first_run = false;
 	setup->step = SETUP_DONE;
 	setup->probe = PROBE_IDLE;
+	setup->selected_agent = -1;
 }
 
 void setup_close(Setup *setup)
 {
 	setup->active = false;
 	setup->probe = PROBE_IDLE;
+	discovery_stop();
 }
+
+static void begin_connection_step(Setup *setup)
+{
+	setup->step = SETUP_HOST;
+	setup->probe = PROBE_IDLE;
+	setup->probe_time = 0.0f;
+	setup->discovery_retry = 0.0f;
+	setup->manual_connection = false;
+	setup->selected_agent = -1;
+	discovery_start();
+}
+
+static void start_probe(Setup *setup, App *app);
 
 /**
  * Ouvre le clavier logiciel pour saisir une valeur.
@@ -93,6 +109,74 @@ static bool prompt_text(const char *hint, char *value, size_t size,
 	return true;
 }
 
+static bool prompt_pairing_code(App *app)
+{
+	char code[8] = {0};
+	if (!prompt_text(tr(STR_SETUP_PAIR_CODE), code, sizeof(code),
+	                 SWKBD_TYPE_NUMPAD, 6)) {
+		return false;
+	}
+	if (strlen(code) != 6) {
+		app_notify(app, tr(STR_SETUP_PAIR_HELP), true);
+		return false;
+	}
+	for (int i = 0; i < 6; i++) {
+		if (code[i] < '0' || code[i] > '9') {
+			app_notify(app, tr(STR_SETUP_PAIR_HELP), true);
+			return false;
+		}
+	}
+	snprintf(app->pair_code, sizeof(app->pair_code), "%s", code);
+	return true;
+}
+
+static bool select_discovered_agent(Setup *setup, App *app, int index)
+{
+	const DiscoveredAgent *agent = discovery_at(index);
+	if (agent == NULL) {
+		return false;
+	}
+
+	const bool same_agent =
+	    strcmp(app->settings.host, agent->host) == 0 &&
+	    app->settings.port == agent->announcement.port;
+
+	snprintf(app->settings.agent_name, sizeof(app->settings.agent_name), "%s",
+	         agent->announcement.name);
+	snprintf(app->settings.host, sizeof(app->settings.host), "%s", agent->host);
+	app->settings.port = agent->announcement.port;
+	app->host_from_netload = false;
+	app->pair_code[0] = '\0';
+
+	/* Un jeton appartient à un agent précis : ne jamais l'essayer ailleurs. */
+	if (!same_agent || !agent->announcement.pairing_required) {
+		app->settings.token[0] = '\0';
+	}
+
+	if (agent->announcement.pairing_required &&
+	    app->settings.token[0] == '\0' && !prompt_pairing_code(app)) {
+		return false;
+	}
+
+	setup->selected_agent = index;
+	start_probe(setup, app);
+	return true;
+}
+
+void setup_handle_pairing_request(Setup *setup, App *app)
+{
+	if (!setup->active) {
+		setup_open_settings(setup);
+		begin_connection_step(setup);
+	}
+	setup->step = SETUP_HOST;
+	setup->probe = PROBE_FAILURE;
+
+	if (prompt_pairing_code(app)) {
+		start_probe(setup, app);
+	}
+}
+
 /** Lance un test de connexion vers l'adresse configurée. */
 static void start_probe(Setup *setup, App *app)
 {
@@ -104,28 +188,57 @@ static void start_probe(Setup *setup, App *app)
 	 * l'application fonctionnera réellement, ce qu'un simple ping ne prouverait
 	 * pas.
 	 */
-	app->hello_sent = false;
-	net_connect(app->settings.host, app->settings.port);
+	app->pairing_requested = false;
+	app_force_reconnect(app);
 }
 
 void setup_update(Setup *setup, App *app, float dt)
 {
-	(void)app;
+	if (!setup->active) {
+		return;
+	}
 
-	if (!setup->active || setup->probe != PROBE_RUNNING) {
+	if (setup->step == SETUP_HOST && !setup->manual_connection) {
+		discovery_set_known_host(app->settings.host);
+		discovery_update(dt);
+		if (discovery_count() == 0 && app->handshake_ok &&
+		    app->settings.host[0] != '\0') {
+			const char *name = app->settings.agent_name[0] != '\0'
+			                       ? app->settings.agent_name
+			                       : app->state.host;
+			discovery_remember_known(app->settings.host, name,
+			                         app->settings.port,
+			                         app->settings.token[0] != '\0');
+		}
+		if (discovery_count() == 0 && !discovery_scanning()) {
+			setup->discovery_retry += dt;
+			if (setup->discovery_retry >= 1.5f) {
+				discovery_start();
+				setup->discovery_retry = 0.0f;
+			}
+		} else {
+			setup->discovery_retry = 0.0f;
+		}
+		if (setup->selected_agent >= discovery_count()) {
+			setup->selected_agent = -1;
+		}
+		if (setup->selected_agent == -1 && discovery_count() > 0) {
+			setup->selected_agent = 0;
+		}
+	}
+
+	if (setup->probe != PROBE_RUNNING) {
 		return;
 	}
 
 	setup->probe_time += dt;
 
-	const NetState state = net_state();
-
-	if (state == NET_CONNECTED) {
+	if (app->handshake_ok && app->config_received) {
 		setup->probe = PROBE_SUCCESS;
 		return;
 	}
 
-	if (state == NET_IDLE || setup->probe_time > PROBE_TIMEOUT) {
+	if (setup->probe_time > PROBE_TIMEOUT) {
 		setup->probe = PROBE_FAILURE;
 	}
 }
@@ -193,34 +306,54 @@ static void draw_host_step(const Setup *setup, const App *app)
 {
 	const float cx = SCREEN_TOP_W * 0.5f;
 
-	text_draw(cx, 88.0f, Z_CONTENT, TEXT_TITLE, COL_TEXT, ALIGN_CENTER,
-	          tr(STR_SETUP_HOST_TITLE));
+	text_draw(cx, 86.0f, Z_CONTENT, TEXT_TITLE, COL_TEXT, ALIGN_CENTER,
+	          setup->manual_connection ? tr(STR_SETUP_MANUAL)
+	                                   : tr(STR_SETUP_HOST_TITLE));
 
-	/* Adresse courante, mise en valeur comme une donnée saisie. */
-	char address[96];
-	snprintf(address, sizeof(address), "%s:%d", app->settings.host,
-	         app->settings.port);
-
-	const float width = text_width(address, TEXT_LARGE) + 32.0f;
-	const float box_x = cx - width * 0.5f;
-
-	draw_round_rect(box_x, 118.0f, width, 30.0f, 8.0f, Z_CARD,
-	                theme_alpha(COL_SURFACE_HI, 0xDD));
-	draw_round_rect_outline(box_x, 118.0f, width, 30.0f, 8.0f, 1.0f, Z_CONTENT,
-	                        theme_alpha(COL_ACCENT, 0x77));
-	text_draw(cx, 124.0f, Z_OVERLAY, TEXT_LARGE, COL_TEXT, ALIGN_CENTER,
-	          address);
-
-	if (app->host_from_netload) {
-		text_draw(cx, 152.0f, Z_CONTENT, TEXT_MICRO, COL_ACCENT, ALIGN_CENTER,
-		          tr(STR_SETUP_AUTO_DETECT));
+	if (!setup->manual_connection) {
+		const DiscoveredAgent *agent = discovery_at(setup->selected_agent);
+		if (agent != NULL) {
+			draw_round_rect(70.0f, 116.0f, SCREEN_TOP_W - 140.0f, 42.0f, 11.0f,
+			                Z_CARD, theme_alpha(COL_SURFACE_HI, 0xE8));
+			draw_round_rect_outline(70.0f, 116.0f, SCREEN_TOP_W - 140.0f,
+			                        42.0f, 11.0f, 1.2f, Z_CONTENT,
+			                        theme_alpha(COL_ACCENT, 0x99));
+			icons_draw(ICON_APP, 92.0f, 137.0f, 20.0f, Z_OVERLAY,
+			           COL_ACCENT);
+			text_draw_clipped(110.0f, 121.0f, Z_OVERLAY, TEXT_BODY, COL_TEXT,
+			                  ALIGN_LEFT, 205.0f, agent->announcement.name);
+			char detail[96];
+			snprintf(detail, sizeof(detail), "%s · %s", agent->announcement.platform,
+			         agent->host);
+			text_draw_clipped(110.0f, 140.0f, Z_OVERLAY, TEXT_MICRO,
+			                  COL_TEXT_FAINT, ALIGN_LEFT, 205.0f, detail);
+		} else {
+			icons_draw(ICON_POWER, cx, 126.0f, 30.0f, Z_CONTENT,
+			           discovery_scanning() ? COL_ACCENT : COL_TEXT_FAINT);
+			text_draw(cx, 148.0f, Z_CONTENT, TEXT_SMALL,
+			          discovery_scanning() ? COL_TEXT_DIM : COL_TEXT_FAINT,
+			          ALIGN_CENTER,
+			          discovery_scanning() ? tr(STR_SETUP_SEARCHING)
+			                               : tr(STR_SETUP_NO_AGENT));
+		}
 	} else {
-		text_draw(cx, 152.0f, Z_CONTENT, TEXT_MICRO, COL_TEXT_FAINT,
+		char address[96];
+		snprintf(address, sizeof(address), "%s:%d", app->settings.host,
+		         app->settings.port);
+		const float width = text_width(address, TEXT_LARGE) + 32.0f;
+		const float box_x = cx - width * 0.5f;
+		draw_round_rect(box_x, 118.0f, width, 30.0f, 8.0f, Z_CARD,
+		                theme_alpha(COL_SURFACE_HI, 0xDD));
+		draw_round_rect_outline(box_x, 118.0f, width, 30.0f, 8.0f, 1.0f,
+		                        Z_CONTENT, theme_alpha(COL_BORDER, 0x99));
+		text_draw(cx, 124.0f, Z_OVERLAY, TEXT_LARGE, COL_TEXT, ALIGN_CENTER,
+		          address);
+		text_draw(cx, 154.0f, Z_CONTENT, TEXT_MICRO, COL_TEXT_FAINT,
 		          ALIGN_CENTER, tr(STR_SETUP_HOST_HELP));
 	}
 
 	/* Résultat du test de connexion. */
-	const float y = 180.0f;
+	const float y = 178.0f;
 
 	switch (setup->probe) {
 	case PROBE_RUNNING: {
@@ -291,8 +424,6 @@ void setup_draw_top(const Setup *setup, const App *app)
 {
 	draw_rect_vgrad(0.0f, 0.0f, SCREEN_TOP_W, SCREEN_H, Z_BG,
 	                theme_mix(COL_BG, COL_ACCENT, 0.10f), COL_BG);
-	draw_rect(0.0f, 0.0f, SCREEN_TOP_W, 2.0f, Z_CARD,
-	          theme_alpha(COL_ACCENT, 0xAA));
 
 	/* Titre de l'application, en tête. */
 	text_draw(SCREEN_TOP_W * 0.5f, 14.0f, Z_CONTENT, TEXT_LARGE, COL_TEXT,
@@ -459,6 +590,105 @@ static void draw_language_choice(void)
 	}
 }
 
+#define AGENT_CARD_TOP 38.0f
+#define AGENT_CARD_H 34.0f
+#define AGENT_CARD_GAP 5.0f
+#define AGENT_VISIBLE 3
+#define MANUAL_CARD_Y 160.0f
+
+/** Premier résultat à afficher lorsque la liste dépasse trois ordinateurs. */
+static int first_visible_agent(const Setup *setup)
+{
+	const int count = discovery_count();
+	if (count <= AGENT_VISIBLE || setup->selected_agent < AGENT_VISIBLE) {
+		return 0;
+	}
+
+	int first = setup->selected_agent - AGENT_VISIBLE + 1;
+	const int maximum = count - AGENT_VISIBLE;
+	if (first > maximum) {
+		first = maximum;
+	}
+	return first;
+}
+
+static void agent_card_bounds(int index, float *y)
+{
+	*y = AGENT_CARD_TOP + (float)index * (AGENT_CARD_H + AGENT_CARD_GAP);
+}
+
+static void draw_discovered_agents(const Setup *setup)
+{
+	text_draw(SCREEN_BOTTOM_W * 0.5f, 12.0f, Z_CONTENT, TEXT_SMALL,
+	          COL_TEXT_DIM, ALIGN_CENTER,
+	          discovery_count() > 0 ? tr(STR_SETUP_AGENTS_FOUND)
+	                                : tr(STR_SETUP_SEARCHING));
+
+	const int visible = discovery_count() < AGENT_VISIBLE ? discovery_count()
+	                                                        : AGENT_VISIBLE;
+	const int first = first_visible_agent(setup);
+	for (int row = 0; row < visible; row++) {
+		const int index = first + row;
+		const DiscoveredAgent *agent = discovery_at(index);
+		if (agent == NULL) {
+			continue;
+		}
+		float y;
+		agent_card_bounds(row, &y);
+		const bool selected = setup->selected_agent == index;
+		draw_round_rect(14.0f, y, SCREEN_BOTTOM_W - 28.0f, AGENT_CARD_H, 9.0f,
+		                Z_CARD,
+		                selected ? theme_alpha(COL_ACCENT, 0x24)
+		                         : theme_alpha(COL_SURFACE, 0xCC));
+		draw_round_rect_outline(
+		    14.0f, y, SCREEN_BOTTOM_W - 28.0f, AGENT_CARD_H, 9.0f,
+		    selected ? 1.4f : 1.0f, Z_CONTENT,
+		    selected ? theme_alpha(COL_ACCENT, 0xCC)
+		             : theme_alpha(COL_BORDER, 0x88));
+		icons_draw(ICON_APP, 33.0f, y + AGENT_CARD_H * 0.5f, 16.0f, Z_OVERLAY,
+		           selected ? COL_ACCENT : COL_TEXT_DIM);
+		text_draw_clipped(49.0f, y + 3.0f, Z_OVERLAY, TEXT_SMALL,
+		                  selected ? COL_TEXT : COL_TEXT_DIM, ALIGN_LEFT, 188.0f,
+		                  agent->announcement.name);
+		text_draw_clipped(49.0f, y + 18.0f, Z_OVERLAY, TEXT_MICRO,
+		                  COL_TEXT_FAINT, ALIGN_LEFT, 188.0f,
+		                  agent->announcement.platform);
+		if (agent->announcement.pairing_required) {
+			icons_draw(ICON_LOCK, SCREEN_BOTTOM_W - 33.0f,
+			           y + AGENT_CARD_H * 0.5f, 14.0f, Z_OVERLAY,
+			           selected ? COL_ACCENT : COL_TEXT_FAINT);
+		}
+	}
+
+	const bool manual_selected = setup->selected_agent == -2;
+	draw_round_rect(14.0f, MANUAL_CARD_Y, SCREEN_BOTTOM_W - 28.0f, 28.0f, 9.0f,
+	                Z_CARD,
+	                manual_selected ? theme_alpha(COL_ACCENT, 0x20)
+	                                : theme_alpha(COL_SURFACE, 0x88));
+	draw_round_rect_outline(
+	    14.0f, MANUAL_CARD_Y, SCREEN_BOTTOM_W - 28.0f, 28.0f, 9.0f, 1.0f,
+	    Z_CONTENT, manual_selected ? theme_alpha(COL_ACCENT, 0xAA)
+	                              : theme_alpha(COL_BORDER, 0x77));
+	icons_draw(ICON_GEAR, 34.0f, MANUAL_CARD_Y + 14.0f, 14.0f, Z_OVERLAY,
+	           manual_selected ? COL_ACCENT : COL_TEXT_FAINT);
+	text_draw(51.0f, MANUAL_CARD_Y + 6.0f, Z_OVERLAY, TEXT_SMALL,
+	          manual_selected ? COL_TEXT : COL_TEXT_DIM, ALIGN_LEFT,
+	          tr(STR_SETUP_MANUAL));
+
+	const char *primary =
+	    setup->probe == PROBE_SUCCESS
+	        ? tr(STR_NEXT)
+	        : (setup->selected_agent >= 0
+	               ? tr(STR_SETUP_CONNECT)
+	               : (setup->selected_agent == -2 ? tr(STR_SETUP_MANUAL)
+	                                                : tr(STR_SETUP_SEARCH_AGAIN)));
+	draw_primary_button(primary,
+	                    setup->probe == PROBE_SUCCESS
+	                        ? COL_OK
+	                        : (setup->selected_agent != -1 ? COL_ACCENT
+	                                                       : COL_TEXT_DIM));
+}
+
 void setup_draw_bottom(const Setup *setup, const App *app)
 {
 	draw_rect_vgrad(0.0f, 0.0f, SCREEN_BOTTOM_W, SCREEN_H, Z_BG, COL_BG_ALT,
@@ -471,16 +701,21 @@ void setup_draw_bottom(const Setup *setup, const App *app)
 	}
 
 	if (setup->step == SETUP_HOST) {
+		if (!setup->manual_connection) {
+			draw_discovered_agents(setup);
+			return;
+		}
+
 		text_draw(SCREEN_BOTTOM_W * 0.5f, 14.0f, Z_CONTENT, TEXT_SMALL,
-		          COL_TEXT_DIM, ALIGN_CENTER, tr(STR_SETUP_STEP_HOST));
+		          COL_TEXT_DIM, ALIGN_CENTER, tr(STR_SETUP_MANUAL));
 
 		char port[16];
 		snprintf(port, sizeof(port), "%d", app->settings.port);
 
-		draw_row(0, tr(STR_SETTINGS_HOST), app->settings.host, false);
-		draw_row(1, tr(STR_SETTINGS_PORT), port, false);
-		draw_row(2, tr(STR_SETUP_TEST),
-		         setup->probe == PROBE_SUCCESS ? tr(STR_ON) : "", false);
+		draw_row(0, tr(STR_SETTINGS_HOST), app->settings.host,
+		         setup->selection == 0);
+		draw_row(1, tr(STR_SETTINGS_PORT), port, setup->selection == 1);
+		draw_row(2, tr(STR_SETUP_AUTOMATIC), "", setup->selection == 2);
 
 		draw_primary_button(setup->probe == PROBE_SUCCESS ? tr(STR_NEXT)
 		                                                  : tr(STR_SETUP_TEST),
@@ -491,9 +726,6 @@ void setup_draw_bottom(const Setup *setup, const App *app)
 	/* Écran de réglages. */
 	text_draw(SCREEN_BOTTOM_W * 0.5f, 14.0f, Z_CONTENT, TEXT_SMALL,
 	          COL_TEXT_DIM, ALIGN_CENTER, tr(STR_SETTINGS));
-
-	char port[16];
-	snprintf(port, sizeof(port), "%d", app->settings.port);
 
 	char dim[24];
 	if (app->settings.dim_delay <= 0) {
@@ -506,10 +738,10 @@ void setup_draw_bottom(const Setup *setup, const App *app)
 	draw_row(ROW_LANGUAGE, tr(STR_SETTINGS_LANGUAGE),
 	         i18n_language_name(i18n_language()),
 	         setup->selection == ROW_LANGUAGE);
-	draw_row(ROW_HOST, tr(STR_SETTINGS_HOST), app->settings.host,
-	         setup->selection == ROW_HOST);
-	draw_row(ROW_PORT, tr(STR_SETTINGS_PORT), port,
-	         setup->selection == ROW_PORT);
+	draw_row(ROW_CONNECTION, tr(STR_SETTINGS_COMPUTER),
+	         app->settings.agent_name[0] != '\0' ? app->settings.agent_name
+	                                                : app->settings.host,
+	         setup->selection == ROW_CONNECTION);
 	draw_row(ROW_SOUND, tr(STR_SETTINGS_SOUND),
 	         app->settings.sound ? tr(STR_ON) : tr(STR_OFF),
 	         setup->selection == ROW_SOUND);
@@ -529,7 +761,7 @@ void setup_draw_bottom(const Setup *setup, const App *app)
 static void advance(Setup *setup, App *app)
 {
 	if (setup->step == SETUP_LANGUAGE) {
-		setup->step = SETUP_HOST;
+		begin_connection_step(setup);
 		return;
 	}
 
@@ -538,6 +770,7 @@ static void advance(Setup *setup, App *app)
 			start_probe(setup, app);
 			return;
 		}
+		discovery_stop();
 		setup->step = SETUP_DONE;
 		return;
 	}
@@ -558,28 +791,9 @@ static void activate_row(Setup *setup, App *app, int row)
 		app->settings.language = (int)next;
 		break;
 	}
-	case ROW_HOST:
-		if (prompt_text(tr(STR_SETTINGS_HOST), app->settings.host,
-		                sizeof(app->settings.host), SWKBD_TYPE_QWERTY, 63)) {
-			/* L'adresse a changé : on relance la liaison. */
-			net_disconnect();
-			app->hello_sent = false;
-		}
+	case ROW_CONNECTION:
+		begin_connection_step(setup);
 		break;
-	case ROW_PORT: {
-		char port[16];
-		snprintf(port, sizeof(port), "%d", app->settings.port);
-		if (prompt_text(tr(STR_SETTINGS_PORT), port, sizeof(port),
-		                SWKBD_TYPE_NUMPAD, 5)) {
-			const int value = atoi(port);
-			if (value > 0 && value < 65536) {
-				app->settings.port = value;
-				net_disconnect();
-				app->hello_sent = false;
-			}
-		}
-		break;
-	}
 	case ROW_SOUND:
 		app->settings.sound = !app->settings.sound;
 		/*
@@ -612,11 +826,42 @@ static void activate_row(Setup *setup, App *app, int row)
 	case ROW_RESET:
 		/* Relance le parcours guidé depuis le début. */
 		setup->first_run = true;
+		discovery_stop();
 		setup->step = SETUP_LANGUAGE;
 		setup->probe = PROBE_IDLE;
 		break;
 	default:
 		break;
+	}
+}
+
+static void edit_manual_host(Setup *setup, App *app)
+{
+	if (prompt_text(tr(STR_SETTINGS_HOST), app->settings.host,
+	                sizeof(app->settings.host), SWKBD_TYPE_QWERTY, 63)) {
+		app->settings.agent_name[0] = '\0';
+		app->settings.token[0] = '\0';
+		app->pair_code[0] = '\0';
+		setup->probe = PROBE_IDLE;
+		app_force_reconnect(app);
+	}
+}
+
+static void edit_manual_port(Setup *setup, App *app)
+{
+	char port[16];
+	snprintf(port, sizeof(port), "%d", app->settings.port);
+	if (prompt_text(tr(STR_SETTINGS_PORT), port, sizeof(port),
+	                SWKBD_TYPE_NUMPAD, 5)) {
+		const int value = atoi(port);
+		if (value > 0 && value < 65536) {
+			app->settings.port = value;
+			app->settings.agent_name[0] = '\0';
+			app->settings.token[0] = '\0';
+			app->pair_code[0] = '\0';
+			setup->probe = PROBE_IDLE;
+			app_force_reconnect(app);
+		}
 	}
 }
 
@@ -643,7 +888,21 @@ bool setup_touch(Setup *setup, App *app, float x, float y)
 			setup_close(setup);
 			return true;
 		}
-		advance(setup, app);
+		if (setup->step == SETUP_HOST && !setup->manual_connection) {
+			if (setup->probe == PROBE_SUCCESS) {
+				advance(setup, app);
+			} else if (setup->selected_agent >= 0) {
+				select_discovered_agent(setup, app, setup->selected_agent);
+			} else if (setup->selected_agent == -2) {
+				setup->manual_connection = true;
+				setup->selection = 0;
+				discovery_stop();
+			} else {
+				discovery_start();
+			}
+		} else {
+			advance(setup, app);
+		}
 		return true;
 	}
 
@@ -663,6 +922,31 @@ bool setup_touch(Setup *setup, App *app, float x, float y)
 
 	/* Lignes de l'étape « ordinateur ». */
 	if (setup->step == SETUP_HOST) {
+		if (!setup->manual_connection) {
+			const int visible = discovery_count() < AGENT_VISIBLE
+			                        ? discovery_count()
+			                        : AGENT_VISIBLE;
+			const int first = first_visible_agent(setup);
+			for (int row = 0; row < visible; row++) {
+				float row_y;
+				agent_card_bounds(row, &row_y);
+				if (x >= 14.0f && x < SCREEN_BOTTOM_W - 14.0f &&
+				    y >= row_y && y < row_y + AGENT_CARD_H) {
+					setup->selected_agent = first + row;
+					return true;
+				}
+			}
+			if (x >= 14.0f && x < SCREEN_BOTTOM_W - 14.0f &&
+			    y >= MANUAL_CARD_Y && y < MANUAL_CARD_Y + 28.0f) {
+				setup->manual_connection = true;
+				setup->selected_agent = -2;
+				setup->selection = 0;
+				discovery_stop();
+				return true;
+			}
+			return true;
+		}
+
 		for (int i = 0; i < 3; i++) {
 			float row_y;
 			float row_h;
@@ -670,13 +954,11 @@ bool setup_touch(Setup *setup, App *app, float x, float y)
 
 			if (y >= row_y && y < row_y + row_h) {
 				if (i == 0) {
-					activate_row(setup, app, ROW_HOST);
-					setup->probe = PROBE_IDLE;
+					edit_manual_host(setup, app);
 				} else if (i == 1) {
-					activate_row(setup, app, ROW_PORT);
-					setup->probe = PROBE_IDLE;
+					edit_manual_port(setup, app);
 				} else {
-					start_probe(setup, app);
+					begin_connection_step(setup);
 				}
 				return true;
 			}
@@ -709,6 +991,28 @@ void setup_buttons(Setup *setup, App *app, u32 pressed)
 	if (pressed & KEY_A) {
 		if (setup->step == SETUP_DONE && !setup->first_run) {
 			activate_row(setup, app, setup->selection);
+		} else if (setup->step == SETUP_HOST && !setup->manual_connection) {
+			if (setup->probe == PROBE_SUCCESS) {
+				advance(setup, app);
+			} else if (setup->selected_agent >= 0) {
+				select_discovered_agent(setup, app, setup->selected_agent);
+			} else if (setup->selected_agent == -2) {
+				setup->manual_connection = true;
+				setup->selection = 0;
+				discovery_stop();
+			} else {
+				discovery_start();
+			}
+		} else if (setup->step == SETUP_HOST && setup->manual_connection) {
+			if (setup->selection == 0) {
+				edit_manual_host(setup, app);
+			} else if (setup->selection == 1) {
+				edit_manual_port(setup, app);
+			} else if (setup->selection == 2) {
+				begin_connection_step(setup);
+			} else {
+				advance(setup, app);
+			}
 		} else {
 			advance(setup, app);
 		}
@@ -716,9 +1020,17 @@ void setup_buttons(Setup *setup, App *app, u32 pressed)
 
 	if (pressed & KEY_B) {
 		if (setup->step == SETUP_HOST) {
-			setup->step = SETUP_LANGUAGE;
+			if (setup->manual_connection) {
+				begin_connection_step(setup);
+			} else if (setup->first_run) {
+				discovery_stop();
+				setup->step = SETUP_LANGUAGE;
+			} else {
+				discovery_stop();
+				setup->step = SETUP_DONE;
+			}
 		} else if (setup->step == SETUP_DONE && setup->first_run) {
-			setup->step = SETUP_HOST;
+			begin_connection_step(setup);
 		} else if (!setup->first_run) {
 			/* Hors premier démarrage, B ferme les réglages. */
 			app_save_settings(app);
@@ -733,6 +1045,38 @@ void setup_buttons(Setup *setup, App *app, u32 pressed)
 		if (pressed & KEY_UP) {
 			setup->selection =
 			    (setup->selection + SETTINGS_ROWS - 1) % SETTINGS_ROWS;
+		}
+	}
+
+	if (setup->step == SETUP_HOST && !setup->manual_connection) {
+		const int count = discovery_count();
+		if (pressed & KEY_DOWN) {
+			if (setup->selected_agent == -2) {
+				setup->selected_agent = count > 0 ? 0 : -2;
+			} else if (setup->selected_agent >= 0 &&
+			           setup->selected_agent < count - 1) {
+				setup->selected_agent++;
+			} else {
+				setup->selected_agent = -2;
+			}
+		}
+		if (pressed & KEY_UP) {
+			if (setup->selected_agent == -2) {
+				setup->selected_agent = count > 0 ? count - 1 : -2;
+			} else if (setup->selected_agent > 0) {
+				setup->selected_agent--;
+			} else {
+				setup->selected_agent = -2;
+			}
+		}
+	}
+
+	if (setup->step == SETUP_HOST && setup->manual_connection) {
+		if (pressed & KEY_DOWN) {
+			setup->selection = (setup->selection + 1) % 4;
+		}
+		if (pressed & KEY_UP) {
+			setup->selection = (setup->selection + 3) % 4;
 		}
 	}
 

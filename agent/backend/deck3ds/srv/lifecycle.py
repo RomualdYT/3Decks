@@ -23,11 +23,12 @@ class LifecycleMixin:
         self.log(f"Agent Deck3DS {VERSION} en ecoute sur {addresses}")
 
         for hint in self.local_addresses():
-            self.log(f"  adresse a saisir sur la 3DS : {hint}")
+            self.log(f"  connexion manuelle de secours : {hint}")
 
         if not self.config.token:
             self.log("  aucun jeton configure : toute console du reseau peut agir")
 
+        await self._start_discovery()
         await self._start_ui()
 
         poller = asyncio.create_task(self._poll_loop())
@@ -39,6 +40,7 @@ class LifecycleMixin:
             pass
         finally:
             poller.cancel()
+            self._stop_discovery()
             for client in list(self.clients):
                 await client.close()
             if self._ui is not None:

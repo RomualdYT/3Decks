@@ -101,18 +101,29 @@ class FrameReader:
 # --- Constructeurs de messages sortants ---------------------------------------
 
 
-def hello_ok(agent_version: str, host: str, platform: str) -> dict[str, Any]:
-    return {
+def hello_ok(
+    agent_version: str,
+    host: str,
+    platform: str,
+    paired_token: str = "",
+) -> dict[str, Any]:
+    message = {
         "type": "hello.ok",
         "protocol": PROTOCOL_VERSION,
         "agent": agent_version,
         "host": host,
         "platform": platform,
     }
+    if paired_token:
+        message["token"] = paired_token
+    return message
 
 
-def hello_error(reason: str) -> dict[str, Any]:
-    return {"type": "hello.error", "reason": reason}
+def hello_error(reason: str, code: str = "") -> dict[str, Any]:
+    message = {"type": "hello.error", "reason": reason}
+    if code:
+        message["code"] = code
+    return message
 
 
 def action_result(
