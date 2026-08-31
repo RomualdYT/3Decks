@@ -18,6 +18,7 @@
 #include "protocol.h"
 #include "sound.h"
 #include "top_visuals.h"
+#include "extension_ui.h"
 
 /** Durée d'affichage d'une notification. */
 #define TOAST_DURATION 2.6f
@@ -206,6 +207,11 @@ void app_press_button(App *app, int slot, bool hold)
 
 	const Button *button = &page->buttons[slot];
 	if (!button->used) {
+		return;
+	}
+	const ExtensionButtonState *extension = extension_button_state(&app->state, page->id, button->id);
+	if (!hold && extension && !extension->available) {
+		app_notify(app, tr(STR_EXTENSION_UNAVAILABLE), true);
 		return;
 	}
 

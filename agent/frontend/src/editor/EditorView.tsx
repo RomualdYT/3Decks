@@ -107,7 +107,7 @@ export function EditorView({ config, schema, status, locale, scenes, apps, t, up
   const preview = page ? (
     <DeckPreview config={config} page={page} pageIndex={pageIndex} locale={locale} status={status} slots={schema.limits.buttons_per_page} selectedSlot={selectedSlot} t={t}
       onSelectPage={(index) => { setPageIndex(index); setSelectedSlot(null); }}
-      onSelectSlot={(slot) => { setSelectedSlot(slot); if (!page.buttons.some((item) => item.slot === slot)) setPickerOpen(true); }}
+      onSelectSlot={(slot) => { if (page.source) return; setSelectedSlot(slot); if (!page.buttons.some((item) => item.slot === slot)) setPickerOpen(true); }}
       onMoveButton={moveButton}
     />
   ) : <div className="empty-editor"><button type="button" onClick={addPage}>+ {t("addPage")}</button></div>;

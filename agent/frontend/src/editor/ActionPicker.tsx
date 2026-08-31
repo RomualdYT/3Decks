@@ -12,6 +12,7 @@ const CATEGORIES = [
   ["obs", { fr: "OBS Studio", en: "OBS Studio" }],
   ["navigation", { fr: "Navigation", en: "Navigation" }],
   ["advanced", { fr: "Avancé", en: "Advanced" }],
+  ["extensions", { fr: "Extensions", en: "Extensions" }],
 ] as const;
 
 interface Props {
@@ -45,10 +46,11 @@ export function ActionPicker({ open, locale, actions, title, t, onPick, onClose 
             {CATEGORIES.map(([id, label]) => <button key={id} type="button" className={!query && category === id ? "active" : ""} onClick={() => { setCategory(id); setQuery(""); }}>{label[locale]}</button>)}
           </nav>
           <div className="action-results">
+            {!matches.length && <p className="extension-empty-search">{category === "extensions" && !query ? (locale === "fr" ? "Installez vos intégrations dans l’onglet Extensions pour ajouter leurs actions ici." : "Install integrations in the Extensions tab to add their actions here.") : (locale === "fr" ? "Aucune action ne correspond à votre recherche." : "No actions match your search.")}</p>}
             {matches.map((action) => (
               <button type="button" className="action-card" key={action.kind} onClick={() => onPick(action)}>
                 <span className="action-card-icon" style={{ "--action-color": action.color } as React.CSSProperties}><DeckIcon name={action.icon} /></span>
-                <span><strong>{action.title[locale]}</strong><small>{action.description[locale]}</small></span>
+                <span><strong>{action.title[locale]}</strong><small>{action.description[locale]}</small>{action.extension && <small className="extension-origin">{action.extension}</small>}</span>
                 <span className={`availability ${action.supported ? "" : "off"}`}>{t(action.supported ? "available" : "setup")}</span>
               </button>
             ))}

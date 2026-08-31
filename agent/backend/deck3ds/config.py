@@ -19,6 +19,8 @@ from typing import Any
 from .action_catalog import ACTION_SPECS
 from .feature_catalog import FEATURE_SPECS
 from .keys import InvalidHotkey, parse_hotkey
+from .extensions.manifest import reference as extension_reference
+from .icon_catalog import ICONS
 
 #: Bornes alignées sur les limites de l'application 3DS.
 MAX_PAGES = 12
@@ -81,32 +83,6 @@ DASHBOARDS = {
     "audio",
     "frame",
     "notifications",
-}
-
-#: Icônes connues de l'application 3DS.
-ICONS = {
-    "mic",
-    "mic-off",
-    "volume-up",
-    "volume-down",
-    "volume-mute",
-    "play",
-    "pause",
-    "next",
-    "previous",
-    "app",
-    "browser",
-    "terminal",
-    "folder",
-    "music",
-    "chat",
-    "video",
-    "record",
-    "lock",
-    "page",
-    "power",
-    "gear",
-    "star",
 }
 
 
@@ -495,6 +471,14 @@ def _parse_action(raw: Any, context: str) -> Action:
         return Action("noop")
 
     kind, args = _split_action(raw, context)
+    if extension_reference(kind):
+        try:
+            encoded = json.dumps(args, allow_nan=False)
+        except (ValueError, TypeError) as error:
+            raise ConfigError(f"{context}: invalid extension arguments") from error
+        if len(encoded) > 8192:
+            raise ConfigError(f"{context}: extension arguments exceed 8 KiB")
+        return Action(kind, args)
     if kind not in KNOWN_ACTIONS:
         known = ", ".join(sorted(KNOWN_ACTIONS))
         raise ConfigError(f"{context}: action inconnue '{kind}'. Connues: {known}")
@@ -600,7 +584,7 @@ def _parse_page(raw: Any, index: int) -> PageConfig:
     dashboard = _require_choice(
         raw.get("dashboard", "auto"),
         f"{context}.dashboard",
-        DASHBOARDS,
+        DASHBOARDS | ({raw.get("dashboard")} if extension_reference(raw.get("dashboard")) else set()),
         f"Connus: {', '.join(sorted(DASHBOARDS))}",
         feminine=False,
     )
@@ -615,7 +599,7 @@ def _parse_page(raw: Any, index: int) -> PageConfig:
         "Connues: grid, list",
     )
     source = _require_choice(
-        raw.get("source", ""), f"{context}.source", ("", "windows"),
+        raw.get("source", ""), f"{context}.source", ("", "windows", raw.get("source") if extension_reference(raw.get("source")) else ""),
         "Connue: windows",
     )
 

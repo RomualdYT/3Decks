@@ -19,6 +19,8 @@ agent/frontend/coverage/
 # Configuration locale
 # Dupliquez config.json en config.local.json pour vos reglages personnels.
 agent/config.local.json
+agent/extensions/
+agent/*.3deckext
 
 # Systeme
 .DS_Store

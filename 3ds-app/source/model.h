@@ -72,6 +72,7 @@ typedef enum {
 	DASH_AUDIO, /**< Volumes, sortie active et égaliseur animé. */
 	DASH_FRAME,        /**< Cadre à musique : pochette plein écran. */
 	DASH_NOTIFICATIONS, /**< Notifications récentes du système. */
+	DASH_EXTENSION, /**< Cartes déclaratives fournies par une extension. */
 } DashboardMode;
 
 typedef struct {
@@ -132,6 +133,30 @@ typedef struct {
 #define MAX_APPS 8
 #define MAX_OUTPUTS 6
 #define LEN_APP_NAME 25
+
+#define MAX_EXTENSION_CARDS 4
+#define MAX_EXTENSION_BUTTONS (MAX_PAGES * MAX_BUTTONS)
+typedef struct {
+	char label[LEN_LABEL];
+	char value[LEN_DETAIL];
+	char detail[LEN_TEXT];
+	int progress; /**< -1 si aucune jauge. */
+} ExtensionCard;
+
+typedef struct {
+	char page[LEN_ID];
+	char title[LEN_TEXT];
+	int status; /**< 0 neutre, 1 OK, 2 avertissement, 3 erreur. */
+	int count;
+	ExtensionCard cards[MAX_EXTENSION_CARDS];
+} ExtensionPanel;
+
+typedef struct {
+	char page[LEN_ID];
+	char id[LEN_ID];
+	bool active;
+	bool available;
+} ExtensionButtonState;
 
 /** État courant du PC, reçu par patchs successifs. */
 typedef struct {
@@ -196,6 +221,11 @@ typedef struct {
 	char audio_output[LEN_APP_NAME];
 	char audio_outputs[MAX_OUTPUTS][LEN_APP_NAME];
 	int audio_output_count;
+
+	ExtensionPanel extension_panels[MAX_PAGES];
+	int extension_panel_count;
+	ExtensionButtonState extension_buttons[MAX_EXTENSION_BUTTONS];
+	int extension_button_count;
 } PcState;
 
 /** Notification éphémère affichée sur l'écran supérieur. */

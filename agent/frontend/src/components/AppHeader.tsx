@@ -20,9 +20,9 @@ export function AppHeader({ view, locale, status, t, onView, onLocale }: Props) 
         <span>3Decks</span>
       </button>
       <nav className="main-nav" aria-label="Navigation principale">
-        {(["editor", "settings", "status"] as View[]).map((item) => (
+        {(["editor", "settings", "extensions", "status"] as View[]).map((item) => (
           <button key={item} className={view === item ? "active" : ""} type="button" onClick={() => onView(item)}>
-            <DeckIcon name={item === "status" ? "status" : item === "settings" ? "gear" : "grid"} size={17} />
+            <DeckIcon name={item === "extensions" ? "extension" : item === "status" ? "status" : item === "settings" ? "gear" : "grid"} size={17} />
             {t(item)}
           </button>
         ))}

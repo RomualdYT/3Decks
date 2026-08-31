@@ -402,6 +402,38 @@ résultat que la 3DS interprète comme navigation, ce qui évite un aller-retour
 
 ## Robustesse
 
+### Extensions (champs facultatifs, protocole 1)
+
+Le contrat complet des programmes d'extension est dans [EXTENSIONS.md](EXTENSIONS.md).
+Ces programmes s'exécutent sur le PC via stdio ; ils ne parlent pas directement
+au socket 3DS. Les commandes et paramètres privés ne sont jamais transmis.
+
+Une page utilisant un écran d'extension reçoit `"dashboard":"extension"`.
+Les pages alimentées par une extension utilisent les tableaux `buttons`/`entries`
+existants. Leurs actions sont exécutées côté agent depuis les identifiants reçus.
+
+`state.update` peut inclure les tableaux suivants (remplacement complet quand
+présents ; tableaux vides = effacement ; absents = état inchangé) :
+
+```json
+{
+  "extension_panels": [{
+    "page": "focus", "title": "Focus", "status": "ok",
+    "cards": [{"label": "Temps restant", "value": "24:12", "detail": "Session", "progress": 4}]
+  }],
+  "extension_buttons": [{"page": "focus", "id": "start", "active": true, "available": true}]
+}
+```
+
+Bornes natives : 12 panneaux, 4 cartes/panneau, 72 états de boutons ; titre64,
+libellé24, valeur40 et détail64 octets UTF-8. `progress` est facultatif (0–100).
+Les couleurs de statut sont natives (`neutral`, `ok`, `warning`, `error`). La
+traduction est résolue par console. La limite de trame reste65536 octets ; les
+listes d'extensions volumineuses sont bornées par le budget global du message.
+Le parseur accepte8192 jetons JSON dans une allocation statique bornée.
+Les anciens clients ignorent les champs inconnus et nécessitent une mise à jour
+pour afficher les nouveaux panneaux ; les fonctions natives restent inchangées.
+
 - Un message JSON invalide entraîne un `action.result` en échec ou est ignoré,
   jamais un plantage.
 - La 3DS reconnecte automatiquement toutes les 2 secondes après une coupure,

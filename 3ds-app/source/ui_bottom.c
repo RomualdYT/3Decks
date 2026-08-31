@@ -13,6 +13,7 @@
 #include "text.h"
 #include "theme.h"
 #include "ui.h"
+#include "extension_ui.h"
 
 /*
  * L'écran inférieur est la surface de contrôle : une grille de 3x2 boutons,
@@ -204,8 +205,11 @@ static void draw_button(const App *app, const Button *button, int slot)
 		return;
 	}
 
-	const bool active = model_toggle_active(&app->state, button->toggle);
 	const Page *page = app_current_page(app);
+	const ExtensionButtonState *extension = page ?
+	    extension_button_state(&app->state, page->id, button->id) : NULL;
+	const bool unavailable = extension && !extension->available;
+	const bool active = extension ? extension->active : model_toggle_active(&app->state, button->toggle);
 	const ActionFeedbackState feedback =
 	    page != NULL ? app_action_feedback(app, page->id, button->id)
 	                 : ACTION_FEEDBACK_NONE;
@@ -256,7 +260,7 @@ static void draw_button(const App *app, const Button *button, int slot)
 	const float h = rect.h - shrink * 2.0f;
 	const float radius = 11.0f;
 
-	const u32 accent = button->color;
+	const u32 accent = unavailable ? COL_TEXT_FAINT : button->color;
 
 	u32 top;
 	u32 bottom;

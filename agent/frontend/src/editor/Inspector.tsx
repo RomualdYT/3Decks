@@ -8,6 +8,7 @@ import { ComboControl, NumberControl, SelectControl, TextControl } from "../comp
 import { IconPicker } from "../components/IconPicker";
 import { HotkeyInput } from "../components/HotkeyInput";
 import { PathPicker } from "../components/PathPicker";
+import { ExtensionField } from "../extensions/ExtensionFields";
 
 interface Props {
   config: DeckConfig;
@@ -82,8 +83,14 @@ export function Inspector({ config, schema, page, button, locale, scenes, apps, 
     const sourceChoices = [
       { id: "manual", label: fr ? "Mes propres actions" : "My own actions", icon: "plus", description: fr ? "Vous choisissez chaque bouton de la page." : "You choose every button on the page." },
       { id: "windows", label: fr ? "Fenêtres disponibles" : "Available windows", icon: "app", description: fr ? "Liste automatiquement les fenêtres ouvertes." : "Automatically lists open windows." },
+      ...(schema.extension_sources ?? []).map((source) => ({ id: source.name, label: localized(source.title, locale), icon: source.icon, description: source.supported ? localized(source.description, locale) : (fr ? "À activer dans Extensions." : "Enable in Extensions.") })),
     ];
-    const dashboardChoices = schema.dashboards.map((dashboard) => { const copy = DASHBOARD_COPY[dashboard.name] ?? { fr: dashboard.name, en: dashboard.name, icon: "monitor", descriptionFr: "", descriptionEn: "" }; return { id: dashboard.name, label: copy[locale], icon: copy.icon, description: dashboard.supported ? copy[locale === "fr" ? "descriptionFr" : "descriptionEn"] : (fr ? "Source désactivée dans Réglages → Fonctionnalités." : "Source disabled in Settings → Features.") }; });
+    if (page.source && !sourceChoices.some((choice) => choice.id === page.source)) sourceChoices.push({ id: page.source, label: page.source, icon: "extension", description: fr ? "Extension manquante" : "Missing extension" });
+    const dashboardChoices = schema.dashboards.map((dashboard) => {
+      const copy = DASHBOARD_COPY[dashboard.name];
+      return { id: dashboard.name, label: localized(dashboard.title, locale) || copy?.[locale] || dashboard.name, icon: dashboard.icon || copy?.icon || "extension", description: dashboard.supported ? localized(dashboard.description, locale) || copy?.[fr ? "descriptionFr" : "descriptionEn"] : dashboard.name.startsWith("ext:") ? (fr ? "À activer dans Extensions." : "Enable in Extensions.") : (fr ? "Source désactivée dans Réglages → Fonctionnalités." : "Source disabled in Settings → Features.") };
+    });
+    if (!dashboardChoices.some((choice) => choice.id === page.dashboard)) dashboardChoices.push({ id: page.dashboard, label: page.dashboard, icon: "extension", description: fr ? "Extension manquante" : "Missing extension" });
     return (
     <aside className="inspector">
       <div className="inspector-title"><div><span className="eyebrow">{t("page")}</span><h2>{t("pageSettings")}</h2></div><span className="selection-icon"><DeckIcon name={page.icon || "page"} /></span></div>
@@ -113,7 +120,7 @@ export function Inspector({ config, schema, page, button, locale, scenes, apps, 
   const kind = actionKind(button.action);
   const spec = schema.actions.find((action) => action.kind === kind);
   const args = actionArgs(button.action);
-  const setArg = (name: string, value: string | number) => onUpdateButton((item) => { item.action = { type: kind, ...actionArgs(item.action), [name]: value } as ActionValue; });
+  const setArg = (name: string, value: string | number | boolean) => onUpdateButton((item) => { item.action = { type: kind, ...actionArgs(item.action), [name]: value } as ActionValue; });
   return (
     <aside className="inspector">
       <div className="inspector-title"><div><button className="back-link" type="button" onClick={onDeselect}>‹ {t("pageSettings")}</button><h2>{t("buttonSettings")}</h2></div><span className="selection-icon"><DeckIcon name={button.icon} /></span></div>
@@ -125,8 +132,8 @@ export function Inspector({ config, schema, page, button, locale, scenes, apps, 
         <div className="form-divider" />
         <SectionTitle icon="workflow" title={t("action")} description={fr ? "Ce que fera le bouton lorsqu’on le touchera sur la console." : "What happens when this button is tapped on the console."} />
         <button className="current-action" type="button" onClick={onChangeAction}><span style={{ "--action-color": spec?.color ?? button.color } as React.CSSProperties}><DeckIcon name={spec?.icon ?? button.icon} /></span><span><strong>{spec?.title[locale] ?? kind}</strong><small>{spec?.description[locale] ?? kind}</small></span><DeckIcon name="down" /></button>
-        {!spec?.supported && <Card variant="secondary" className="support-warning"><Card.Content><DeckIcon name="info" /><p>{fr ? "Cette action nécessite une fonctionnalité désactivée. Vous pouvez l’activer dans Réglages → Fonctionnalités." : "This action needs a disabled feature. Enable it in Settings → Features."}</p></Card.Content></Card>}
-        {spec?.arguments.map((argument) => <ActionArgumentControl key={argument.name} argument={argument} spec={spec} value={String(args[argument.name] ?? "")} locale={locale} config={config} scenes={scenes} apps={apps} schema={schema} onChange={(value) => setArg(argument.name, value)} />)}
+        {!spec?.supported && <Card variant="secondary" className="support-warning"><Card.Content><DeckIcon name="info" /><p>{kind.startsWith("ext:") ? (fr ? "Vérifiez que cette intégration est installée et activée dans Extensions. Ses paramètres sont conservés." : "Check that this integration is installed and enabled in Extensions. Its parameters are preserved.") : (fr ? "Cette action nécessite une fonctionnalité désactivée. Vous pouvez l’activer dans Réglages → Fonctionnalités." : "This action needs a disabled feature. Enable it in Settings → Features.")}</p></Card.Content></Card>}
+        {spec?.arguments.map((argument) => spec.extension ? <ExtensionField key={argument.name} field={argument} value={args[argument.name] ?? argument.default} locale={locale} onChange={(value) => setArg(argument.name, value)} /> : <ActionArgumentControl key={argument.name} argument={argument} spec={spec} value={String(args[argument.name] ?? "")} locale={locale} config={config} scenes={scenes} apps={apps} schema={schema} onChange={(value) => setArg(argument.name, value)} />)}
         <Button fullWidth variant="outline" onPress={onChangeAction}>{t("changeAction")}</Button>
         <Disclosure className="advanced-disclosure"><Disclosure.Heading><Disclosure.Trigger><span><DeckIcon name="gear" size={16} />{t("advanced")}</span><Disclosure.Indicator /></Disclosure.Trigger></Disclosure.Heading><Disclosure.Content><Disclosure.Body><Card variant="secondary" className="technical-help"><Card.Content><DeckIcon name="info" size={16} /><p>{fr ? "Cet identifiant est utilisé par le fichier de configuration et la console. Il n’affecte pas le texte affiché." : "This identifier is used by the configuration file and console. It does not change the displayed label."}</p></Card.Content></Card><TextControl label={t("technicalId")} value={button.id} maxLength={schema.limits.id} onChange={(value) => onUpdateButton((item) => { item.id = value; })} /></Disclosure.Body></Disclosure.Content></Disclosure>
       </div>

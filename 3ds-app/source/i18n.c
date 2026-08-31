@@ -15,6 +15,8 @@ static Language s_language = LANG_EN;
  */
 
 static const char *const kEnglish[STR_COUNT] = {
+    [STR_EXTENSION_WAITING] = "Waiting for extension data",
+    [STR_EXTENSION_UNAVAILABLE] = "Enable this extension on your computer",
     /* Liaison */
     [STR_CONNECTED] = "Connected",
     [STR_CONNECTING] = "Connecting",
@@ -142,6 +144,8 @@ static const char *const kEnglish[STR_COUNT] = {
 };
 
 static const char *const kFrench[STR_COUNT] = {
+    [STR_EXTENSION_WAITING] = "En attente de l'extension",
+    [STR_EXTENSION_UNAVAILABLE] = "Activez cette extension sur l'ordinateur",
     /* Liaison */
     [STR_CONNECTED] = "Connecté",
     [STR_CONNECTING] = "Connexion",

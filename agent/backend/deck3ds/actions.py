@@ -16,6 +16,7 @@ from .config import Action, ButtonConfig, Config
 from .messages import msg
 from .obs import ObsClient, ObsError
 from .platforms.base import ActionFailed, Platform, Unsupported
+from .extensions.manifest import ExtensionError, reference as extension_reference
 
 
 @dataclass
@@ -38,9 +39,10 @@ class ActionOutcome:
 
 
 class Dispatcher:
-    def __init__(self, platform: Platform, config: Config) -> None:
+    def __init__(self, platform: Platform, config: Config, extensions=None) -> None:
         self.platform = platform
         self.config = config
+        self.extensions = extensions
 
     def set_config(self, config: Config) -> None:
         self.config = config
@@ -56,6 +58,16 @@ class Dispatcher:
         return self.run(action)
 
     def run(self, action: Action) -> ActionOutcome:
+        if extension_reference(action.kind):
+            try:
+                if self.extensions is None:
+                    raise ExtensionError("Extension runtime unavailable")
+                result = self.extensions.execute(action.kind, action.args)
+                return ActionOutcome(result["ok"], result["message"], state_changed=True)
+            except ExtensionError as error:
+                return ActionOutcome(False, str(error))
+            except Exception as error:
+                return ActionOutcome(False, msg("error", kind=type(error).__name__))
         handler = getattr(self, f"_do_{action.kind.replace('.', '_')}", None)
         if handler is None:
             return ActionOutcome(False, msg("unhandled", kind=action.kind))

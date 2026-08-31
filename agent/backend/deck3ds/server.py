@@ -23,6 +23,7 @@ from .actions import Dispatcher
 from .config import Config
 from .pairing import PairingManager
 from .platforms.base import Platform
+from .extensions.manager import ExtensionManager
 from .srv.broadcast import BroadcastMixin
 from .srv.collect import CollectMixin
 from .srv.commands import CommandMixin
@@ -75,7 +76,11 @@ class Server(
         self._config_mtime = self._config_stamp()
         self.platform = platform
         self.platform.configure_features(config.features)
-        self.dispatcher = Dispatcher(platform, config)
+        self.extensions = ExtensionManager(
+            self.config_path.parent / "extensions" if self.config_path else None,
+            platform.name,
+        )
+        self.dispatcher = Dispatcher(platform, config, self.extensions)
         self.verbose = options.verbose
 
         self.clients: set[Client] = set()

@@ -72,6 +72,8 @@ actions a matter of editing the agent alone — the console never needs rebuildi
 
 ## Documentation
 
+- **[Extension author guide](docs/EXTENSIONS.md)** — API 1, Python SDK, language-neutral protocol, packaging, trust model and cross-platform example.
+
 | Guide | For |
 |---|---|
 | [Quick start](#quick-start) | Getting it running in three steps |
@@ -245,6 +247,19 @@ Everything lives in `agent/config.json`. **No rebuild is needed** — press
 
 ## Action reference
 
+### Community extensions
+
+The **Extensions** tab imports local `.3deckext` packages, shows declared access,
+generates their settings and requires explicit approval before running code.
+Enabled packages contribute actions, automatic grid/list contents and native 3DS
+top-screen dashboards. Existing built-in integrations remain unchanged.
+
+Create a working starter from `agent/` with
+`python -m deck3ds.extensions init ../my-extension --id com.example.custom`.
+See the [complete guide](docs/EXTENSIONS.md) and
+[Focus timer example](examples/extensions/focus-timer). Extensions run with the
+computer user's rights; process isolation is **not a security sandbox**.
+
 ### Button fields
 
 | Field | Purpose |
@@ -415,6 +430,10 @@ python3 -m tests.test_agent        run the test suite
 ```
 
 ## Repository layout
+
+Extension internals live in `agent/backend/deck3ds/extensions/`, React management
+and generated fields in `agent/frontend/src/extensions/`, console rendering in
+`3ds-app/source/extension_ui.c`, and author examples in `examples/extensions/`.
 
 ```text
 3ds-app/            homebrew application (C, devkitARM, citro2d)

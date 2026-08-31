@@ -15,6 +15,7 @@
 #include "ui.h"
 #include "ui_top_media.h"
 #include "ui_top_system.h"
+#include "extension_ui.h"
 
 /*
  * L'écran supérieur est un tableau de bord contextuel. Il n'est pas un miroir
@@ -502,6 +503,9 @@ void ui_draw_top(const App *app)
 		break; /* traite plus haut pour respecter l'ordre des plans */
 	case DASH_SYSTEM:
 		ui_top_system_draw(app);
+		break;
+	case DASH_EXTENSION:
+		extension_dashboard_draw(app);
 		break;
 	case DASH_AUDIO:
 		ui_top_audio_draw(app);

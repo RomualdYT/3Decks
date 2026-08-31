@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 from .parts import Client
+from ..extensions.bridge import localized_state
 
 
 class BroadcastMixin:
@@ -35,7 +36,7 @@ class BroadcastMixin:
             return
 
         for client in self._audience():
-            if has_change and not await client.send(delta):
+            if has_change and not await client.send(localized_state(delta, getattr(client, "language", "en"))):
                 await self._drop(client)
                 continue
             if art is not None:

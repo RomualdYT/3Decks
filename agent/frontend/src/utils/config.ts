@@ -27,7 +27,10 @@ export function defaultAction(spec: ActionSpec, config: DeckConfig, scenes: stri
   if (!spec.arguments.length) return spec.kind;
   const value: Record<string, unknown> = { type: spec.kind };
   for (const argument of spec.arguments) {
-    if (argument.type === "number") value[argument.name] = 50;
+    if (argument.default !== undefined) value[argument.name] = argument.default;
+    else if (argument.type === "boolean") value[argument.name] = false;
+    else if (argument.type === "select") value[argument.name] = argument.choices?.[0]?.value ?? "";
+    else if (argument.type === "number") value[argument.name] = spec.extension ? argument.min ?? 0 : 50;
     else if (argument.type === "page") value[argument.name] = config.pages[0]?.id ?? "";
     else if (argument.type === "script") value[argument.name] = Object.keys(config.scripts ?? {})[0] ?? "";
     else if (argument.name === "scene") value[argument.name] = scenes[0] ?? "";
@@ -51,7 +54,7 @@ export function newButton(page: PageConfig, slot: number, spec: ActionSpec, conf
   return {
     id: uniqueId("button", page.buttons.map((button) => button.id)),
     slot,
-    label: { fr: spec.title.fr, en: spec.title.en },
+    label: { fr: spec.title.fr.slice(0, 24), en: spec.title.en.slice(0, 24) },
     icon: spec.icon,
     color: spec.color,
     action: defaultAction(spec, config, scenes),

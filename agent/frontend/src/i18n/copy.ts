@@ -2,6 +2,7 @@ import type { Locale } from "../app/types";
 
 const COPY = {
   fr: {
+    extensions: "Extensions",
     editor: "Éditeur", settings: "Réglages", status: "État", save: "Enregistrer", cancel: "Annuler",
     unsaved: "Modifications non enregistrées", pages: "Mes pages", addPage: "Ajouter une page", pageSettings: "Réglages de la page",
     selectSlot: "Sélectionnez un emplacement pour ajouter une action, puis personnalisez-la à droite.", addAction: "Ajouter une action",
@@ -25,6 +26,7 @@ const COPY = {
     actionHelp: "Choisissez une action compréhensible : les champs nécessaires apparaîtront automatiquement.", selected: "Sélectionné", close: "Fermer",
   },
   en: {
+    extensions: "Extensions",
     editor: "Editor", settings: "Settings", status: "Status", save: "Save", cancel: "Cancel", unsaved: "Unsaved changes",
     pages: "My pages", addPage: "Add a page", pageSettings: "Page settings", selectSlot: "Select a slot to add an action, then customise it on the right.",
     addAction: "Add an action", changeAction: "Change action", emptySlot: "Add", buttonSettings: "Button settings", icon: "Icon", color: "Colour",

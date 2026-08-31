@@ -20,7 +20,7 @@
 #include <stddef.h>
 
 /** Nombre maximal de tokens pour un document. */
-#define JSON_MAX_TOKENS 1024
+#define JSON_MAX_TOKENS 8192
 
 /** Profondeur maximale d'imbrication, garde-fou contre les entrées hostiles. */
 #define JSON_MAX_DEPTH 24

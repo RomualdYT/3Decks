@@ -36,4 +36,15 @@ describe("configuration editor helpers", () => {
     const obs = { ...action, kind: "obs.scene.set", arguments: [{ name: "scene", type: "text" as const, required: true }] };
     expect(actionArgs(defaultAction(obs, config, ["Camera"]))).toEqual({ scene: "Camera" });
   });
+
+  it("preserves typed extension defaults and qualified action ids", () => {
+    const extension: ActionSpec = { ...action, kind: "ext:com.example.timer/start", extension: "com.example.timer", arguments: [
+      { name: "minutes", type: "number", required: true, min: 1, max: 180, default: 25 },
+      { name: "silent", type: "boolean", required: false, default: false },
+      { name: "mode", type: "select", required: false, choices: [{ value: "focus", label: "Focus" }] },
+    ] };
+    const value = defaultAction(extension, config);
+    expect(actionKind(value)).toBe(extension.kind);
+    expect(actionArgs(value)).toEqual({ minutes: 25, silent: false, mode: "focus" });
+  });
 });

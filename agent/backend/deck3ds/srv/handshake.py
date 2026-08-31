@@ -8,6 +8,7 @@ from typing import Any
 from .. import protocol
 from .. import messages
 from .parts import Client, VERSION
+from ..extensions.bridge import fill_sources, localized_state
 
 
 class HandshakeMixin:
@@ -65,7 +66,7 @@ class HandshakeMixin:
             self._wake().set()
             return
 
-        await client.send(self._last_payload)
+        await client.send(localized_state(self._last_payload, getattr(client, "language", "en")))
         art = self._artwork.payload()
         if art is not None:
             await client.send_raw(art)
@@ -79,6 +80,7 @@ class HandshakeMixin:
         client.language = requested_language if requested_language in ("en", "fr") else "en"
         messages.set_language(client.language)
         client.authenticated = True
+        fill_sources(self.extensions, self.config)
 
         # Première console : les pages dynamiques ne sont pas encore remplies.
         # Les alimenter avant d'envoyer la configuration évite une page vide.

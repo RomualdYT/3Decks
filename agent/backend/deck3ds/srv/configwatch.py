@@ -6,6 +6,7 @@ import asyncio
 from typing import Any
 
 from .. import config as config_module
+from ..extensions.bridge import config_message, fill_sources
 from .parts import _window_buttons, _window_entries
 
 
@@ -53,6 +54,7 @@ class ConfigWatchMixin:
             return False
 
         self._install_config(loaded)
+        fill_sources(self.extensions, self.config)
         self.log(f"Configuration rechargee ({len(loaded.pages)} pages)")
         return True
 
@@ -64,6 +66,7 @@ class ConfigWatchMixin:
         réellement servi aux consoles.
         """
         self._install_config(loaded)
+        fill_sources(self.extensions, self.config)
 
         if self._has_dynamic_pages():
             try:
@@ -109,7 +112,7 @@ class ConfigWatchMixin:
 
     def _config_message(self, locale: str = "en") -> dict[str, Any]:
         """Configuration à transmettre, pages dynamiques comprises."""
-        return self.config.snapshot_payload(locale)
+        return config_message(self.extensions, self.config, locale)
 
     async def _broadcast_config(self) -> None:
         """Diffuse une configuration traduite pour chaque console."""

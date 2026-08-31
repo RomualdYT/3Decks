@@ -64,5 +64,6 @@ export function useDeckConfig() {
   }, [config, dirty]);
 
   const reset = useCallback(() => { if (saved) setConfig(clone(saved)); }, [saved]);
-  return { schema, config, status, apps, loading, saving, dirty, error, notice, update, save, reset, reload: load, setError, setNotice };
+  const refreshSchema = useCallback(async () => { setSchema(await agentApi.schema()); }, []);
+  return { schema, config, status, apps, loading, saving, dirty, error, notice, update, save, reset, reload: load, refreshSchema, setError, setNotice };
 }

@@ -9,6 +9,7 @@ import { useDeckConfig } from "../hooks/useDeckConfig";
 const EditorView = lazy(() => import("../editor/EditorView").then(({ EditorView }) => ({ default: EditorView })));
 const SettingsView = lazy(() => import("../settings/SettingsView").then(({ SettingsView }) => ({ default: SettingsView })));
 const StatusView = lazy(() => import("../status/StatusView").then(({ StatusView }) => ({ default: StatusView })));
+const ExtensionsView = lazy(() => import("../extensions/ExtensionsView").then(({ ExtensionsView }) => ({ default: ExtensionsView })));
 
 export function App() {
   const deck = useDeckConfig();
@@ -47,6 +48,7 @@ export function App() {
       {view === "editor" && <EditorView config={deck.config} schema={deck.schema} status={deck.status} apps={deck.apps} locale={locale} scenes={scenes} t={t} update={deck.update} />}
       {view === "settings" && <SettingsView config={deck.config} schema={deck.schema} status={deck.status} locale={locale} scenes={scenes} t={t} update={deck.update} onLocale={setLocale} onScenes={setScenes} />}
       {view === "status" && <StatusView status={deck.status} locale={locale} t={t} />}
+      {view === "extensions" && <ExtensionsView locale={locale} onChanged={deck.refreshSchema} />}
     </Suspense>
     <SaveBar dirty={deck.dirty} saving={deck.saving} locale={locale} onSave={() => void deck.save()} onReset={deck.reset} />
   </div>;

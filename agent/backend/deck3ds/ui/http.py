@@ -25,10 +25,15 @@ nécessaires, aucune suffisante seule :
 4. **Contrôle de l'`Origin` en écriture.** Une origine étrangère est refusée.
 
 Reste une décision volontaire : la section `scripts` est en **lecture seule**.
-C'est le seul endroit où l'utilisateur déclare des commandes arbitraires. La
+C'est un endroit où l'utilisateur déclare des commandes arbitraires. La
 rendre modifiable depuis un navigateur transformerait la moindre faille des
 protections ci-dessus en exécution de code à distance. Elle s'édite dans le
 fichier, à la main. L'interface l'affiche et permet d'y faire référence.
+
+Les extensions constituent une seconde surface d'exécution, volontaire :
+sélection native d'un paquet local, puis approbation explicite de son empreinte.
+L'API n'accepte ni commande, ni chemin de programme depuis le navigateur.
+Cette approbation n'est pas une sandbox : voir docs/EXTENSIONS.md.
 
 Pourquoi ne pas utiliser `http.server` ? Il est synchrone et bloquant. L'agent
 tient sur une boucle asyncio ; y greffer un serveur à fils d'exécution

@@ -32,6 +32,7 @@ class LifecycleMixin:
         await self._start_ui()
 
         poller = asyncio.create_task(self._poll_loop())
+        extensions = asyncio.create_task(self.extensions.run())
 
         try:
             async with self._server:
@@ -40,6 +41,8 @@ class LifecycleMixin:
             pass
         finally:
             poller.cancel()
+            extensions.cancel()
+            await asyncio.gather(poller, extensions, return_exceptions=True)
             self._stop_discovery()
             for client in list(self.clients):
                 await client.close()

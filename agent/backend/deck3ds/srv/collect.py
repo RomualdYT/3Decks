@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 from ..platforms.base import SystemSnapshot
+from ..extensions.bridge import fill_sources, state_payload
 from .parts import SETTLE_DELAY, SLOW_CONFIRM_DELAY, _snapshot_payload
 
 
@@ -81,6 +82,9 @@ class CollectMixin:
 
         snapshot = await asyncio.to_thread(self.platform.snapshot)
         payload = _snapshot_payload(snapshot)
+        if fill_sources(self.extensions, self.config):
+            await self._broadcast_config()
+        payload.update(state_payload(self.extensions, self.config))
 
         await self._republish_windows(snapshot.active_app)
         art = await self._refresh_artwork(snapshot, payload)

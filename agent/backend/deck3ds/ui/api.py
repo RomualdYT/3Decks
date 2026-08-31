@@ -30,6 +30,9 @@ from ..platforms.base import (
 from ..obs import ObsError, test_connection
 from ..srv.discovery import DISCOVERY_PORT
 from .http import HttpError, Request, Response
+from .extensions import ExtensionApi
+from ..extensions.manifest import ExtensionError
+from ..extensions.bridge import preview_payload, state_payload as extension_state
 
 
 def effective_capabilities(
@@ -149,7 +152,7 @@ def build_schema(
     }
 
 
-class Api:
+class Api(ExtensionApi):
     """Regroupe les points d'accès autour du serveur de l'agent."""
 
     def __init__(self, server: Any) -> None:
@@ -169,19 +172,24 @@ class Api:
             ("POST", "/api/pairing/rotate"): self.rotate_pairing,
             ("GET", "/api/apps"): self.get_apps,
             ("GET", "/api/state"): self.get_state,
+            ("GET", "/api/extensions"): self.get_extensions,
+            ("POST", "/api/extensions"): self.manage_extension,
         }
 
     # --- Schéma ----------------------------------------------------------------
 
     async def get_schema(self, request: Request) -> Response:
-        return Response.json(
-            build_schema(
-                self.server.platform.capabilities(),
-                self.server.config.obs.enabled,
-                self.server.config.features,
-                self.server.platform.name,
-            )
+        schema = build_schema(
+            self.server.platform.capabilities(),
+            self.server.config.obs.enabled,
+            self.server.config.features,
+            self.server.platform.name,
         )
+        catalog = self.server.extensions.catalog()
+        schema["actions"].extend(catalog["actions"])
+        schema["dashboards"].extend(catalog["dashboards"])
+        schema["extension_sources"] = catalog["sources"]
+        return Response.json(schema)
 
     async def test_obs(self, request: Request) -> Response:
         """Teste les reglages saisis et renvoie les scenes utilisables."""
@@ -284,7 +292,8 @@ class Api:
 
         try:
             parsed = config_module.parse(candidate)
-        except config_module.ConfigError as error:
+            self.server.extensions.validate_config(parsed)
+        except (config_module.ConfigError, ExtensionError) as error:
             # 422 plutôt que 400 : la requête est bien formée, c'est son
             # contenu que le validateur refuse. L'interface affiche le message.
             raise HttpError(422, str(error)) from error
@@ -312,8 +321,9 @@ class Api:
             raise HttpError(400, "un objet est attendu")
 
         try:
-            config_module.parse(self._prepare(raw))
-        except config_module.ConfigError as error:
+            parsed = config_module.parse(self._prepare(raw))
+            self.server.extensions.validate_config(parsed)
+        except (config_module.ConfigError, ExtensionError) as error:
             return Response.json({"valid": False, "error": str(error)})
 
         return Response.json({"valid": True, "error": ""})
@@ -371,7 +381,11 @@ class Api:
                     for key in FEATURE_SPECS
                 },
                 "notifications": server.platform.notification_status(),
-                "snapshot": server.last_state_payload(),
+                "snapshot": {
+                    **server.last_state_payload(),
+                    **extension_state(server.extensions, server.config),
+                    **preview_payload(server.extensions),
+                },
                 "logs": server.recent_logs(),
             }
         )

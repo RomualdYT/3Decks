@@ -1,5 +1,5 @@
 export type Locale = "fr" | "en";
-export type View = "editor" | "settings" | "status";
+export type View = "editor" | "settings" | "status" | "extensions";
 export type Localized = string | Partial<Record<Locale, string>>;
 export type ActionValue = string | ({ type: string } & Record<string, unknown>);
 
@@ -50,8 +50,14 @@ export interface DeckConfig {
 
 export interface ActionArgument {
   name: string;
-  type: "text" | "number" | "hotkey" | "page" | "script";
+  type: "text" | "number" | "hotkey" | "page" | "script" | "password" | "boolean" | "select";
   required: boolean;
+  label?: Localized;
+  description?: Localized;
+  default?: string | number | boolean;
+  min?: number;
+  max?: number;
+  choices?: Array<{ value: string; label: Localized }>;
 }
 
 export interface ActionSpec {
@@ -64,6 +70,8 @@ export interface ActionSpec {
   arguments: ActionArgument[];
   supported: boolean;
   capability: string | null;
+  extension?: string;
+  extension_name?: Localized;
 }
 
 export interface FeatureSpec {
@@ -85,7 +93,8 @@ export interface Schema {
     groups: string[];
     keys: Array<{ name: string; label_en: string; label_fr: string; group: string }>;
   };
-  dashboards: Array<{ name: string; supported: boolean }>;
+  dashboards: Array<{ name: string; supported: boolean; title?: Localized; description?: Localized; icon?: string }>;
+  extension_sources?: Array<{ name: string; supported: boolean; title: Localized; description: Localized; icon: string }>;
   layouts: string[];
   sources: string[];
   capabilities: Record<string, boolean>;
@@ -96,6 +105,39 @@ export interface Schema {
     id: number;
   };
   defaults: Record<string, string | number>;
+}
+
+export interface ExtensionManifest {
+  api_version: number;
+  id: string;
+  version: string;
+  name: Localized;
+  description: Localized;
+  author: string;
+  platforms: string[];
+  permissions: string[];
+  settings: ActionArgument[];
+  actions: Array<{ id: string; title: Localized; description: Localized }>;
+  sources: Array<{ id: string; title: Localized; description: Localized }>;
+  dashboards: Array<{ id: string; title: Localized; description: Localized }>;
+}
+
+export interface InstalledExtension {
+  manifest: ExtensionManifest;
+  digest: string;
+  enabled: boolean;
+  status: string;
+  error: string;
+  updated_at: number;
+  settings: Record<string, unknown>;
+  secret_fields_set: string[];
+}
+
+export interface ExtensionCatalog {
+  api_version: number;
+  directory: string;
+  extensions: InstalledExtension[];
+  errors: string[];
 }
 
 export interface AgentState {

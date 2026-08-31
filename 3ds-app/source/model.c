@@ -106,6 +106,9 @@ DashboardMode model_dashboard_from_name(const char *name)
 	if (strcmp(name, "notifications") == 0) {
 		return DASH_NOTIFICATIONS;
 	}
+	if (strcmp(name, "extension") == 0) {
+		return DASH_EXTENSION;
+	}
 	return DASH_AUTO;
 }
 

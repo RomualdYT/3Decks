@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 from .. import protocol
+from ..extensions.bridge import localized_state
 from .parts import Client
 
 
@@ -86,4 +87,4 @@ class ConnectionMixin:
         """Renvoie la mise en page, puis l'état courant s'il existe."""
         await client.send(self._config_message(client.language))
         if self._last_payload is not None:
-            await client.send(self._last_payload)
+            await client.send(localized_state(self._last_payload, client.language))

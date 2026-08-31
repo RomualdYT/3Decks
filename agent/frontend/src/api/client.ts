@@ -1,4 +1,4 @@
-import type { AgentState, DeckConfig, ObsConfig, Schema } from "../app/types";
+import type { AgentState, DeckConfig, ObsConfig, Schema, ExtensionCatalog } from "../app/types";
 
 type PairingState = AgentState["pairing"];
 
@@ -39,6 +39,8 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 }
 
 export const agentApi = {
+  extensions: () => request<ExtensionCatalog>("GET", "/api/extensions"),
+  manageExtension: (operation: string, values: Record<string, unknown> = {}) => request<{ ok?: boolean; cancelled?: boolean }>("POST", "/api/extensions", { operation, ...values }),
   schema: () => request<Schema>("GET", "/api/schema"),
   config: () => request<{ config: DeckConfig; path: string }>("GET", "/api/config"),
   save: (config: DeckConfig) => request<{ saved: boolean; config: DeckConfig }>("PUT", "/api/config", config),
