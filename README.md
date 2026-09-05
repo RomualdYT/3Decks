@@ -69,7 +69,7 @@ See [troubleshooting and platform limits](docs/TROUBLESHOOTING.md) and the [secu
 
 The backend requires Python **3.12+**. CI targets Python 3.12–3.14 on Linux, macOS and Windows; Linux tests the portable core, not native desktop integrations. Frontend builds use Node.js 24 and pnpm; console builds use devkitPro or Docker.
 
-See the [complete setup and checks](docs/CONTRIBUTING_AGENT.md). Test results and native checks still to perform are recorded in [Qualification](docs/QUALIFICATION.md), not presented as blanket cross-platform certification.
+See the [complete setup and checks](docs/CONTRIBUTING_AGENT.md). Automated checks are described in [Testing](docs/TESTING.md), with native release checks in [Qualification](docs/QUALIFICATION.md), not presented as blanket cross-platform certification.
 
 ## License
 

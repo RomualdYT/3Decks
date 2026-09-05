@@ -4,7 +4,7 @@
 
 ## Boundaries
 
-This is a local desktop agent, not a cloud service or a multi-user web backend. See [local application decisions and measured costs](LOCAL_APP.md) for the PC–3DS boundaries and remaining end-user packaging work.
+This is a local desktop agent, not a cloud service or a multi-user web backend. See [performance measurement](PERFORMANCE.md) for repeatable local workloads and how to interpret them.
 
 The implementation lives in `agent/backend/deck3ds`. `agent/deck3ds` is only a source-checkout import shim; the wheel installs the real package directly. `config.py` and `server.py` are compatibility facades, not alternate implementations.
 
@@ -19,7 +19,7 @@ The implementation lives in `agent/backend/deck3ds`. `agent/deck3ds` is only a s
 | `platforms/` | Existing macOS/Windows integrations and owned dialog processes | Native OS facilities |
 | `extensions/` | API 1 SDK, manifests, trust registry, bounded process RPC, cached contributions | No FastAPI, HTTP request or global runtime |
 
-`AgentRuntime` composes transport collaborators instead of inheriting the historical nine mixins. Each receives an explicit typed context; method bindings on the runtime preserve the internal transport interface while state ownership is visible in one constructor. Routes receive a frozen `Services` bundle, never the runtime. Import boundaries are checked by `tests/test_architecture.py`.
+`AgentRuntime` composes transport collaborators. Each receives an explicit typed context; method bindings on the runtime preserve the internal transport interface while state ownership is visible in one constructor. Routes receive a frozen `Services` bundle, never the runtime. Import boundaries are checked by `tests/test_architecture.py`.
 
 Imports do not start sockets, native collection or extension processes. `create_app()` without services is suitable for schema export and never constructs native adapters. A real runtime is built by `runtime.factory`; a failed runtime construction closes the adapter it acquired.
 
@@ -64,7 +64,7 @@ HTTP bodies are decoded without applying Pydantic defaults before domain validat
 Native action arguments are described by the same catalog consumed by the
 editor. The domain parser rejects unknown fields, validates string/number types
 and catalog bounds, canonicalizes hotkeys and HTTP(S) URLs, then installs the
-document. Optional legacy fields such as volume `step` remain explicit catalog
+document. Optional fields such as volume `step` remain explicit catalog
 entries rather than undocumented executor behavior.
 
 Saving and external reloads share one asynchronous lock. A save:
@@ -93,8 +93,7 @@ globally); rotating or successfully consuming the six-digit code clears the
 window. These are resource and brute-force limits, not substitutes for the
 durable console credential. Successful pairing creates a distinct 192-bit
 bearer credential per console; the adjacent `paired-consoles.json` registry
-stores only SHA-256 digests plus name and timestamps. The historical shared
-token is a migration/bootstrap secret, not what newly paired consoles retain.
+stores only SHA-256 digests plus name and timestamps. The shared bootstrap token is not what newly paired consoles retain.
 Revocation is atomic and immediately closes matching active connections.
 
 Each authenticated client owns its locale. Action execution enters a

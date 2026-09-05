@@ -145,7 +145,7 @@ class TestParseHotkey(unittest.TestCase):
         """`cmd+cmd+a` exprime sans ambiguïté la même intention que `cmd+a`."""
         self.assertEqual(keys.parse_hotkey("cmd+cmd+a").canonical(), "cmd+a")
 
-    def test_alias_historiques_toujours_acceptes(self):
+    def test_supported_key_aliases_are_accepted(self):
         """Les configurations déjà écrites ne doivent pas devenir invalides."""
         for ancien, attendu in (
             ("echap", "escape"),

@@ -45,4 +45,4 @@ uv run --locked deck3ds --config config.local.json --check
 
 La session de l’éditeur change à chaque redémarrage et est distincte du secret console. Rouvrez l’éditeur depuis le menu si le lien expire. Le cache privé peut contenir le lien courant : ne le partagez pas.
 
-Voir la [migration](MIGRATION_FASTAPI.fr.md) et le [guide HTTP](api/README.fr.md).
+Voir la [manual Python setup](PYTHON_SETUP.fr.md) et le [guide HTTP](api/README.fr.md).

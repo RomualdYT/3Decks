@@ -74,4 +74,4 @@ Uninstall removes application shortcuts and login startup, not user configuratio
 
 The generated launcher checks the exact release wheel's SHA-256 before installation. This detects a mismatch with its expected artifact; **it is not a code-signing certificate**, nor independent protection if the release account or installer itself is compromised. uv manages an isolated tool environment. Source/CI environments additionally use the repository lockfile.
 
-For manual Python installation or an existing checkout, use [migration and wheel setup](MIGRATION_FASTAPI.md). Maintainers should follow the separate [release procedure](PUBLIC_RELEASE.md).
+For manual Python installation or an existing checkout, use [manual Python setup](PYTHON_SETUP.md). Maintainers should follow the separate [release procedure](PUBLIC_RELEASE.md).

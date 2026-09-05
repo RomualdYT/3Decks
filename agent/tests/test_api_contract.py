@@ -1,4 +1,5 @@
 """Configuration and status contracts through the authenticated ASGI interface."""
+
 import json
 
 import pytest
@@ -6,7 +7,9 @@ import pytest
 pytestmark = pytest.mark.asyncio
 
 
-async def test_config_round_trip_preserves_fields_and_increments_revision(client, agent):
+async def test_config_round_trip_preserves_fields_and_increments_revision(
+    client, agent
+):
     before = (await client.get("/api/config")).json()["config"]
     response = await client.put("/api/config", json=before)
     assert response.status_code == 200
@@ -46,7 +49,9 @@ async def test_generated_windows_do_not_enter_persisted_or_http_config(client, a
     assert agent.config.pages[0].buttons
 
 
-async def test_invalid_action_returns_structured_error_and_preserves_file(client, agent):
+async def test_invalid_action_returns_structured_error_and_preserves_file(
+    client, agent
+):
     original = agent.config_path.read_bytes()
     document = (await client.get("/api/config")).json()["config"]
     document["pages"][0]["buttons"][0]["action"] = "unknown.action"
@@ -68,7 +73,9 @@ async def test_preflight_reports_validity_without_writing(client, agent, valid):
     assert agent.config_path.read_bytes() == original
 
 
-async def test_state_exposes_available_capabilities_and_bounded_diagnostics(client, agent):
+async def test_state_exposes_available_capabilities_and_bounded_diagnostics(
+    client, agent
+):
     agent.log("test diagnostic")
     response = await client.get("/api/state")
     assert response.status_code == 200

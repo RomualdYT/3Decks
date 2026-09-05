@@ -28,13 +28,20 @@ def imports(path):
         yield name.removeprefix("deck3ds.")
 
 
-@pytest.mark.parametrize("statement", [
-    "import deck3ds.api", "from deck3ds import api",
-    "from .. import api", "from ..api import app",
-])
+@pytest.mark.parametrize(
+    "statement",
+    [
+        "import deck3ds.api",
+        "from deck3ds import api",
+        "from .. import api",
+        "from ..api import app",
+    ],
+)
 def test_boundary_inspection_recognizes_absolute_and_relative_imports(statement):
     names = list(import_names(statement, "deck3ds.services"))
-    assert any(name == "deck3ds.api" or name.startswith("deck3ds.api.") for name in names)
+    assert any(
+        name == "deck3ds.api" or name.startswith("deck3ds.api.") for name in names
+    )
 
 
 @pytest.mark.parametrize("layer", ["services", "configuration", "extensions"])

@@ -36,7 +36,7 @@ From a source checkout's `agent/`, run `uv sync --locked`, then
 follow the contributor guide to build frontend assets and select a private
 configuration. Use `deck3ds-ui` for the native menu or `deck3ds --ui` for a
 terminal agent with browser UI. The small `agent/deck3ds/` shim preserves source
-imports. `uv build` produces a source archive and wheel; full migration,
+imports. `uv build` produces a source archive and wheel; installation,
 architecture, API, contribution and qualification guides are in repository `docs/`.
 
 Windows notifications require MSIX identity, the declared notification capability

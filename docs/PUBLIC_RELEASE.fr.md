@@ -48,6 +48,6 @@ Réservez l’identité dans Partner Center, lancez **Windows Store package** su
 
 ## Retour arrière
 
-Gardez l’artefact précédent et les sauvegardes. Arrêtez l’agent, réinstallez l’ancienne version qualifiée et sélectionnez le même fichier de configuration. Pas de fallback HTTP historique. Les données d’extensions peuvent nécessiter leur propre sauvegarde.
+Gardez l’artefact précédent et les sauvegardes. Arrêtez l’agent, réinstallez l’ancienne version qualifiée et sélectionnez le même fichier de configuration. Les données d’extensions peuvent nécessiter leur propre sauvegarde.
 
 Les notes de version doivent indiquer CI réellement exécutée et essais natifs effectués, sans présenter simulations ou benchmarks courts comme une qualification universelle.

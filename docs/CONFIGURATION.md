@@ -9,7 +9,7 @@ Use the visual editor for normal configuration. Manual JSON editing is intended 
 | Launch mode | Selected configuration |
 |---|---|
 | Explicit `--config PATH` | That path |
-| Source checkout without `--config` | Historical `agent/config.json`, when present |
+| Source checkout without `--config` | Source `agent/config.json`, when present |
 | Installed package | OS user configuration directory |
 
 Typical installed locations are `~/Library/Application Support/3Decks/config.json` on macOS and `%LOCALAPPDATA%\3Decks\config.json` on Windows; platformdirs resolves the actual directory. The current working directory does not select an installed application's configuration.
@@ -55,4 +55,4 @@ uv run --locked deck3ds --config config.local.json --check
 
 The local editor's session changes on restart. Reopen the editor from the system menu if a saved browser link expires. This is separate from the console's durable credential. A private desktop handoff file may contain the current UI link; do not share runtime/cache files.
 
-For upgrades and rollback, see [migration](MIGRATION_FASTAPI.md). For the HTTP contract, see [API reference](api/README.md).
+For upgrades and rollback, see [manual Python setup](PYTHON_SETUP.md). For the HTTP contract, see [API reference](api/README.md).

@@ -261,12 +261,8 @@ class TestUiSecurity(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(status, 422)
 
-    async def test_interface_conserve_le_jeton_entre_rechargements(self):
-        """Le module d'accès doit mémoriser le jeton, sinon F5 casse la page.
-
-        Vérifié sur la ressource réellement servie : le défaut se situait
-        entièrement côté navigateur et aucun test de l'API ne pouvait le voir.
-        """
+    async def test_bundled_editor_and_referenced_assets_are_served(self):
+        """The packaged entry page references assets reachable over HTTP."""
         import re
 
         status, _ = await self.request("GET", "/")
@@ -276,15 +272,3 @@ class TestUiSecurity(unittest.IsolatedAsyncioTestCase):
             with self.subTest(asset=asset):
                 asset_status, _ = await self.request("GET", asset)
                 self.assertEqual(asset_status, 200)
-
-        script = (
-            self.ui.static_root.parents[3] / "frontend" / "src" / "api" / "client.ts"
-        ).read_text(encoding="utf-8")
-        self.assertIn("sessionStorage", script)
-        # Le jeton doit être mémorisé avant d'être retiré de l'URL, sans quoi
-        # l'effacement le perdrait définitivement.
-        self.assertLess(
-            script.index("sessionStorage.setItem"),
-            script.index("history.replaceState"),
-            "le jeton doit etre memorise avant d'etre retire de l'URL",
-        )

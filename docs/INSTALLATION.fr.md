@@ -66,4 +66,4 @@ La désinstallation retire l’application, les raccourcis et le démarrage auto
 
 Le lanceur vérifie l’empreinte SHA-256 du wheel de sa Release. Ce n’est pas un certificat de signature ni une protection indépendante si le compte de publication ou le lanceur est compromis. uv isole l’environnement ; les environnements de développement/CI utilisent aussi le fichier de verrouillage.
 
-Pour Python manuel ou une ancienne installation : [migration](MIGRATION_FASTAPI.fr.md). Pour les mainteneurs : [publication](PUBLIC_RELEASE.fr.md).
+Pour Python manuel ou une ancienne installation : [manual Python setup](PYTHON_SETUP.fr.md). Pour les mainteneurs : [publication](PUBLIC_RELEASE.fr.md).

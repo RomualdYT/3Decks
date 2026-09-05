@@ -10,7 +10,7 @@
 
 The console normally sends configured page/button identifiers, not executable commands. The agent resolves and validates actions locally. Built-in direct controls have a separate limited allow-list. Scripts must already be declared in the trusted local file.
 
-Pairing creates an individually revocable console credential; only its SHA-256 digest is stored in the paired-device registry. Legacy shared tokens are exchanged during migration. Handshake deadlines, connection caps, monotonic mutation IDs and pairing rate limits bound common abuse, but are not encryption.
+Pairing creates an individually revocable console credential; only its SHA-256 digest is stored in the paired-device registry. A shared bootstrap token is exchanged for an individual credential when used. Handshake deadlines, connection caps, monotonic mutation IDs and pairing rate limits bound common abuse, but are not encryption.
 
 ## Local editor
 

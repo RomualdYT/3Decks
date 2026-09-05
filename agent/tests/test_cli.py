@@ -65,8 +65,8 @@ def test_default_location_preserves_source_checkout_and_installed_user_directory
 ):
     source = tmp_path / "source"
     (source / "frontend").mkdir(parents=True)
-    legacy = source / "config.json"
-    legacy.write_text("{}", encoding="utf-8")
+    source_config = source / "config.json"
+    source_config.write_text("{}", encoding="utf-8")
     with (
         patch.object(
             location,
@@ -75,8 +75,8 @@ def test_default_location_preserves_source_checkout_and_installed_user_directory
         ),
         patch.object(location, "user_config_path", return_value=tmp_path / "user"),
     ):
-        assert location.default_config_path() == legacy
-        legacy.unlink()
+        assert location.default_config_path() == source_config
+        source_config.unlink()
         assert location.default_config_path() == tmp_path / "user" / "config.json"
 
 

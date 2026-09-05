@@ -61,7 +61,9 @@ class TestWindowsNotifications(unittest.TestCase):
         self.assertNotIn("wpndatabase", script.lower())
         self.assertNotIn("sqlite", script.lower())
 
-    def test_manifeste_msix_declare_la_capacite_sans_fallback(self):
+    def test_msix_manifest_declares_notification_access_and_visible_application(self):
+        from xml.etree import ElementTree
+
         manifest = (
             Path(__file__).resolve().parent.parent
             / "backend"
@@ -69,12 +71,14 @@ class TestWindowsNotifications(unittest.TestCase):
             / "Package.appxmanifest.template"
         ).read_text(encoding="utf-8")
 
-        self.assertIn('uap3:Capability Name="userNotificationListener"', manifest)
-        self.assertIn('rescap:Capability Name="runFullTrust"', manifest)
-        self.assertIn('ProcessorArchitecture="x64"', manifest)
-        self.assertNotIn('AppListEntry="none"', manifest)
-        self.assertNotIn("SQLite", manifest)
-        self.assertIn("ne lit volontairement jamais wpndatabase.db", manifest)
+        package = ElementTree.fromstring(manifest)
+        capabilities = {element.get("Name") for element in package.findall("./{*}Capabilities/{*}Capability")}
+        self.assertIn("userNotificationListener", capabilities)
+        self.assertIn("runFullTrust", capabilities)
+        self.assertEqual(package.find("{*}Identity").get("ProcessorArchitecture"), "x64")
+        visual = package.find("./{*}Applications/{*}Application/{*}VisualElements")
+        self.assertIsNotNone(visual)
+        self.assertNotEqual(visual.get("AppListEntry"), "none")
 
     def test_permission_est_demandee_au_premier_demarrage(self):
         reader, calls = self._reader(self._payload())

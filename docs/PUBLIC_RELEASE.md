@@ -64,6 +64,6 @@ The workflow is prepared; there is no implied published Store listing.
 
 ## 4. Rollback and release evidence
 
-Retain the previous release and backups. Stop the current agent, reinstall the previously qualified artifact and use the same selected config path. There is no legacy HTTP fallback. An extension may have changed its own data format, so retain its data backup too.
+Retain the previous release and backups. Stop the current agent, reinstall the previously qualified artifact and use the same selected config path. An extension may have changed its own data format, so retain its data backup too.
 
 Attach the actual CI outcome and native qualification scope to release notes. Do not turn simulated tests, historical dependency audits or a short loopback benchmark into claims of universal compatibility or long-term endurance.

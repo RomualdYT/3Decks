@@ -43,4 +43,4 @@ Appairage individuel révocable, quotas, échéances et compteurs limitent les a
 
 Un wheel versionné sert les lanceurs GitHub et le packaging Store. Réglages et extensions restent à côté de la configuration, hors environnement de programme. L’identité MSIX, sa signature finale et les permissions OS ne sont pas fournies par FastAPI.
 
-Voir [API](api/README.fr.md), [protocole](PROTOCOL.fr.md), [sécurité](SECURITY.fr.md) et [performances](LOCAL_APP.fr.md).
+Voir [API](api/README.fr.md), [protocole](PROTOCOL.fr.md), [sécurité](SECURITY.fr.md) et [performances](PERFORMANCE.fr.md).

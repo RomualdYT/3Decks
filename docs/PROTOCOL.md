@@ -46,7 +46,7 @@ A valid code is consumed once. The response supplies a new individual credential
 {"type":"hello.ok","protocol":1,"agent":"0.2.0","host":"Office Mac","platform":"darwin","token":"new-individual-credential"}
 ```
 
-`token` is included after pairing/legacy-token migration, not on every normal handshake. The agent keeps only the credential's SHA-256 digest in `paired-consoles.json`. Individual revocation closes matching connections.
+`token` is included after pairing or bootstrap-token exchange, not on every normal handshake. The agent keeps only the credential's SHA-256 digest in `paired-consoles.json`. Individual revocation closes matching connections.
 
 One absolute five-second deadline covers the entire handshake, including fragments. Admissions are capped at 16 pending and eight authenticated clients; overload can return `hello.error` with `server_busy`. Pair-code failures are limited to five per source and 30 globally per one-minute window.
 

@@ -1,4 +1,5 @@
 """Editor catalogs must describe the domain's actual capabilities and limits."""
+
 import re
 
 import pytest
@@ -9,7 +10,10 @@ from deck3ds.services.catalog import build_schema
 
 
 def test_capabilities_control_action_availability():
-    actions = {item["kind"]: item for item in build_schema(Capabilities(volume=True))["actions"]}
+    actions = {
+        item["kind"]: item
+        for item in build_schema(Capabilities(volume=True))["actions"]
+    }
     assert actions["volume.up"]["supported"]
     assert not actions["window.focus"]["supported"]
     assert actions["settings.open"]["supported"]
@@ -17,14 +21,29 @@ def test_capabilities_control_action_availability():
 
 
 def test_obs_catalog_exposes_named_scene_and_source_arguments():
-    actions = {item["kind"]: item for item in build_schema(Capabilities(), obs_enabled=True)["actions"]}
+    actions = {
+        item["kind"]: item
+        for item in build_schema(Capabilities(), obs_enabled=True)["actions"]
+    }
     assert actions["obs.scene.set"]["supported"]
-    assert [argument["name"] for argument in actions["obs.source.toggle"]["arguments"]] == ["scene", "source"]
+    assert [
+        argument["name"] for argument in actions["obs.source.toggle"]["arguments"]
+    ] == ["scene", "source"]
 
 
-@pytest.mark.parametrize("item", build_schema(Capabilities())["actions"], ids=lambda item: item["kind"])
+@pytest.mark.parametrize(
+    "item", build_schema(Capabilities())["actions"], ids=lambda item: item["kind"]
+)
 def test_every_action_has_valid_bilingual_presentation(item):
-    assert item["category"] in {"essential", "audio", "media", "apps", "obs", "navigation", "advanced"}
+    assert item["category"] in {
+        "essential",
+        "audio",
+        "media",
+        "apps",
+        "obs",
+        "navigation",
+        "advanced",
+    }
     assert item["icon"] in config.ICONS
     assert re.fullmatch(r"#[0-9A-F]{6}", item["color"])
     for language in ("en", "fr"):
@@ -38,8 +57,10 @@ def test_limits_and_defaults_match_domain_models():
     assert limits["buttons_per_page"] == config.MAX_BUTTONS_PER_PAGE
     assert limits["pages"] == config.MAX_PAGES
     for key, expected in (
-        ("port", config.PORT_RANGE), ("poll_interval", config.POLL_INTERVAL_RANGE),
-        ("volume_step", config.VOLUME_STEP_RANGE), ("obs_timeout", config.OBS_TIMEOUT_RANGE),
+        ("port", config.PORT_RANGE),
+        ("poll_interval", config.POLL_INTERVAL_RANGE),
+        ("volume_step", config.VOLUME_STEP_RANGE),
+        ("obs_timeout", config.OBS_TIMEOUT_RANGE),
     ):
         assert tuple(limits[key]) == expected
     reference, obs = config.Config(), config.ObsConfig()

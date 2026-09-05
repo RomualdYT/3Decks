@@ -1,49 +1,32 @@
-# Bilan de qualification
+# Qualification d’une version
 
-[Documentation](README.fr.md) · [English](QUALIFICATION.md) · [Publication](PUBLIC_RELEASE.fr.md)
+[Documentation](README.fr.md) · [English](QUALIFICATION.md) · [Tests](TESTING.fr.md) · [Publication](PUBLIC_RELEASE.fr.md)
 
-## Passe de stabilisation du 5 septembre 2026
+Pour chaque version candidate, notez commit, artefact, OS et interpréteur. Des tests simulés réussis ne prouvent pas les permissions natives ou le matériel.
 
-Ces résultats décrivent le code testé à cette date, pas une certification automatique des commits suivants.
+## Validation automatique
 
-| Contrôle | Résultat local |
-|---|---|
-| Python macOS/3.12 | 533 tests et 80 sous-tests réussis |
-| Couverture API/services/runtime/desktop | 91,92 % globalement ; seuil 90 %, pas une garantie par fichier |
-| Qualité | Ruff et mypy strict sur 38 modules réussis |
-| Frontend | 17 tests Vitest, TypeScript et build réussis |
-| Contrats | OpenAPI et types générés concordants |
-| Distribution | Wheel/sdist construits ; CLI, assets, HTTP, TCP et extension testés hors dépôt |
-| Menu macOS réel | Démarrage temporaire, disponibilité UI, arrêt CLI coopératif et nettoyage vérifiés |
-| Configuration publique | Document courant et cinq versions historiques sans anomalie dans les catégories inspectées |
-| CI distante | Préparée ; matrice complète non déclarée exécutée ici |
-| Windows natif/MSIX | Reste à qualifier |
+Exécutez les [commandes de test](TESTING.fr.md) et toute la matrice distante Linux/macOS/Windows × Python 3.12–3.14. Exigez couverture, analyse statique, contrats générés, builds frontend/console et installation isolée du wheel.
 
-Les tests protègent notamment les saisies face aux réponses lentes, les onglets masqués, les préférences médias, l’absence de fchmod Windows, la rotation UTF-8, les opérations bornées et l’arrêt propre. Les autres contrats couvrent transactions, processus, protocoles et extensions avec des adaptateurs simulés.
+Le contrôle du paquet teste assets, CLI/HTTP/TCP et extension hors dépôt. Les fournisseurs OS simulés ne doivent pas demander vos permissions ou piloter une vraie console. Gardez rapports CI et artefacts ; indiquez les résultats réels dans les notes de version, plutôt que des compteurs périssables dans le guide utilisateur.
 
-## Endurance courte et performances
+## Vérifications natives
 
-Essai de 30 secondes avec adaptateur fictif : **183 reconnexions, 9 sauvegardes, ping maximal 0,89 ms**, croissance tracée 0,201 Mio et pic 0,594 Mio. Aucun worker `3decks-` restant ; deux threads au total dans le processus.
+- [ ] Installer l’artefact de livraison sur macOS et Windows.
+- [ ] Toutes les vues : polices, image console, responsive et navigation clavier.
+- [ ] Créer, trier, sauvegarder/recharger pages/boutons ; capture clavier et conflits.
+- [ ] Menu système, état, préférences médias et réglages rapides.
+- [ ] Permissions macOS du véritable exécutable : refus puis approbation.
+- [ ] Actions/médias/dialogues Windows ; notifications avec identité MSIX prévue.
+- [ ] Spotify/Musique compatibles, sélection fichier/dossier et OBS hors diffusion.
+- [ ] Vraie 3DS : découverte, manuel, appairage/révocation, FR/EN, actions, veille/réveil.
+- [ ] Extension : import, approbation, configuration, redémarrage/retrait, cartes et listes.
+- [ ] Arrêt pendant sauvegarde, dialogue ou extension lente ; processus/sockets restants.
+- [ ] Second lancement, ouverture de session, restart, mise à jour, désinstallation et retour arrière.
+- [ ] Mesurer repos et [endurance adaptée](PERFORMANCE.fr.md).
 
-Ce n’est ni une mesure RSS, ni une mesure Wi-Fi sur 3DS, ni un essai de quatre heures.
+## Compte rendu
 
-```sh
-# Depuis agent/
-uv run --locked python tools/endurance_agent.py --duration 30 --slow-action-ms 100 --quiet
-```
+Séparez tests automatiques, essais natifs et contrôles restants. Un Mac ne qualifie pas Windows/MSIX ; le loopback ne mesure pas la 3DS ; un essai court ne prouve pas plusieurs heures.
 
-Les [mesures initiales](performance/fastapi-2026-08-31.json) et [mesures chargées](performance/local-state-2026-08-31.json) sont historiques et non directement comparables. La référence initiale donnait un p95 HTTP typique de 1,008 ms contre 1,803 ms avec FastAPI ; **FastAPI n’était pas plus rapide**. Les bénéfices portent sur les contrats et le cycle de vie. Une série instrumentée conservait 18,742 à 18,763 Mio sur cinq cycles après correction d’une rétention. Voir les tableaux, hypothèses et commandes détaillés dans la [référence anglaise](QUALIFICATION.md).
-
-## Avant publication
-
-- [ ] Matrice distante complète sur le commit candidat.
-- [ ] Installation macOS/Windows, toutes les vues, polices, PNG et responsive.
-- [ ] Création/sauvegarde/conflits, capture clavier, tri des pages et réglages rapides.
-- [ ] Permissions macOS avec le Python distribué, notifications, Spotify/Musique, dialogues et OBS.
-- [ ] Actions/médias/dialogues Windows et notifications MSIX : refus puis accord.
-- [ ] Vraie 3DS : découverte, appairage/révocation, FR/EN, veille/réveil et reconnexion.
-- [ ] Extension : import, approbation, configuration, activation/retrait et affichage console.
-- [ ] Arrêt pendant sauvegarde, dialogue et extension lente ; processus résiduels.
-- [ ] Ouverture de session, second lancement, redémarrage, mise à jour, retrait et retour arrière.
-
-Les vérifications ciblées antérieures ne remplacent pas cette passe complète. Rejouez également les audits de dépendances : aucun résultat historique ne garantit l’absence actuelle de vulnérabilité.
+Expurgez captures et journaux. Rejouez les audits de dépendances pour le candidat. Le packaging Store ne prouve ni acceptation ni disponibilité publique sur le Store.

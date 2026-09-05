@@ -19,7 +19,7 @@ See [architecture](ARCHITECTURE.md) for the detailed ownership and concurrency r
 | Distribution | Required resources, excluded personal/cache files, isolated installed-package smoke |
 | Documentation | Local Markdown/HTML links checked by `tools/check_docs.py` |
 
-The dated results and unperformed native checks live in [Qualification](QUALIFICATION.md), avoiding duplicated test counts here.
+The [test guide](TESTING.md) defines automated checks; [Qualification](QUALIFICATION.md) covers native release verification.
 
 ## Maintainability priorities
 
@@ -27,13 +27,13 @@ Keep modules focused on a responsibility. Around 400 lines is a review trigger, 
 
 Prefer narrow composition to broad shared mutable contexts. Do not introduce generic layers without a concrete consumer. Keep platform behavior testable without claiming simulated calls prove actual OS permission support.
 
-Recent guards protect editor edits against stale HTTP responses, bound desktop background work, preserve media preferences and rotate logs without restart. Hidden tabs suspend polling and pause countdown changes do not repeatedly rebuild the menu.
+Tests protect editor edits against stale HTTP responses, bound desktop background work, preserve media preferences and rotate logs without restart. Hidden tabs suspend polling and pause countdown changes do not repeatedly rebuild the menu.
 
 ## Performance discipline
 
 Measure idle cost, action latency, reconnect reliability and resource cleanup before optimizing throughput. State HTTP reads use cached snapshots, not native collection; one outgoing deep copy preserves isolation. Native/extension/interactive work uses separate bounded capacities.
 
-FastAPI adds measurable overhead in the initial loopback benchmark. See [local-app tradeoffs](LOCAL_APP.md) and the raw qualification data rather than treating the framework as a speed optimization.
+Use the [performance scenarios](PERFORMANCE.md) to measure the current application under a repeatable workload.
 
 ## Contributor workflow
 

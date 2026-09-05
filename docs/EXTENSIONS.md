@@ -36,7 +36,7 @@ deck3ds.extensions …` from any directory; neither Node.js nor a source checkou
 is needed. The agent starts extension workers using that same interpreter and
 installed SDK. Installed extensions and their data remain beside the selected
 configuration file, not inside `site-packages`; `--config` selects that location.
-See the [installation guide](MIGRATION_FASTAPI.md).
+See the [installation guide](PYTHON_SETUP.md).
 
 These commands **never
 execute extension code**. They refuse to overwrite an existing directory or

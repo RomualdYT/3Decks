@@ -8,7 +8,7 @@
 
 La console envoie normalement des identifiants de page/bouton, pas une commande exécutable. L’agent valide et résout l’action depuis sa configuration. Les contrôles directs possèdent une liste restreinte séparée ; les scripts doivent être déclarés localement.
 
-Chaque console appairée reçoit un secret révocable dont seule l’empreinte SHA-256 est conservée dans le registre. Les anciens jetons sont échangés lors de la migration. Échéances, plafonds, identifiants monotones et quotas limitent certains abus ; ils ne remplacent pas le chiffrement.
+Chaque console appairée reçoit un secret révocable dont seule l’empreinte SHA-256 est conservée dans le registre. Un jeton d’amorçage partagé est échangé contre un secret individuel lors de son utilisation. Échéances, plafonds, identifiants monotones et quotas limitent certains abus ; ils ne remplacent pas le chiffrement.
 
 L’éditeur écoute uniquement sur `127.0.0.1`, avec une session par démarrage, des contrôles Host/Origin et des limites de requête. L’API de configuration authentifiée expose des réglages sensibles. Gardez le lien initial privé.
 

@@ -93,7 +93,7 @@ uv run --locked python tools/qualify_wheel.py dist/deck3ds-0.2.0-py3-none-any.wh
 
 CI builds the frontend and distribution, then tests Linux/macOS/Windows × Python 3.12/3.13/3.14, and builds the homebrew separately. Download artifacts instead of rebuilding frontend dependencies on the user's computer. A matching version tag publishes the qualified wheel, checksummed launchers and homebrew through GitHub Releases. Store identity provisioning, Store submission and deployment to a physical console remain explicit human operations.
 
-Before release, follow the native checklist in [QUALIFICATION.md](QUALIFICATION.md), preserve the previous artifact and back up configuration plus adjacent extension data. Rollback replaces the artifact; do not reintroduce a second HTTP implementation.
+Before release, follow the native checklist in [QUALIFICATION.md](QUALIFICATION.md), preserve the previous artifact and back up configuration plus adjacent extension data. Rollback replaces the artifact while retaining the selected configuration.
 
 The full publishing and Store-submission procedure lives in [Release procedure](PUBLIC_RELEASE.md).
 

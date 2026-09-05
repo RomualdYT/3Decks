@@ -147,7 +147,7 @@ class TestConfig(unittest.TestCase):
         config = config_module.parse(self._with_hotkey("shift+cmd+a"))
         self.assertEqual(config.pages[0].buttons[0].action.args["keys"], "cmd+shift+a")
 
-    def test_graphies_historiques_toujours_acceptees(self):
+    def test_supported_shortcut_spellings_are_accepted(self):
         """Les configurations déjà écrites ne doivent pas devenir invalides."""
         for ancien, attendu in (
             ("echap", "escape"),

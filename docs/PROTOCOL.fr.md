@@ -169,7 +169,7 @@ Demande explicite de renvoi de la configuration.
   "agent": "0.1.0",
   "host": "MacBook-Pro",
   "platform": "darwin",
-  "token": "secret individuel, présent uniquement après appairage ou migration"
+  "token": "secret individuel, présent uniquement après appairage ou échange du jeton d’amorçage"
 }
 ```
 
