@@ -1,0 +1,72 @@
+# Utiliser 3Decks
+
+[Documentation](README.fr.md) · [English](USAGE.md)
+
+## Première page
+
+1. Ouvrez l’éditeur depuis le menu système de 3Decks.
+2. Ajoutez une page à gauche et donnez-lui un nom court.
+3. Choisissez **Mes propres actions**, puis un emplacement vide.
+4. Sélectionnez une action, par exemple lecture/pause, et complétez ses champs.
+5. Choisissez une icône et une couleur ; enregistrez avec la barre inférieure.
+6. Touchez le bouton sur la console connectée.
+
+L’enregistrement applique et diffuse la configuration sans redémarrage. En cas de conflit avec un autre éditeur, rechargez puis réconciliez vos changements.
+
+## Organisation
+
+Glissez les pages dans la colonne gauche pour les réordonner ; le clic droit ouvre leurs actions contextuelles. Les boutons peuvent aussi être déplacés.
+
+La **grille 3 × 2** propose six emplacements sur toutes les pages. La **liste** convient aux contenus plus longs. **Mes propres actions** désigne vos boutons ; **Fenêtres disponibles** est une liste produite par l’agent pour afficher une fenêtre de l’ordinateur. Une extension peut aussi fournir du contenu.
+
+Le contenu généré n’est pas une copie éditable de vos boutons. La grille affiche les six premiers éléments ; préférez la liste pour en afficher davantage. Le visualiseur est un aperçu de l’éditeur, pas une retransmission vidéo de la console.
+
+## Écran supérieur
+
+| Mode | Informations |
+|---|---|
+| Automatique | Médias disponibles, sinon applications |
+| Musique en cours | Titre, artiste, pochette, progression |
+| Audio | Volumes, sortie et activité musicale |
+| Pochette plein écran | Grande image de l’album |
+| Applications | Application active et applications ouvertes |
+| Système | Mesures de performances disponibles |
+| Extension | Cartes produites par une extension activée |
+
+Une mesure GPU/température indisponible n’est pas une valeur zéro. L’animation musicale est un retour visuel, pas une promesse d’analyse spectrale en temps réel.
+
+## Choisir les actions
+
+**Ouvrir un fichier/dossier** : utilisez le bouton de sélection natif. Le champ contient le chemin, pas le contenu du fichier. Annuler n’est pas une erreur ; si l’élément est déplacé, sélectionnez-le à nouveau.
+
+**Ouvrir une application** : utilisez les suggestions lorsqu’elles sont disponibles. Les noms et identifiants diffèrent entre Mac et Windows.
+
+**Raccourci clavier** : activez la capture et pressez la combinaison. Elle agit dans l’application au premier plan ; testez-la dans un contexte sans risque.
+
+**OBS** : activez l’intégration, saisissez les réglages WebSocket et testez la connexion. Utilisez les scènes retournées. Les commandes de streaming/enregistrement peuvent agir sur une session en direct : testez-les hors diffusion.
+
+Les actions d’appui long sont facultatives. Le retour attente/succès/erreur permet de suivre leur traitement par l’ordinateur.
+
+## Touches de la console
+
+| Geste/touche | Effet |
+|---|---|
+| Toucher | Exécuter le bouton ou l’élément |
+| Maintenir un bouton de grille configuré | Action secondaire |
+| Sortir du bouton avant relâchement | Annuler |
+| Onglets inférieurs ou L/R | Changer de page |
+| Croix directionnelle | Déplacer la sélection |
+| A | Valider ; sans sélection dans la grille, sélectionner le premier emplacement |
+| B | Effacer/revenir sur la sélection |
+| X/Y dans la grille | Activer les emplacements 2/3 |
+| L + SELECT | Réglages |
+| SELECT seul | Demander le dernier agencement |
+| START | Quitter |
+
+Les réglages restent accessibles pendant la connexion. Langue, connexion, son et atténuation sont enregistrés dans `sdmc:/3ds/deck3ds/settings.cfg`. Ce fichier peut contenir un secret : ne le publiez pas.
+
+## Intégrations
+
+N’activez que ce qui vous sert. Couper le groupe médias conserve les préférences de lecteurs/pochettes. Certaines autorisations nécessitent un redémarrage ; voir le [dépannage](TROUBLESHOOTING.fr.md).
+
+Importez une extension depuis son onglet, puis examinez ses accès et approuvez son empreinte avant activation. L’import seul n’exécute rien. Consultez la [sécurité](SECURITY.fr.md).

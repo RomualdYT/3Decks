@@ -2,6 +2,21 @@ import type { ActionSpec, ActionValue, ButtonConfig, DeckConfig, Locale, Localiz
 
 export const clone = <T,>(value: T): T => structuredClone(value);
 
+export function reconcileCommittedConfig(
+  current: DeckConfig | null,
+  submitted: DeckConfig,
+  committed: DeckConfig,
+): DeckConfig {
+  if (!current || JSON.stringify(current) === JSON.stringify(submitted)) return clone(committed);
+
+  // Une saisie effectuée pendant la requête reste locale et non enregistrée.
+  // Seule la révision du document effectivement accepté par le serveur est
+  // reportée, afin que la sauvegarde suivante parte de la bonne version.
+  const next = clone(current);
+  next.revision = committed.revision;
+  return next;
+}
+
 export function localized(value: Localized | undefined, locale: Locale): string {
   if (typeof value === "string") return value;
   return value?.[locale] || value?.en || value?.fr || "";
@@ -27,7 +42,8 @@ export function defaultAction(spec: ActionSpec, config: DeckConfig, scenes: stri
   if (!spec.arguments.length) return spec.kind;
   const value: Record<string, unknown> = { type: spec.kind };
   for (const argument of spec.arguments) {
-    if (argument.default !== undefined) value[argument.name] = argument.default;
+    if (argument.default != null) value[argument.name] = argument.default;
+    else if (!argument.required && !spec.extension) continue;
     else if (argument.type === "boolean") value[argument.name] = false;
     else if (argument.type === "select") value[argument.name] = argument.choices?.[0]?.value ?? "";
     else if (argument.type === "number") value[argument.name] = spec.extension ? argument.min ?? 0 : 50;

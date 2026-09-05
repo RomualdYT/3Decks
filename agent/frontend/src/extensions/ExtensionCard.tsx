@@ -1,6 +1,7 @@
 import { Button, Disclosure } from "@heroui/react";
 import { useState } from "react";
 import type { InstalledExtension, Locale } from "../app/types";
+import type { ExtensionRequest } from "../api/client";
 import { DeckIcon } from "../components/DeckIcon";
 import { localized } from "../utils/config";
 import { ExtensionField } from "./ExtensionFields";
@@ -30,19 +31,16 @@ export function ExtensionCard({
   item: InstalledExtension;
   locale: Locale;
   busy: boolean;
-  onOperate: (
-    operation: string,
-    values?: Record<string, unknown>,
-  ) => Promise<void>;
+  onOperate: (request: ExtensionRequest) => Promise<void>;
   onConfirm: (operation: "enable" | "remove") => void;
 }) {
   const fr = locale === "fr";
   const manifest = item.manifest;
-  const [settings, setSettings] = useState<Record<string, unknown>>(() => ({
+  const [settings, setSettings] = useState<InstalledExtension["settings"]>(() => ({
     ...Object.fromEntries(
       manifest.settings
         .filter(
-          (field) => field.type !== "password" && field.default !== undefined,
+          (field) => field.type !== "password" && field.default != null,
         )
         .map((field) => [field.name, field.default]),
     ),
@@ -117,7 +115,7 @@ export function ExtensionCard({
                 className="extension-settings"
                 onSubmit={(event) => {
                   event.preventDefault();
-                  void onOperate("configure", { id: manifest.id, settings });
+                  void onOperate({ operation: "configure", id: manifest.id, settings });
                 }}
               >
                 {manifest.settings.map((field) => (
@@ -187,7 +185,7 @@ export function ExtensionCard({
           <Button
             variant="outline"
             isDisabled={busy}
-            onPress={() => void onOperate("disable", { id: manifest.id })}
+            onPress={() => void onOperate({ operation: "disable", id: manifest.id })}
           >
             {fr ? "Désactiver" : "Disable"}
           </Button>
@@ -204,7 +202,7 @@ export function ExtensionCard({
           <Button
             variant="ghost"
             isDisabled={busy}
-            onPress={() => void onOperate("restart", { id: manifest.id })}
+            onPress={() => void onOperate({ operation: "restart", id: manifest.id })}
             aria-label={fr ? "Redémarrer l’extension" : "Restart extension"}
           >
             <DeckIcon name="refresh" size={17} />

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ActionSpec, DeckConfig } from "../app/types";
-import { actionArgs, actionKind, defaultAction, localized, newButton, newPage, setLocalized } from "./config";
+import { actionArgs, actionKind, defaultAction, localized, newButton, newPage, reconcileCommittedConfig, setLocalized } from "./config";
 
 const config: DeckConfig = {
   revision: 1,
@@ -46,5 +46,24 @@ describe("configuration editor helpers", () => {
     const value = defaultAction(extension, config);
     expect(actionKind(value)).toBe(extension.kind);
     expect(actionArgs(value)).toEqual({ minutes: 25, silent: false, mode: "focus" });
+  });
+
+  it("applies the committed document when no edit happened during save", () => {
+    const submitted = structuredClone(config);
+    const committed = { ...structuredClone(config), revision: 2 };
+    expect(reconcileCommittedConfig(submitted, submitted, committed)).toEqual(committed);
+  });
+
+  it("keeps edits made while saving and advances only their revision", () => {
+    const submitted = structuredClone(config);
+    const current = structuredClone(config);
+    current.pages[0].title = "Edited during save";
+    const committed = { ...structuredClone(config), revision: 2 };
+
+    const reconciled = reconcileCommittedConfig(current, submitted, committed);
+
+    expect(reconciled.pages[0].title).toBe("Edited during save");
+    expect(reconciled.revision).toBe(2);
+    expect(current.revision).toBe(1);
   });
 });

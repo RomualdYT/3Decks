@@ -1,12 +1,9 @@
 import { Button, Modal } from "@heroui/react";
-import type { InstalledExtension, Locale } from "../app/types";
+import type { Locale } from "../app/types";
+import type { ExtensionRequest } from "../api/client";
+import { approvalRequest, type ExtensionConfirmation } from "./requests";
 import { DeckIcon } from "../components/DeckIcon";
 import { localized } from "../utils/config";
-
-export type ExtensionConfirmation = {
-  item: InstalledExtension;
-  operation: "enable" | "remove";
-};
 
 export function ExtensionApproval({
   confirmation,
@@ -19,10 +16,7 @@ export function ExtensionApproval({
   locale: Locale;
   busy: boolean;
   onClose: () => void;
-  operate: (
-    operation: string,
-    values?: Record<string, unknown>,
-  ) => Promise<void>;
+  operate: (request: ExtensionRequest) => Promise<void>;
 }) {
   const fr = locale === "fr";
   return (
@@ -93,12 +87,7 @@ export function ExtensionApproval({
                 isDisabled={busy}
                 onPress={() => {
                   if (confirmation)
-                    void operate(confirmation.operation, {
-                      id: confirmation.item.manifest.id,
-                      digest: confirmation.item.digest,
-                      trust: true,
-                      confirm: true,
-                    });
+                    void operate(approvalRequest(confirmation));
                 }}
               >
                 {busy

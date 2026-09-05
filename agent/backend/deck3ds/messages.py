@@ -12,6 +12,10 @@ L'anglais est la langue par défaut, cohérente avec le reste du projet.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
+
 _CATALOGUE: dict[str, dict[str, str]] = {
     "en": {
         "volume_set": "Volume {value}%",
@@ -43,6 +47,10 @@ _CATALOGUE: dict[str, dict[str, str]] = {
         "window_not_found": "window not found: {name}",
         "app_volume_unreadable": "player volume cannot be read",
         "invalid_app": "invalid application name",
+        "invalid_url": "invalid URL",
+        "http_only": "only HTTP and HTTPS URLs are allowed",
+        "invalid_target": "invalid target",
+        "target_open_failed": "could not open target",
         "obs_disabled": "OBS integration is not configured",
         "obs_missing_scene": "missing OBS scene",
         "obs_missing_source": "missing OBS source",
@@ -81,6 +89,10 @@ _CATALOGUE: dict[str, dict[str, str]] = {
         "window_not_found": "fenêtre introuvable : {name}",
         "app_volume_unreadable": "volume du lecteur illisible",
         "invalid_app": "nom d'application invalide",
+        "invalid_url": "URL invalide",
+        "http_only": "seules les URL HTTP et HTTPS sont autorisées",
+        "invalid_target": "cible invalide",
+        "target_open_failed": "impossible d'ouvrir la cible",
         "obs_disabled": "intégration OBS non configurée",
         "obs_missing_scene": "scène OBS manquante",
         "obs_missing_source": "source OBS manquante",
@@ -91,19 +103,34 @@ _CATALOGUE: dict[str, dict[str, str]] = {
     },
 }
 
-#: Langue courante, alignée sur celle de la console connectée.
-_language = "en"
+def _normalise_language(code: str) -> str:
+    normalised = (code or "").strip().lower()[:2]
+    return normalised if normalised in _CATALOGUE else "en"
+
+
+# La langue est locale au contexte d'exécution. Les actions de consoles
+# différentes peuvent s'exécuter simultanément dans des threads distincts sans
+# modifier les messages l'une de l'autre.
+_language: ContextVar[str] = ContextVar("deck3ds_message_language", default="en")
 
 
 def set_language(code: str) -> None:
-    """Choisit la langue des messages. Une langue inconnue laisse l'anglais."""
-    global _language
-    normalised = (code or "").strip().lower()[:2]
-    _language = normalised if normalised in _CATALOGUE else "en"
+    """Choisit la langue du contexte courant (compatibilité et tests)."""
+    _language.set(_normalise_language(code))
+
+
+@contextmanager
+def using_language(code: str) -> Iterator[None]:
+    """Isole temporairement la langue d'une exécution d'action."""
+    token = _language.set(_normalise_language(code))
+    try:
+        yield
+    finally:
+        _language.reset(token)
 
 
 def language() -> str:
-    return _language
+    return _language.get()
 
 
 def msg(key: str, **values: object) -> str:
@@ -112,7 +139,7 @@ def msg(key: str, **values: object) -> str:
     Une clé absente retombe sur l'anglais, puis sur la clé elle-même : mieux
     vaut un texte imparfait qu'une notification vide.
     """
-    table = _CATALOGUE.get(_language, _CATALOGUE["en"])
+    table = _CATALOGUE.get(_language.get(), _CATALOGUE["en"])
     template = table.get(key) or _CATALOGUE["en"].get(key) or key
 
     if not values:

@@ -1,0 +1,76 @@
+[build-system]
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
+
+[project]
+name = "deck3ds"
+dynamic = ["version"]
+description = "A local, extensible macOS and Windows control surface for Nintendo 3DS"
+readme = "backend/README.md"
+license = "GPL-3.0-only"
+license-files = ["LICENSE"]
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi>=0.132,<1",
+  "pydantic>=2.7,<3",
+  "uvicorn>=0.34,<1",
+  "platformdirs>=4,<5",
+  "pystray==0.19.5; sys_platform == 'darwin' or sys_platform == 'win32'",
+]
+
+[project.scripts]
+deck3ds = "deck3ds.__main__:main"
+
+[project.gui-scripts]
+deck3ds-ui = "deck3ds.__main__:ui_main"
+
+[tool.hatch.version]
+path = "backend/deck3ds/version.py"
+pattern = 'VERSION = "(?P<version>[^"]+)"'
+
+[dependency-groups]
+test = [
+  "pytest>=8,<10",
+  "pytest-asyncio>=1,<2",
+  "pytest-cov>=6,<8",
+  "httpx>=0.28,<1",
+  "hypothesis>=6,<7",
+  "pillow>=12,<13",
+]
+quality = ["ruff>=0.14,<1", "mypy>=1.15,<2"]
+dev = [{include-group = "test"}, {include-group = "quality"}]
+
+[tool.hatch.build.targets.wheel]
+packages = ["backend/deck3ds"]
+
+[tool.hatch.build.targets.sdist]
+include = ["/backend/deck3ds", "/backend/README.md", "/backend/windows", "/pyproject.toml", "/uv.lock", "/LICENSE"]
+exclude = ["*.pyc", "__pycache__", "*.map", "config.json"]
+
+[tool.hatch.build]
+exclude = ["*.pyc", "__pycache__", "*.map"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+asyncio_mode = "strict"
+asyncio_default_fixture_loop_scope = "function"
+
+[tool.coverage.run]
+source = ["deck3ds.api", "deck3ds.services", "deck3ds.runtime", "deck3ds.desktop"]
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["backend/deck3ds/api", "backend/deck3ds/services", "backend/deck3ds/runtime", "backend/deck3ds/desktop"]
+follow_imports = "silent"
+
+[tool.ruff]
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F"]

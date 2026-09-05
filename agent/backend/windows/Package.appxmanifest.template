@@ -14,11 +14,12 @@
   <Identity
     Name="__PACKAGE_NAME__"
     Publisher="__PUBLISHER__"
-    Version="__VERSION__" />
+    Version="__VERSION__"
+    ProcessorArchitecture="x64" />
 
   <Properties>
     <DisplayName>3Decks</DisplayName>
-    <PublisherDisplayName>3Decks</PublisherDisplayName>
+    <PublisherDisplayName>__PUBLISHER_DISPLAY_NAME__</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
   </Properties>
 
@@ -40,7 +41,6 @@
       Executable="__EXECUTABLE__"
       EntryPoint="Windows.FullTrustApplication">
       <uap:VisualElements
-        AppListEntry="none"
         DisplayName="3Decks"
         Description="Agent de contrôle 3Decks"
         BackgroundColor="transparent"

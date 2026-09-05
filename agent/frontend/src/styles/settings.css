@@ -46,6 +46,12 @@
 .token-panel p { font-size: 10px; }
 .token-panel.token-empty { background: rgba(18,18,21,.72); }
 .token-panel > div:last-child { display: flex; gap: 7px; }
+.paired-device-list { border-top: 1px solid var(--border); }
+.paired-device-row { align-items: center; background: var(--surface-input); display: flex; justify-content: space-between; padding: 11px 17px; }
+.paired-device-row + .paired-device-row { border-top: 1px solid var(--border); }
+.paired-device-row strong, .paired-device-row small { display: block; }
+.paired-device-row small { color: var(--muted); font-size: 9px; margin-top: 4px; }
+.paired-device-empty { border-top: 1px solid var(--border); color: var(--muted); padding: 13px 17px; }
 .form-card { display: flex; flex-direction: column; gap: 16px; padding: 20px; }
 .obs-actions { align-items: center; display: flex; gap: 12px; }
 .success-text { color: var(--success); font-size: 11px; }
@@ -101,6 +107,8 @@
 .status-content .settings-title { align-items: center; }
 .status-online { align-items: center; background: rgba(69,201,149,.08); border: 1px solid rgba(69,201,149,.17); border-radius: 999px; color: var(--success); display: flex; font-size: 10px; gap: 7px; margin-left: auto; padding: 7px 10px; }
 .status-online span { background: var(--success); border-radius: 50%; height: 6px; width: 6px; }
+.status-online.paused { background: rgba(245,165,36,.08); border-color: rgba(245,165,36,.18); color: var(--warning); }
+.status-online.paused span { background: var(--warning); }
 .status-summary { display: grid; gap: 12px; grid-template-columns: repeat(4, 1fr); margin-bottom: 18px; }
 .status-summary [data-slot="card-content"] { padding: 16px; }
 .status-summary small, .status-summary strong { display: block; }

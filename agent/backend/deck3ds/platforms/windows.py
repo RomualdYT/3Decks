@@ -42,6 +42,7 @@ from .base import (
     SelectionCancelled,
     SystemSnapshot,
     Unsupported,
+    normalize_web_url,
 )
 
 #: Codes des touches virtuelles multimédia.
@@ -54,6 +55,7 @@ VK_MEDIA_PLAY_PAUSE = 0xB3
 
 KEYEVENTF_KEYUP = 0x0002
 SW_RESTORE = 9
+SW_SHOWNORMAL = 1
 PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
 
 class _PowerShellSession:
@@ -839,17 +841,40 @@ if ($s) {
 
     def launch_app(self, target: str) -> None:
         aliases = {
-            "safari": ["cmd", "/c", "start", "", "https://www.google.com"],
-            "browser": ["cmd", "/c", "start", "", "https://www.google.com"],
-            "terminal": ["cmd", "/c", "start", "", "wt.exe"],
-            "visual studio code": ["cmd", "/c", "start", "", "code"],
-            "mail": ["cmd", "/c", "start", "", "mailto:"],
-            "messages": ["cmd", "/c", "start", "", "ms-chat:"],
+            "safari": "https://www.google.com",
+            "browser": "https://www.google.com",
+            "terminal": "wt.exe",
+            "visual studio code": "code",
+            "mail": "mailto:",
+            "messages": "ms-chat:",
         }
-        command = aliases.get(
-            target.casefold(), ["cmd", "/c", "start", "", target]
-        )
-        self.spawn(command)
+        self._open_target(aliases.get(target.casefold(), target))
+
+    def _open_target(self, target: str) -> None:
+        """Ouvre une cible via Win32, sans passer par l'interpréteur `cmd`."""
+        if (
+            not target
+            or len(target) > 2048
+            or any(ord(character) < 32 or ord(character) == 127 for character in target)
+        ):
+            raise ActionFailed(msg("invalid_target"))
+        try:
+            operation = ctypes.windll.shell32.ShellExecuteW
+            operation.argtypes = [
+                ctypes.c_void_p,
+                ctypes.c_wchar_p,
+                ctypes.c_wchar_p,
+                ctypes.c_wchar_p,
+                ctypes.c_wchar_p,
+                ctypes.c_int,
+            ]
+            operation.restype = ctypes.c_void_p
+            result = operation(None, "open", target, None, None, SW_SHOWNORMAL)
+        except (AttributeError, OSError) as error:
+            raise ActionFailed(msg("target_open_failed")) from error
+        code = result if isinstance(result, int) else getattr(result, "value", 0)
+        if not code or code <= 32:
+            raise ActionFailed(msg("target_open_failed"))
 
     def quit_app(self, target: str) -> None:
         name = target.rsplit(".", 1)[0] if target.lower().endswith(".exe") else target
@@ -868,9 +893,7 @@ if ($s) {
     # --- Système --------------------------------------------------------------
 
     def open_url(self, url: str) -> None:
-        if not re.match(r"^[a-zA-Z][a-zA-Z0-9+.-]*://", url):
-            url = f"https://{url}"
-        self.spawn(["cmd", "/c", "start", "", url])
+        self._open_target(normalize_web_url(url))
 
     def open_path(self, path: str) -> None:
         try:
@@ -898,7 +921,11 @@ if ($s) {
         script = scripts.get(kind)
         if script is None:
             raise Unsupported("type de sélection Windows inconnu")
-        selected = self._shell.run(script, timeout=120.0).strip()
+        # A dialog must never hold the persistent audio/media session's lock.
+        selected = self.run_dialog([
+            "powershell.exe", "-Sta", "-NoLogo", "-NoProfile", "-NonInteractive",
+            "-ExecutionPolicy", "Bypass", "-Command", script,
+        ]).strip()
         if not selected:
             raise SelectionCancelled
         return selected.splitlines()[-1].strip()
@@ -1159,3 +1186,4 @@ try {
 
     def close(self) -> None:
         self._shell.close()
+        super().close()

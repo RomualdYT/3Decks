@@ -41,9 +41,11 @@ from deck3ds.extensions.scaffold import create, pack
 from deck3ds.extensions.worker import Worker
 from deck3ds.protocol import encode
 from deck3ds.server import Options, Server
-from deck3ds.ui.api import Api
-from deck3ds.ui.http import HttpError, Request
-from test_agent import FakePlatform
+import httpx
+
+from deck3ds.api.app import create_app
+from deck3ds.api.security import HttpSettings
+from tests.fixtures import FakePlatform
 
 EXAMPLE = (
     Path(__file__).resolve().parents[2] / "examples" / "extensions" / "focus-timer"
@@ -639,35 +641,28 @@ class OutputAndApiTests(ExtensionFixture):
             configuration(), platform, Options(config_path=self.root / "config.json")
         )
         server.extensions = self.manager
-        api = Api(server)
-
-        def request(raw):
-            return Request("POST", "/api/extensions", {}, json.dumps(raw).encode())
-
         async def checks():
-            schema = json.loads((await api.get_schema(request({}))).body)
-            self.assertTrue(
-                any(action["kind"] == PREFIX + "start" for action in schema["actions"])
-            )
-            with self.assertRaises(HttpError):
-                await api.manage_extension(
-                    request({"operation": "enable", "id": IDENTIFIER})
-                )
-            await api.manage_extension(
-                request(
-                    {
-                        "operation": "enable",
-                        "id": IDENTIFIER,
-                        "trust": True,
+            app = create_app(server.services, settings=HttpSettings(token="test-session"))
+            try:
+                async with httpx.AsyncClient(
+                    transport=httpx.ASGITransport(app=app),
+                    base_url="http://127.0.0.1",
+                    headers={"X-Deck3DS-Token": "test-session"},
+                ) as client:
+                    schema = (await client.get("/api/schema")).json()
+                    self.assertTrue(any(action["kind"] == PREFIX + "start" for action in schema["actions"]))
+                    denied = await client.post("/api/extensions", json={"operation": "enable", "id": IDENTIFIER})
+                    self.assertEqual(denied.status_code, 422)
+                    enabled = await client.post("/api/extensions", json={
+                        "operation": "enable", "id": IDENTIFIER, "trust": True,
                         "digest": self.manager.items[IDENTIFIER].digest,
-                    }
-                )
-            )
-            self.assertEqual(self.manager.items[IDENTIFIER].status, "ready")
-            with self.assertRaises(HttpError):
-                await api.manage_extension(
-                    request({"operation": "remove", "id": IDENTIFIER})
-                )
+                    })
+                    self.assertEqual(enabled.status_code, 200)
+                    self.assertEqual(self.manager.items[IDENTIFIER].status, "ready")
+                    denied = await client.post("/api/extensions", json={"operation": "remove", "id": IDENTIFIER})
+                    self.assertEqual(denied.status_code, 422)
+            finally:
+                await server.close()
 
         asyncio.run(checks())
 

@@ -1,38 +1,44 @@
 # 3Decks extensions — API 1
 
+[Documentation](README.md) · [Guide français](EXTENSIONS.fr.md)
+
 An extension adds actions, generated button pages and top-screen dashboards
 without modifying the agent, React frontend or 3DS application. A package runs
 on the **computer**, not on the console. macOS, Windows and Linux use the same
 extension protocol. Platform-specific integrations must declare their supported
 operating systems and implement the relevant OS APIs themselves.
 
-## Pour commencer (FR)
+## Using an extension
 
-Dans **Extensions**, importez un paquet `.3deckext` ou `.zip`, lisez sa
-description et son auteur, configurez ses champs puis choisissez **Vérifier et
-activer**. L'importation seule n'exécute rien. Les actions apparaissent dans
-**Éditeur → Ajouter une action → Extensions** ; les contenus automatiques et
-écrans se choisissent dans les réglages de chaque page. Ils fonctionnent en
-grille 3 × 2 ou en liste. En cas d'erreur, les autres intégrations continuent.
+Import a `.3deckext` or `.zip` from **Extensions**, review its author and access
+declarations, configure it, then approve its fingerprint before enabling.
+Importing alone executes nothing. Actions appear in the editor; generated
+contents and dashboards are chosen in page settings, with grid/list support.
 
-Une extension activée possède les droits de votre compte utilisateur. Les
-« accès » affichés sont des déclarations, **pas une sandbox**. Ne partagez pas
-vos secrets dans le manifeste ou les paramètres d'un bouton : utilisez les
-réglages de type `password`. Le guide ci-dessous est le contrat de référence.
+An enabled extension has your user account's privileges. Declared access is
+**not a sandbox**. Keep secrets in password-typed settings, not manifests or
+button arguments. The sections below are the complete API 1 author reference.
 
 ## 1. Create your first extension
 
-Requires Python 3.9+ (the same interpreter used to start the source-based agent).
-No SDK installation or additional dependency is needed. From the repository's
+Requires Python 3.12+ (the same interpreter used to start the agent).
+The SDK is included in the installed `deck3ds` package; no separate SDK dependency is needed. For source development, first run `uv sync --locked`. From the repository's
 `agent` directory, on macOS/Linux or Windows PowerShell:
 
 ```sh
-python -m deck3ds.extensions init ../my-counter --id com.example.counter
-python -m deck3ds.extensions validate ../my-counter
-python -m deck3ds.extensions pack ../my-counter -o counter.3deckext
+uv run --locked python -m deck3ds.extensions init ../my-counter --id com.example.counter
+uv run --locked python -m deck3ds.extensions validate ../my-counter
+uv run --locked python -m deck3ds.extensions pack ../my-counter -o counter.3deckext
 ```
 
-Use `python3` instead of `python` where appropriate. These commands **never
+With an installed wheel, activate its Python environment and use `python -m
+deck3ds.extensions …` from any directory; neither Node.js nor a source checkout
+is needed. The agent starts extension workers using that same interpreter and
+installed SDK. Installed extensions and their data remain beside the selected
+configuration file, not inside `site-packages`; `--config` selects that location.
+See the [installation guide](MIGRATION_FASTAPI.md).
+
+These commands **never
 execute extension code**. They refuse to overwrite an existing directory or
 archive. `validate` checks the manifest, files and fingerprint; it does not test
 the behavior of handlers.
@@ -48,7 +54,7 @@ typed settings, action parameters, stateful buttons, generated grid/list and
 four dashboard cards. Package it with:
 
 ```sh
-python -m deck3ds.extensions pack ../examples/extensions/focus-timer -o focus.3deckext
+uv run --locked python -m deck3ds.extensions pack ../examples/extensions/focus-timer -o focus.3deckext
 ```
 
 ## 2. Architecture and boundaries
@@ -236,7 +242,7 @@ The data directory is preserved when the package is removed or upgraded.
 The host explicitly adds its backend SDK and package directory to the Python
 worker's import path (also works when environment variables are ignored by an
 embedded Windows interpreter), and disables bytecode writes. It uses the same
-Python executable as the source-based agent. Optional dependencies
+Python executable as the agent, including a wheel installation outside the repository. Optional dependencies
 are **not downloaded or pip-installed automatically**. Vendor appropriately
 licensed pure-Python packages, or document user-managed runtime installation.
 Native wheels/binaries must match the OS and architecture. Never assume that a
@@ -429,18 +435,22 @@ documented transition. The current host supports API1 only.
 ## 9. Testing the implementation
 
 ```sh
-# Repository root
-PYTHONPATH=agent python3 -m unittest discover -s agent/tests -p 'test_*.py' -q
-ruff check agent/backend/deck3ds agent/deck3ds agent/tests
+# From the repository root
 cd agent
+uv sync --locked
+uv run --locked pytest tests/test_extensions.py
+uv run --locked ruff check backend/deck3ds deck3ds tests tools
+pnpm install --frozen-lockfile
 pnpm typecheck
 pnpm test:frontend
 pnpm build
 # Repository root, with Docker running
+cd ..
 ./build.sh
 ```
 
-PowerShell equivalent: `$env:PYTHONPATH="agent"` before `python -m unittest ...`.
+Use the same uv/pnpm commands in PowerShell; no manual PYTHONPATH is needed.
+The root build script requires a shell supporting sh and Docker, or local devkitPro.
 CI runs Python tests on Linux/macOS/Windows, frontend checks, and the devkitPro
 3DS build. The extension tests use real subprocesses and temporary packages,
 covering trust, lifecycle, SDK, protocol, settings redaction, safe archives,

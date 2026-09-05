@@ -1,0 +1,340 @@
+{
+  "date": "2026-08-31",
+  "scope": "Targeted state-copy optimization after FastAPI migration; desktop/local-only profile.",
+  "environment": {
+    "os": "macOS 27.0 arm64",
+    "python": "3.12.12"
+  },
+  "workload": {
+    "response_bytes": 11075,
+    "apps": 8,
+    "audio_outputs": 6,
+    "notifications": 4,
+    "media_tracks": 1,
+    "cached_extensions": 4,
+    "source_entries_per_extension": 12,
+    "cards_per_extension": 4,
+    "logs": 20,
+    "notes": [
+      "No native calls, extension processes, personal configuration or physical 3DS.",
+      "Four HTTP clients under sustained load, 400 requests plus 100 TCP pings per cycle.",
+      "Sequential before/after runs; timings include OS scheduling noise, no significance claim.",
+      "Persistent HTTP was already supported by Uvicorn; the new benchmark measures it.",
+      "Private extension action arguments are excluded from the state response."
+    ]
+  },
+  "before": {
+    "state_read": {
+      "reads_per_round": 1000,
+      "rounds_us_per_read": [
+        324.275,
+        323.327,
+        331.687,
+        340.689,
+        322.146,
+        321.792,
+        323.356
+      ],
+      "median_us": 323.356
+    },
+    "persistent": {
+      "backend": "fastapi",
+      "python": "3.12.12",
+      "http_requests_per_cycle": 400,
+      "pings_per_cycle": 100,
+      "trace_memory": false,
+      "connection": "keep-alive",
+      "payload": "populated",
+      "cycles": [
+        {
+          "startup_ms": 232.81,
+          "http_median_ms": 2.666,
+          "http_p95_ms": 3.155,
+          "ping_median_ms": 1.435,
+          "ping_p95_ms": 2.766,
+          "event_loop_p95_ms": 1.117,
+          "http_connections": 4,
+          "response_bytes": 11075,
+          "threads_after_close": 1,
+          "tasks_after_close": 0
+        },
+        {
+          "startup_ms": 1.63,
+          "http_median_ms": 2.851,
+          "http_p95_ms": 3.644,
+          "ping_median_ms": 1.493,
+          "ping_p95_ms": 3.121,
+          "event_loop_p95_ms": 1.284,
+          "http_connections": 4,
+          "response_bytes": 11075,
+          "threads_after_close": 1,
+          "tasks_after_close": 0
+        },
+        {
+          "startup_ms": 3.34,
+          "http_median_ms": 2.611,
+          "http_p95_ms": 3.443,
+          "ping_median_ms": 1.34,
+          "ping_p95_ms": 2.977,
+          "event_loop_p95_ms": 1.342,
+          "http_connections": 4,
+          "response_bytes": 11075,
+          "threads_after_close": 1,
+          "tasks_after_close": 0
+        },
+        {
+          "startup_ms": 3.65,
+          "http_median_ms": 2.616,
+          "http_p95_ms": 3.485,
+          "ping_median_ms": 1.351,
+          "ping_p95_ms": 2.955,
+          "event_loop_p95_ms": 1.281,
+          "http_connections": 4,
+          "response_bytes": 11075,
+          "threads_after_close": 1,
+          "tasks_after_close": 0
+        },
+        {
+          "startup_ms": 3.45,
+          "http_median_ms": 2.683,
+          "http_p95_ms": 3.655,
+          "ping_median_ms": 1.381,
+          "ping_p95_ms": 3.098,
+          "event_loop_p95_ms": 1.384,
+          "http_connections": 4,
+          "response_bytes": 11075,
+          "threads_after_close": 1,
+          "tasks_after_close": 0
+        }
+      ]
+    },
+    "new_connections": {
+      "backend": "fastapi",
+      "python": "3.12.12",
+      "http_requests_per_cycle": 400,
+      "pings_per_cycle": 100,
+      "trace_memory": false,
+      "connection": "close",
+      "payload": "populated",
+      "cycles": [
+        {
+          "startup_ms": 209.25,
+          "http_median_ms": 3.116,
+          "http_p95_ms": 3.494,
+          "ping_median_ms": 0.371,
+          "ping_p95_ms": 0.509,
+          "event_loop_p95_ms": 1.465,
+          "http_connections": 400,
+          "response_bytes": 11075,
+          "threads_after_close": 1,
+          "tasks_after_close": 0
+        },
+        {
+          "startup_ms": 3.72,
+          "http_median_ms": 3.165,
+          "http_p95_ms": 4.076,
+          "ping_median_ms": 0.36,
+          "ping_p95_ms": 0.516,
+          "event_loop_p95_ms": 1.969,
+          "http_connections": 400,
+          "response_bytes": 11075,
+          "threads_after_close": 1,
+          "tasks_after_close": 0
+        },
+        {
+          "startup_ms": 2.94,
+          "http_median_ms": 3.115,
+          "http_p95_ms": 3.902,
+          "ping_median_ms": 0.353,
+          "ping_p95_ms": 0.545,
+          "event_loop_p95_ms": 1.835,
+          "http_connections": 400,
+          "response_bytes": 11075,
+          "threads_after_close": 1,
+          "tasks_after_close": 0
+        },
+        {
+          "startup_ms": 2.92,
+          "http_median_ms": 3.108,
+          "http_p95_ms": 4.63,
+          "ping_median_ms": 0.366,
+          "ping_p95_ms": 0.586,
+          "event_loop_p95_ms": 2.681,
+          "http_connections": 400,
+          "response_bytes": 11075,
+          "threads_after_close": 1,
+          "tasks_after_close": 0
+        },
+        {
+          "startup_ms": 1.73,
+          "http_median_ms": 3.158,
+          "http_p95_ms": 3.66,
+          "ping_median_ms": 0.377,
+          "ping_p95_ms": 0.656,
+          "event_loop_p95_ms": 1.664,
+          "http_connections": 400,
+          "response_bytes": 11075,
+          "threads_after_close": 1,
+          "tasks_after_close": 0
+        }
+      ]
+    }
+  },
+  "after": {
+    "state_read": {
+      "reads_per_round": 1000,
+      "rounds_us_per_read": [
+        285.508,
+        283.81,
+        283.197,
+        288.167,
+        282.84,
+        284.511,
+        283.992
+      ],
+      "median_us": 283.992
+    },
+    "persistent": {
+      "backend": "fastapi",
+      "python": "3.12.12",
+      "http_requests_per_cycle": 400,
+      "pings_per_cycle": 100,
+      "trace_memory": false,
+      "connection": "keep-alive",
+      "payload": "populated",
+      "cycles": [
+        {
+          "startup_ms": 217.33,
+          "http_median_ms": 2.48,
+          "http_p95_ms": 2.866,
+          "ping_median_ms": 1.836,
+          "ping_p95_ms": 2.589,
+          "event_loop_p95_ms": 1.16,
+          "http_connections": 4,
+          "response_bytes": 11075,
+          "threads_after_close": 1,
+          "tasks_after_close": 0
+        },
+        {
+          "startup_ms": 6,
+          "http_median_ms": 2.51,
+          "http_p95_ms": 3.335,
+          "ping_median_ms": 1.889,
+          "ping_p95_ms": 2.78,
+          "event_loop_p95_ms": 1.604,
+          "http_connections": 4,
+          "response_bytes": 11075,
+          "threads_after_close": 1,
+          "tasks_after_close": 0
+        },
+        {
+          "startup_ms": 4.79,
+          "http_median_ms": 2.563,
+          "http_p95_ms": 3.522,
+          "ping_median_ms": 1.796,
+          "ping_p95_ms": 3.228,
+          "event_loop_p95_ms": 1.544,
+          "http_connections": 4,
+          "response_bytes": 11075,
+          "threads_after_close": 1,
+          "tasks_after_close": 0
+        },
+        {
+          "startup_ms": 3.95,
+          "http_median_ms": 2.53,
+          "http_p95_ms": 3.387,
+          "ping_median_ms": 1.839,
+          "ping_p95_ms": 2.663,
+          "event_loop_p95_ms": 1.402,
+          "http_connections": 4,
+          "response_bytes": 11075,
+          "threads_after_close": 1,
+          "tasks_after_close": 0
+        },
+        {
+          "startup_ms": 5.03,
+          "http_median_ms": 2.527,
+          "http_p95_ms": 3.446,
+          "ping_median_ms": 1.834,
+          "ping_p95_ms": 2.858,
+          "event_loop_p95_ms": 1.579,
+          "http_connections": 4,
+          "response_bytes": 11075,
+          "threads_after_close": 1,
+          "tasks_after_close": 0
+        }
+      ]
+    },
+    "new_connections": {
+      "backend": "fastapi",
+      "python": "3.12.12",
+      "http_requests_per_cycle": 400,
+      "pings_per_cycle": 100,
+      "trace_memory": false,
+      "connection": "close",
+      "payload": "populated",
+      "cycles": [
+        {
+          "startup_ms": 162.48,
+          "http_median_ms": 3.268,
+          "http_p95_ms": 3.637,
+          "ping_median_ms": 1.57,
+          "ping_p95_ms": 1.891,
+          "event_loop_p95_ms": 1.563,
+          "http_connections": 400,
+          "response_bytes": 11075,
+          "threads_after_close": 1,
+          "tasks_after_close": 0
+        },
+        {
+          "startup_ms": 1.62,
+          "http_median_ms": 3.228,
+          "http_p95_ms": 3.523,
+          "ping_median_ms": 0.366,
+          "ping_p95_ms": 0.505,
+          "event_loop_p95_ms": 1.524,
+          "http_connections": 400,
+          "response_bytes": 11075,
+          "threads_after_close": 1,
+          "tasks_after_close": 0
+        },
+        {
+          "startup_ms": 1.58,
+          "http_median_ms": 3.299,
+          "http_p95_ms": 3.714,
+          "ping_median_ms": 0.418,
+          "ping_p95_ms": 1.035,
+          "event_loop_p95_ms": 1.657,
+          "http_connections": 400,
+          "response_bytes": 11075,
+          "threads_after_close": 1,
+          "tasks_after_close": 0
+        },
+        {
+          "startup_ms": 2.67,
+          "http_median_ms": 3.073,
+          "http_p95_ms": 4.139,
+          "ping_median_ms": 0.881,
+          "ping_p95_ms": 1.403,
+          "event_loop_p95_ms": 1.815,
+          "http_connections": 400,
+          "response_bytes": 11075,
+          "threads_after_close": 1,
+          "tasks_after_close": 0
+        },
+        {
+          "startup_ms": 2.98,
+          "http_median_ms": 3.1,
+          "http_p95_ms": 3.936,
+          "ping_median_ms": 1.476,
+          "ping_p95_ms": 1.805,
+          "event_loop_p95_ms": 1.527,
+          "http_connections": 400,
+          "response_bytes": 11075,
+          "threads_after_close": 1,
+          "tasks_after_close": 0
+        }
+      ]
+    }
+  }
+}

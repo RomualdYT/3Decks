@@ -18,13 +18,23 @@ class ActionArgument:
     name: str
     field_type: str = "text"
     required: bool = True
+    minimum: float | None = None
+    maximum: float | None = None
+    max_length: int | None = 2048
 
     def as_payload(self) -> dict[str, Any]:
-        return {
+        payload: dict[str, Any] = {
             "name": self.name,
             "type": self.field_type,
             "required": self.required,
         }
+        if self.minimum is not None:
+            payload["min"] = self.minimum
+        if self.maximum is not None:
+            payload["max"] = self.maximum
+        if self.max_length is not None:
+            payload["max_length"] = self.max_length
+        return payload
 
 
 @dataclass(frozen=True)
@@ -54,8 +64,18 @@ class ActionSpec:
         }
 
 
-def _arg(name: str, field_type: str = "text") -> ActionArgument:
-    return ActionArgument(name, field_type)
+def _arg(
+    name: str,
+    field_type: str = "text",
+    *,
+    required: bool = True,
+    minimum: float | None = None,
+    maximum: float | None = None,
+    max_length: int | None = 2048,
+) -> ActionArgument:
+    return ActionArgument(
+        name, field_type, required, minimum, maximum, max_length
+    )
 
 
 def _action(
@@ -115,7 +135,7 @@ ACTION_SPECS = {
         "Ouvre une adresse dans le navigateur.",
         "Opens an address in the browser.",
         capability="open_url",
-        arguments=(_arg("url"),),
+        arguments=(_arg("url", max_length=2048),),
     ),
     "path.open": _action(
         "essential",
@@ -137,6 +157,16 @@ ACTION_SPECS = {
         "Augmente le volume de l’ordinateur.",
         "Raises the computer volume.",
         capability="volume",
+        arguments=(
+            _arg(
+                "step",
+                "number",
+                required=False,
+                minimum=1,
+                maximum=50,
+                max_length=None,
+            ),
+        ),
     ),
     "volume.down": _action(
         "audio",
@@ -147,6 +177,16 @@ ACTION_SPECS = {
         "Baisse le volume de l’ordinateur.",
         "Lowers the computer volume.",
         capability="volume",
+        arguments=(
+            _arg(
+                "step",
+                "number",
+                required=False,
+                minimum=1,
+                maximum=50,
+                max_length=None,
+            ),
+        ),
     ),
     "volume.set": _action(
         "audio",
@@ -157,7 +197,11 @@ ACTION_SPECS = {
         "Applique un niveau précis.",
         "Sets a precise volume level.",
         capability="volume",
-        arguments=(_arg("value", "number"),),
+        arguments=(
+            _arg(
+                "value", "number", minimum=0, maximum=100, max_length=None
+            ),
+        ),
     ),
     "volume.mute_toggle": _action(
         "audio",
@@ -229,6 +273,16 @@ ACTION_SPECS = {
         "Ajuste uniquement le lecteur musical.",
         "Adjusts only the music player.",
         capability="app_volume",
+        arguments=(
+            _arg(
+                "step",
+                "number",
+                required=False,
+                minimum=1,
+                maximum=50,
+                max_length=None,
+            ),
+        ),
     ),
     "app_volume.down": _action(
         "audio",
@@ -239,6 +293,16 @@ ACTION_SPECS = {
         "Ajuste uniquement le lecteur musical.",
         "Adjusts only the music player.",
         capability="app_volume",
+        arguments=(
+            _arg(
+                "step",
+                "number",
+                required=False,
+                minimum=1,
+                maximum=50,
+                max_length=None,
+            ),
+        ),
     ),
     "app_volume.set": _action(
         "audio",
@@ -249,7 +313,11 @@ ACTION_SPECS = {
         "Applique un niveau précis au lecteur.",
         "Sets a precise player volume.",
         capability="app_volume",
-        arguments=(_arg("value", "number"),),
+        arguments=(
+            _arg(
+                "value", "number", minimum=0, maximum=100, max_length=None
+            ),
+        ),
     ),
     "media.play_pause": _action(
         "media",
@@ -301,6 +369,7 @@ ACTION_SPECS = {
         "Ramène une fenêtre ouverte au premier plan.",
         "Brings an open window to the front.",
         capability="windows",
+        arguments=(_arg("app"), _arg("title", required=False)),
     ),
     "obs.scene.set": _action(
         "obs",

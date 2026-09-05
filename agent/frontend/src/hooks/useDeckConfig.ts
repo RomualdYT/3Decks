@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { agentApi } from "../api/client";
 import type { AgentState, DeckConfig, Schema } from "../app/types";
-import { clone } from "../utils/config";
+import { clone, reconcileCommittedConfig } from "../utils/config";
 
 export function useDeckConfig() {
   const [schema, setSchema] = useState<Schema | null>(null);
@@ -13,8 +13,12 @@ export function useDeckConfig() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const dirtyRef = useRef(false);
+  const revisionRef = useRef<number | null>(null);
+  const editEpoch = useRef(0);
 
   const load = useCallback(async () => {
+    const epoch = ++editEpoch.current;
     setLoading(true);
     setError("");
     try {
@@ -22,10 +26,12 @@ export function useDeckConfig() {
         agentApi.schema(), agentApi.config(), agentApi.state().catch(() => null),
         agentApi.apps().catch(() => ({ apps: [] })),
       ]);
+      if (epoch !== editEpoch.current) return;
       result.config.features ||= Object.fromEntries(nextSchema.features.map((feature) => [feature.key, feature.enabled]));
       setSchema(nextSchema);
       setConfig(clone(result.config));
       setSaved(clone(result.config));
+      revisionRef.current = result.config.revision;
       setStatus(nextStatus);
       setApps(nextApps.apps);
     } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
@@ -33,13 +39,47 @@ export function useDeckConfig() {
   }, []);
 
   useEffect(() => { void load(); }, [load]);
-  useEffect(() => {
-    const timer = window.setInterval(() => { void agentApi.state().then(setStatus).catch(() => setStatus(null)); }, 4000);
-    return () => window.clearInterval(timer);
-  }, []);
-
   const dirty = useMemo(() => Boolean(config && saved && JSON.stringify(config) !== JSON.stringify(saved)), [config, saved]);
+  useEffect(() => { dirtyRef.current = dirty; }, [dirty]);
+  useEffect(() => {
+    let refreshing = false;
+    let disposed = false;
+    const refresh = async () => {
+      if (refreshing || disposed || document.hidden) return;
+      refreshing = true;
+      const epoch = editEpoch.current;
+      const revision = revisionRef.current;
+      try {
+        const nextStatus = await agentApi.state();
+        if (disposed) return;
+        setStatus(nextStatus);
+        if (!dirtyRef.current && nextStatus.config_revision !== revisionRef.current && epoch === editEpoch.current) {
+          const [nextSchema, result] = await Promise.all([agentApi.schema(), agentApi.config()]);
+          if (disposed || dirtyRef.current || epoch !== editEpoch.current || revision !== revisionRef.current) return;
+          result.config.features ||= Object.fromEntries(nextSchema.features.map((feature) => [feature.key, feature.enabled]));
+          revisionRef.current = result.config.revision;
+          setSchema(nextSchema);
+          setConfig(clone(result.config));
+          setSaved(clone(result.config));
+        }
+      } catch {
+        if (!disposed) setStatus(null);
+      } finally {
+        refreshing = false;
+      }
+    };
+    const timer = window.setInterval(() => { void refresh(); }, 4000);
+    const onVisibility = () => { if (!document.hidden) void refresh(); };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      disposed = true;
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, []);
   const update = useCallback((recipe: (draft: DeckConfig) => void) => {
+    editEpoch.current += 1;
+    dirtyRef.current = true;
     setConfig((current) => {
       if (!current) return current;
       const next = clone(current);
@@ -51,11 +91,14 @@ export function useDeckConfig() {
 
   const save = useCallback(async () => {
     if (!config || !dirty) return;
+    editEpoch.current += 1;
     setSaving(true); setError(""); setNotice("");
     try {
-      const result = await agentApi.save(config);
-      setConfig(clone(result.config));
+      const submitted = clone(config);
+      const result = await agentApi.save(submitted);
+      setConfig((current) => reconcileCommittedConfig(current, submitted, result.config));
       setSaved(clone(result.config));
+      revisionRef.current = result.config.revision;
       setNotice("saved");
       const [nextSchema, nextStatus] = await Promise.all([agentApi.schema(), agentApi.state().catch(() => null)]);
       setSchema(nextSchema); setStatus(nextStatus);
@@ -63,7 +106,10 @@ export function useDeckConfig() {
     finally { setSaving(false); }
   }, [config, dirty]);
 
-  const reset = useCallback(() => { if (saved) setConfig(clone(saved)); }, [saved]);
+  const reset = useCallback(() => {
+    editEpoch.current += 1;
+    if (saved) setConfig(clone(saved));
+  }, [saved]);
   const refreshSchema = useCallback(async () => { setSchema(await agentApi.schema()); }, []);
   return { schema, config, status, apps, loading, saving, dirty, error, notice, update, save, reset, reload: load, refreshSchema, setError, setNotice };
 }

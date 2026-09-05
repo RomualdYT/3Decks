@@ -13,7 +13,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from .config import Action, ButtonConfig, Config
-from .messages import msg
+from .messages import msg, using_language
 from .obs import ObsClient, ObsError
 from .platforms.base import ActionFailed, Platform, Unsupported
 from .extensions.manifest import ExtensionError, reference as extension_reference
@@ -47,7 +47,9 @@ class Dispatcher:
     def set_config(self, config: Config) -> None:
         self.config = config
 
-    def run_button(self, button: ButtonConfig, hold: bool) -> ActionOutcome:
+    def run_button(
+        self, button: ButtonConfig, hold: bool, language: str = "en"
+    ) -> ActionOutcome:
         action = button.hold_action if hold else button.action
 
         if action is None:
@@ -55,9 +57,14 @@ class Dispatcher:
             # principale : cela produirait un effet inattendu.
             return ActionOutcome(True, "")
 
-        return self.run(action)
+        return self.run(action, language)
 
-    def run(self, action: Action) -> ActionOutcome:
+    def run(self, action: Action, language: str = "en") -> ActionOutcome:
+        """Exécute une action dans la langue de sa console d'origine."""
+        with using_language(language):
+            return self._run(action)
+
+    def _run(self, action: Action) -> ActionOutcome:
         if extension_reference(action.kind):
             try:
                 if self.extensions is None:

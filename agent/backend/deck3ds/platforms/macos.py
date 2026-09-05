@@ -40,6 +40,7 @@ from .base import (
     SelectionCancelled,
     SystemSnapshot,
     Unsupported,
+    normalize_web_url,
 )
 
 #: Délai maximal d'un appel AppleScript. Volontairement court : une application
@@ -52,6 +53,17 @@ SCRIPT_TIMEOUT = 2.5
 _HIDDEN_PROCESSES = frozenset(
     {"FolderActionsDispatcher", "Dock", "SystemUIServer", ""}
 )
+
+
+def _applescript_literal(value: str) -> str:
+    """Encode une chaîne comme littéral AppleScript sans changer le programme."""
+    if (
+        not value
+        or len(value) > 2048
+        or any(ord(character) < 32 or ord(character) == 127 for character in value)
+    ):
+        raise ActionFailed(msg("invalid_app"))
+    return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 def _visible_apps(raw: str) -> list[str]:
     """Découpe une liste d'applications AppleScript en masquant les processus
@@ -344,13 +356,14 @@ class MacPlatform(Platform):
             # `AXRaise` échoue silencieusement sur certaines applications : son
             # échec ne doit pas faire échouer l'action, l'essentiel étant que
             # l'application soit au premier plan.
-            safe = title.replace("\\", "\\\\").replace('"', '\\"')
+            safe_app = _applescript_literal(app)
+            safe_title = _applescript_literal(title)
             self._script_quiet(
                 'tell application "System Events"\n'
-                f'  set deckProc to first application process whose name is "{app}"\n'
+                f"  set deckProc to first application process whose name is {safe_app}\n"
                 "  try\n"
                 "    perform action \"AXRaise\" of (first window of deckProc "
-                f'whose name is "{safe}")\n'
+                f"whose name is {safe_title})\n"
                 "  end try\n"
                 "end tell"
             )
@@ -363,16 +376,14 @@ class MacPlatform(Platform):
         self.run(["open", "-a", target], timeout=8.0)
 
     def quit_app(self, target: str) -> None:
-        self._script(f'tell application "{target}" to quit', timeout=6.0)
+        self._script(
+            f"tell application {_applescript_literal(target)} to quit", timeout=6.0
+        )
 
     # --- Système --------------------------------------------------------------
 
     def open_url(self, url: str) -> None:
-        if not re.match(r"^[a-zA-Z][a-zA-Z0-9+.-]*://", url):
-            # Sans schéma, `open` pourrait interpréter la chaîne comme un
-            # chemin local : on impose http par défaut.
-            url = f"https://{url}"
-        self.run(["open", url], timeout=8.0)
+        self.run(["open", normalize_web_url(url)], timeout=8.0)
 
     def open_path(self, path: str) -> None:
         self.run(["open", str(Path(path).expanduser())], timeout=8.0)
@@ -387,7 +398,7 @@ class MacPlatform(Platform):
         if source is None:
             raise Unsupported("type de sélection macOS inconnu")
         try:
-            selected = self.run(["osascript", "-e", source], timeout=120.0).strip()
+            selected = self.run_dialog(["osascript", "-e", source]).strip()
         except ActionFailed as error:
             if "-128" in str(error):
                 raise SelectionCancelled from error

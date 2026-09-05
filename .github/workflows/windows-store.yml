@@ -1,0 +1,97 @@
+name: Windows Store package
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing GitHub Release tag, for example v0.2.0
+        required: true
+        type: string
+      package_name:
+        description: Exact Package identity reserved in Partner Center
+        required: true
+        type: string
+      publisher:
+        description: Exact Publisher identity supplied by Partner Center
+        required: true
+        type: string
+      publisher_display_name:
+        description: Publisher display name shown by Microsoft Store
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: Build unsigned Partner Center submission
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.tag }}
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.10.12"
+      - name: Download the wheel already published on GitHub
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path agent/dist -Force | Out-Null
+          gh release download $env:RELEASE_TAG --pattern "deck3ds-*.whl" --dir agent/dist
+      - name: Export locked runtime constraints
+        working-directory: agent
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path build -Force | Out-Null
+          uv export --locked --no-dev --no-emit-project --output-file build/runtime-constraints.txt
+      - name: Compile the packaged launcher
+        shell: pwsh
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $installation = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if (!$installation) { throw "Visual C++ build tools were not found." }
+          $developerShell = Join-Path $installation "Common7\Tools\VsDevCmd.bat"
+          New-Item -ItemType Directory -Path agent/build/windows -Force | Out-Null
+          $source = (Resolve-Path packaging/windows/launcher.c).Path
+          $output = (Resolve-Path agent/build/windows).Path + "\3Decks.exe"
+          $command = "`"$developerShell`" -arch=x64 -host_arch=x64 && cl.exe /nologo /O2 /DUNICODE /D_UNICODE `"$source`" /Fe:`"$output`" /link /SUBSYSTEM:WINDOWS user32.lib"
+          & cmd.exe /d /s /c $command
+          if ($LASTEXITCODE -ne 0) { throw "The Windows launcher did not compile." }
+      - name: Build the MSIX submission artifact
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+          PACKAGE_NAME: ${{ inputs.package_name }}
+          PUBLISHER: ${{ inputs.publisher }}
+          PUBLISHER_DISPLAY_NAME: ${{ inputs.publisher_display_name }}
+        run: |
+          $wheel = Get-ChildItem agent/dist/deck3ds-*.whl | Select-Object -First 1
+          $version = $env:RELEASE_TAG.TrimStart("v")
+          $output = "agent/dist/3Decks-$version-Store-unsigned.msix"
+          ./packaging/windows/build-store-package.ps1 `
+            -Wheel $wheel.FullName `
+            -Constraints agent/build/runtime-constraints.txt `
+            -Launcher agent/build/windows/3Decks.exe `
+            -PackageName $env:PACKAGE_NAME `
+            -Publisher $env:PUBLISHER `
+            -PublisherDisplayName $env:PUBLISHER_DISPLAY_NAME `
+            -Version $version `
+            -Output $output
+      - uses: actions/upload-artifact@v7
+        with:
+          name: windows-store-submission-${{ inputs.tag }}
+          path: agent/dist/*-Store-unsigned.msix
+          if-no-files-found: error
+          retention-days: 14
+      - name: Explain the trust boundary
+        shell: pwsh
+        run: |
+          "### Windows Store submission" >> $env:GITHUB_STEP_SUMMARY
+          "The MSIX artifact is intentionally unsigned. Upload it to Partner Center; Microsoft signs the approved Store package. Do not distribute this artifact directly." >> $env:GITHUB_STEP_SUMMARY

@@ -14,11 +14,23 @@ venv/
 python-*-embed-amd64.zip
 agent/agent-windows*.log
 agent/node_modules/
+agent/frontend/node_modules/
 agent/frontend/coverage/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage*
+htmlcov/
+agent/dist/
+agent/build/
+agent/release/
+agent/coverage.xml
+agent/backend/deck3ds/api/static/**/*.map
 
 # Configuration locale
 # Dupliquez config.json en config.local.json pour vos reglages personnels.
 agent/config.local.json
+paired-consoles.json
 agent/extensions/
 agent/*.3deckext
 

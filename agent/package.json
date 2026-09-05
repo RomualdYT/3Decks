@@ -3,6 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "api:types": "openapi-typescript ../docs/api/openapi.json -o frontend/src/api/generated.ts --default-non-nullable false",
+    "api:check": "openapi-typescript ../docs/api/openapi.json -o frontend/src/api/generated.ts --default-non-nullable false --check",
     "dev": "vite --config frontend/vite.config.ts",
     "build": "vite build --config frontend/vite.config.ts",
     "typecheck": "tsc --project frontend/tsconfig.json --noEmit",
@@ -26,6 +28,7 @@
     "@types/react-dom": "^19.1.9",
     "@vitejs/plugin-react": "^5.0.2",
     "jsdom": "^26.1.0",
+    "openapi-typescript": "^7.13.0",
     "tailwindcss": "^4.1.12",
     "typescript": "^5.9.2",
     "vite": "^7.1.3",

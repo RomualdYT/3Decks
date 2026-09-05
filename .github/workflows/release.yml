@@ -1,0 +1,113 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: read
+
+jobs:
+  qualification:
+    uses: ./.github/workflows/quality.yml
+
+  agent:
+    needs: qualification
+    name: Agent and launchers
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: agent
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.10.12"
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          package-manager-cache: false
+      - run: npm install --global pnpm@11.19.0
+      - run: uv sync --locked
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm test:frontend
+      - run: pnpm build
+      - run: uv build
+      - name: Qualify the exact wheel outside the checkout
+        run: uv run --locked python tools/qualify_wheel.py
+      - name: Render immutable launchers
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_REPOSITORY: ${{ github.repository }}
+        run: |
+          wheel="$(find dist -maxdepth 1 -name 'deck3ds-*.whl' -print -quit)"
+          source_archive="$(find dist -maxdepth 1 -name 'deck3ds-*.tar.gz' -print -quit)"
+          uv run --locked python tools/release_assets.py \
+            --wheel "$wheel" \
+            --source-archive "$source_archive" \
+            --output release \
+            --repository "$RELEASE_REPOSITORY" \
+            --tag "$RELEASE_TAG"
+          bash -n release/install-3decks-macos.sh
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-agent
+          path: agent/release/*
+          if-no-files-found: error
+
+  console:
+    name: Nintendo 3DS homebrew
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - run: ./build.sh
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-homebrew
+          path: 3ds-app/deck3ds.3dsx
+          if-no-files-found: error
+
+  publish:
+    name: Publish GitHub Release
+    needs: [agent, console]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: release-*
+          path: release
+          merge-multiple: true
+      - name: Final checksums
+        working-directory: release
+        shell: bash
+        run: |
+          rm -f SHA256SUMS.txt
+          for file in *; do
+            sha256sum "$file" >> SHA256SUMS.txt
+          done
+      - name: Create or update the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          if gh release view "$RELEASE_TAG" --repo "$REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" release/* --clobber --repo "$REPOSITORY"
+          else
+            gh release create "$RELEASE_TAG" release/* \
+              --verify-tag \
+              --generate-notes \
+              --notes "$(cat packaging/release-intro.md)" \
+              --title "3Decks ${RELEASE_TAG#v}" \
+              --repo "$REPOSITORY"
+          fi

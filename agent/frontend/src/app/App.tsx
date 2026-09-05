@@ -11,9 +11,14 @@ const SettingsView = lazy(() => import("../settings/SettingsView").then(({ Setti
 const StatusView = lazy(() => import("../status/StatusView").then(({ StatusView }) => ({ default: StatusView })));
 const ExtensionsView = lazy(() => import("../extensions/ExtensionsView").then(({ ExtensionsView }) => ({ default: ExtensionsView })));
 
+function viewFromHash(): View {
+  const candidate = window.location.hash.slice(1).split("/")[0];
+  return (["editor", "settings", "extensions", "status"] as View[]).includes(candidate as View) ? candidate as View : "editor";
+}
+
 export function App() {
   const deck = useDeckConfig();
-  const [view, setView] = useState<View>("editor");
+  const [view, setView] = useState<View>(viewFromHash);
   const [locale, setLocaleState] = useState<Locale>(initialLocale);
   const [scenes, setScenes] = useState<string[]>([]);
   const t = useCallback((key: Parameters<typeof translate>[1], values?: Record<string, string | number>) => translate(locale, key, values), [locale]);
@@ -21,6 +26,15 @@ export function App() {
     setLocaleState(next);
     document.documentElement.lang = next;
     try { localStorage.setItem("deck3ds.locale", next); } catch { /* temporary preference */ }
+  }, []);
+  const selectView = useCallback((next: View) => {
+    setView(next);
+    history.replaceState(null, "", `${window.location.pathname}#${next}`);
+  }, []);
+  useEffect(() => {
+    const followHash = () => setView(viewFromHash());
+    window.addEventListener("hashchange", followHash);
+    return () => window.removeEventListener("hashchange", followHash);
   }, []);
   useEffect(() => { document.documentElement.lang = locale; document.title = `3Decks — ${t(view)}`; }, [locale, t, view]);
   useEffect(() => {
@@ -43,7 +57,7 @@ export function App() {
   if (!deck.config || !deck.schema) return <div className="loading-screen error"><img src="/3decks-logo.png" alt="3Decks" /><h1>3Decks</h1><p>{t("loadError", { message: deck.error || "Agent indisponible" })}</p><button type="button" onClick={() => void deck.reload()}>Réessayer</button></div>;
   return <div className="app-shell">
     <Toast.Provider placement="bottom end" />
-    <AppHeader view={view} locale={locale} status={deck.status} t={t} onView={setView} onLocale={setLocale} />
+    <AppHeader view={view} locale={locale} status={deck.status} t={t} onView={selectView} onLocale={setLocale} />
     <Suspense fallback={<div className="view-loading"><Spinner /><span>{locale === "fr" ? "Chargement de la vue…" : "Loading view…"}</span></div>}>
       {view === "editor" && <EditorView config={deck.config} schema={deck.schema} status={deck.status} apps={deck.apps} locale={locale} scenes={scenes} t={t} update={deck.update} />}
       {view === "settings" && <SettingsView config={deck.config} schema={deck.schema} status={deck.status} locale={locale} scenes={scenes} t={t} update={deck.update} onLocale={setLocale} onScenes={setScenes} />}

@@ -1,443 +1,134 @@
-# Protocole Deck3DS v1
+# Console protocol 1
 
-Contrat de communication entre l'application 3DS (client) et l'agent PC (serveur).
+[Documentation](README.md) · [Français](PROTOCOL.fr.md) · [Extension API](EXTENSIONS.md)
 
-## Transport
+This is the PC–3DS transport, not the editor's HTTP API. Implementation: `agent/backend/deck3ds/protocol.py`, `transports/` and `3ds-app/source/protocol.c`. Version/host values in examples are illustrative.
 
-TCP, connexion persistante, l'agent écoute (par défaut `0.0.0.0:38123`), la 3DS se connecte.
+## Transport and discovery
 
-Pas de HTTP, pas de WebSocket, pas de TLS. Le choix est délibéré : la 3DS n'a
-alors besoin d'aucune bibliothèque externe et le framing reste trivial à
-implémenter sans allocation dynamique.
+The agent listens for persistent TCP connections, normally `0.0.0.0:38123`. No HTTP, WebSocket or TLS is used on this channel. Use only a trusted LAN.
 
-### Découverte locale
-
-Avant la connexion TCP, la 3DS diffuse sur UDP `38122` :
+Before connecting, the console broadcasts to UDP **38122**:
 
 ```json
-{ "type": "deck3ds.discover", "protocol": 1, "nonce": 42 }
+{"type":"deck3ds.discover","protocol":1,"nonce":42}
 ```
 
-Chaque agent compatible répond directement à l'adresse source :
+The agent replies to the sender:
 
 ```json
-{
-  "type": "deck3ds.agent",
-  "protocol": 1,
-  "name": "Mac du bureau",
-  "platform": "macos",
-  "port": 38123,
-  "version": "0.1.0",
-  "pairing_required": true,
-  "nonce": 42
-}
+{"type":"deck3ds.agent","protocol":1,"name":"Office Mac","platform":"macos","port":38123,"version":"0.2.0","pairing_required":true,"nonce":42}
 ```
 
-L'adresse IP n'est volontairement pas placée dans le JSON : la console utilise
-l'adresse source du datagramme, qui correspond à l'interface réellement
-joignable. La saisie manuelle reste disponible si les broadcasts sont filtrés.
+Use the datagram's source address, not an IP embedded in JSON. Manual address/port setup remains available when broadcasts are filtered.
 
-### Framing
+## Framing
 
-Chaque message est précédé de sa taille sur 4 octets, big-endian (ordre réseau) :
+Each TCP payload has a **4-byte big-endian unsigned length**, excluding the header. Maximum payload is **65,536 bytes**; reject oversized frames instead of allocating them. Reads/writes may be fragmented.
 
-```
-+----------------+--------------------------+
-| length (4, BE) | payload JSON (UTF-8)     |
-+----------------+--------------------------+
-```
+Ordinary payloads are UTF-8 JSON objects without a newline requirement. Artwork is the binary exception described below. The console uses bounded buffers and a non-blocking send queue.
 
-- `length` ne compte que le payload, pas l'en-tête.
-- Taille maximale d'un message : **65536 octets**. Au-delà, le pair doit fermer
-  la connexion plutôt que tenter de lire (protection mémoire côté 3DS).
-- Le payload est un objet JSON. Aucun retour à la ligne n'est requis.
+## Session
 
-Le framing par longueur est préféré au JSON Lines parce qu'il évite tout
-échappement de `\n` et permet de savoir à l'avance combien d'octets lire, ce qui
-simplifie une lecture non bloquante avec un tampon de taille fixe.
+The client sends `hello`; the agent responds with `hello.ok`, then `config.snapshot` and `state.update` without another request. The client sends presses/values; the agent responds with action results and state changes. Periodic ping/pong detects a silent link. Reconnection backs off through 2, 4, 8, 15 and 30 seconds.
 
-## Cycle de vie
-
-```
-3DS                                     Agent
- |                                        |
- |------------- hello ------------------->|
- |<------------ hello.ok ---------------- |
- |<------------ config.snapshot --------- |
- |<------------ state.update ------------ |
- |                                        |
- |------------- button.press ------------>|
- |<------------ action.result ----------- |
- |<------------ state.update ------------ |
- |                                        |
- |------------- ping ------------------->|
- |<------------ pong ------------------- |
-```
-
-L'agent envoie `config.snapshot` puis `state.update` spontanément après le
-handshake, sans que la 3DS ait à les demander.
-
-## Messages 3DS vers agent
-
-### `hello`
-
-Premier message obligatoire après connexion.
+### Client hello
 
 ```json
-{
-  "type": "hello",
-  "protocol": 1,
-  "device": "new3dsxl",
-  "token": "optionnel",
-  "pair_code": "optionnel, six chiffres"
-}
+{"type":"hello","protocol":1,"device":"new3dsxl","language":"en","token":"stored-credential"}
 ```
 
-Si l'agent est configuré avec un token et que celui fourni ne correspond pas, il
-accepte à la place le code court visible dans son interface locale. Un code
-valide est consommé immédiatement ; `hello.ok` renvoie alors une seule fois le
-jeton durable, que la console stocke sur sa carte SD. Sinon l'agent répond
-`hello.error` avec `code: "pairing_required"` puis ferme la connexion.
+For pairing, use `pair_code` with the six-digit code shown locally instead of a stored credential. When pairing is required and credentials do not match, the agent returns `hello.error` with `code:"pairing_required"` and closes.
 
-### `button.press`
+A valid code is consumed once. The response supplies a new individual credential for the console to store:
 
 ```json
-{
-  "type": "button.press",
-  "id": 7,
-  "page": "main",
-  "button": "mic-toggle",
-  "hold": false
-}
+{"type":"hello.ok","protocol":1,"agent":"0.2.0","host":"Office Mac","platform":"darwin","token":"new-individual-credential"}
 ```
 
-- `id` : entier croissant choisi par la 3DS, corrélé dans `action.result`.
-- `hold` : `true` pour un appui long (action secondaire du bouton).
+`token` is included after pairing/legacy-token migration, not on every normal handshake. The agent keeps only the credential's SHA-256 digest in `paired-consoles.json`. Individual revocation closes matching connections.
 
-### `config.request`
+One absolute five-second deadline covers the entire handshake, including fragments. Admissions are capped at 16 pending and eight authenticated clients; overload can return `hello.error` with `server_busy`. Pair-code failures are limited to five per source and 30 globally per one-minute window.
 
-Demande explicite de renvoi de la configuration.
+## Client requests
 
-```json
-{ "type": "config.request", "id": 3 }
-```
-
-### `ping`
-
-```json
-{ "type": "ping", "id": 12 }
-```
-
-## Messages agent vers 3DS
-
-### `hello.ok`
-
-```json
-{
-  "type": "hello.ok",
-  "protocol": 1,
-  "agent": "0.1.0",
-  "host": "MacBook-Pro",
-  "platform": "darwin",
-  "token": "présent uniquement après un appairage réussi"
-}
-```
-
-### `hello.error`
-
-```json
-{
-  "type": "hello.error",
-  "reason": "jeton invalide, appairage requis",
-  "code": "pairing_required"
-}
-```
-
-### `config.snapshot`
-
-Décrit l'intégralité de l'interface. La 3DS reconstruit son UI à sa réception.
-
-```json
-{
-  "type": "config.snapshot",
-  "revision": 4,
-  "pages": [
-    {
-      "id": "main",
-      "title": "Principal",
-      "dashboard": "auto",
-      "buttons": [
-        {
-          "id": "mic-toggle",
-          "slot": 0,
-          "label": "Micro",
-          "icon": "mic",
-          "color": "#3B82F6",
-          "toggle": "mic_muted",
-          "hold_label": "Périphériques"
-        }
-      ]
-    }
-  ]
-}
-```
-
-Champs d'une page :
-
-| Champ | Type | Rôle |
+| Type | Fields | Purpose |
 |---|---|---|
-| `id` | string | Identifiant, référencé par `page.open` |
-| `title` | string | Affiché sur la barre et le dashboard |
-| `icon` | string | Icône de l'onglet |
-| `dashboard` | string | `auto`, `media`, `system`, `apps`, `audio` ou `frame` |
-| `layout` | string | `grid` (défaut) ou `list` |
-| `buttons` | array | 6 maximum, pour `layout: grid` |
-| `entries` | array | Jusqu'à 32 éléments, pour `layout: list` |
-
-### Pages en mode liste
-
-La grille convient à des actions fixes, mais pas à un contenu dont la longueur
-varie : au-delà de six éléments, le reste devient inaccessible. Une page peut
-donc adopter une présentation en liste défilante.
+| `button.press` | `id`, `page`, `button`, optional `hold` | Execute configured primary/secondary action |
+| `value.set` | `id`, `target`, `value` | Set `volume` or `app_volume`; integer 0–100 |
+| `config.request` | `id` | Request the latest resolved layout |
+| `ping` | `id` | Receive a correlated `pong` |
 
 ```json
-{
-  "id": "windows",
-  "title": "Windows",
-  "icon": "app",
-  "layout": "list",
-  "entries": [
-    {
-      "id": "win-0",
-      "label": "Safari",
-      "detail": "Personnel — Deck3DS",
-      "icon": "browser",
-      "color": "#3B82F6",
-      "active": true
-    }
-  ]
-}
+{"type":"button.press","id":7,"page":"main","button":"mic-toggle","hold":false}
+{"type":"value.set","id":8,"target":"volume","value":50}
+{"type":"config.request","id":9}
+{"type":"ping","id":10}
 ```
 
-Champs d'un élément de liste :
+Mutation IDs must be nonnegative integers increasing across both press/value requests within a TCP session. Duplicate/older IDs are rejected, preventing duplicate effects in that session. The counter resets with the connection; this is not cryptographic replay protection. A paused agent rejects mutations while keeping state/connection alive.
 
-| Champ | Type | Rôle |
-|---|---|---|
-| `id` | string | Renvoyé dans `button.press` |
-| `label` | string | Ligne principale, 24 caractères maximum |
-| `detail` | string | Ligne secondaire, 40 caractères maximum |
-| `icon` | string | Icône affichée à gauche |
-| `color` | string | Accent `#RRGGBB` |
-| `active` | bool | Élément mis en évidence, un seul par liste |
+The reserved `__direct` page accepts only `audio_output.cycle`, `volume.mute_toggle` and `mic.mute_toggle`. Other actions resolve from configured identifiers. The dynamic editor catalog describes supported action arguments; adding an action does not extend the direct network allow-list.
 
-L'ordre du tableau est significatif : il est conservé tel quel par la console.
-Pour les fenêtres, l'agent le fait correspondre à l'ordre d'empilement, donc à
-l'usage le plus récent.
+## Agent responses
 
-Les appuis sur un élément de liste utilisent le même message `button.press` que
-la grille : la console n'a pas à distinguer les deux cas.
-
-Champs d'un bouton :
-
-| Champ | Type | Rôle |
-|---|---|---|
-| `id` | string | Identifiant, renvoyé dans `button.press` |
-| `slot` | int | Position 0..5 dans la grille |
-| `label` | string | Texte affiché |
-| `icon` | string | Nom d'icône vectorielle (voir liste) |
-| `color` | string | Accent `#RRGGBB` |
-| `toggle` | string | Clé d'état pilotant l'apparence active |
-| `hold_label` | string | Indice d'action longue, optionnel |
-
-Icônes disponibles : `mic`, `mic-off`, `volume-up`, `volume-down`, `volume-mute`,
-`play`, `pause`, `next`, `previous`, `app`, `browser`, `terminal`, `folder`,
-`music`, `chat`, `video`, `record`, `lock`, `page`, `power`, `gear`, `star`.
-
-La 3DS impose ces limites et rejette proprement ce qui dépasse :
-
-- 12 pages
-- 6 boutons par page
-- 24 caractères par label
-- 32 caractères par identifiant
-
-### `state.update`
-
-Envoyé à chaque changement pertinent. Tous les champs sont optionnels : c'est un
-patch, la 3DS conserve les valeurs qu'elle possède déjà.
+### Configuration snapshot
 
 ```json
-{
-  "type": "state.update",
-  "volume": 63,
-  "muted": false,
-  "mic_muted": true,
-  "media": {
-    "title": "Nom du morceau",
-    "artist": "Artiste",
-    "app": "Spotify",
-    "playing": true
-  },
-  "active_app": "Safari",
-  "apps": ["Safari", "Spotify", "Terminal"],
-  "cpu": 24,
-  "memory": 51,
-  "memory_used_mb": 8350,
-  "memory_total_mb": 16384,
-  "disk": 72,
-  "disk_free_mb": 138420,
-  "disk_total_mb": 500000,
-  "network_down_kbps": 18400,
-  "network_up_kbps": 1250,
-  "top_process": "Blender",
-  "top_process_cpu": 38,
-  "gpu": 61,
-  "temperature": 68,
-  "time": "14:32",
-  "date": "22 août"
-}
+{"type":"config.snapshot","revision":4,"pages":[
+  {"id":"main","title":"Main","icon":"star","dashboard":"auto","layout":"grid",
+   "buttons":[{"id":"mic-toggle","slot":0,"label":"Mic","icon":"mic","color":"#66CB10","toggle":"mic_muted","hold_label":"Secondary"}]}
+]}
 ```
 
-`time` et `date` viennent du PC pour garantir la cohérence avec l'affichage de
-l'ordinateur, mais la 3DS utilise son horloge interne en repli si le champ est
-absent ou la connexion perdue.
+The full snapshot rebuilds the console layout. It contains display metadata and identifiers, **not executable paths, URLs or action commands**.
 
-Les mesures de performances enrichies sont elles aussi facultatives. Les
-volumes mémoire et disque sont exprimés en mébioctets ; les débits réseau en
-kilobits par seconde ; la température en degrés Celsius. `gpu` et
-`temperature` peuvent rester absents lorsque le pilote ou le système ne les
-expose pas. La console adapte alors sa quatrième carte au stockage, sans
-afficher de valeur inventée.
+| Page field | Meaning |
+|---|---|
+| `id`, `title`, `icon` | Identity and tab display; localized text resolved by agent |
+| `dashboard` | `auto`, `media`, `system`, `apps`, `audio`, `frame`, or `extension` |
+| `layout` | `grid` (default) or `list` |
+| `buttons` | Up to six grid positions, `slot` 0–5 |
+| `entries` | Up to 32 ordered list items |
 
-### `action.result`
+Button fields include `id`, `slot`, `label`, vector `icon`, `color` in `#RRGGBB`, optional `toggle` state key and `hold_label`. List items use `id`, `label`, `detail`, `icon`, `color` and `active`; presses use the same message as buttons. Limits include 12 pages, short 24-character labels and 32-character identifiers; native buffers also impose UTF-8 byte limits. Keep strings short. Generated lists may be reduced to fit the global frame budget.
+
+### State updates
+
+`state.update` is a patch: absent fields leave previous state unchanged. State includes volume/mute, microphone, active/open apps, media metadata/progress/art token, audio outputs, notifications, time/date and available performance values.
+
+Performance keys include `cpu`, `memory`, `memory_used_mb`, `memory_total_mb`, `disk`, `disk_free_mb`, `disk_total_mb`, `network_down_kbps`, `network_up_kbps`, `top_process`, `top_process_cpu`, optional `gpu` and `temperature`. Memory/storage units are MiB, network rates kilobits/second and temperature Celsius. Missing metrics are unavailable, not invented zeros. Time/date are resolved by the agent; the console can fall back to its own clock.
+
+### Action result and pong
 
 ```json
-{
-  "type": "action.result",
-  "id": 7,
-  "ok": true,
-  "message": "Micro coupé"
-}
+{"type":"action.result","id":7,"ok":true,"message":"Microphone muted"}
+{"type":"action.result","id":8,"ok":false,"message":"Player unavailable"}
+{"type":"pong","id":10}
 ```
 
-En cas d'échec :
+Results correlate with requests and drive pending/success/error feedback. They may also contain native navigation instructions such as opening a page, settings or panel, rather than executing those actions on the PC. See the protocol serializer for optional fields.
+
+### Binary artwork
+
+A normally length-prefixed payload starts with ASCII `ART0`, followed by little-endian width (2 bytes), height (2), token (4), then `width × height × 2` pixel bytes.
+
+Width/height must both be 128. Pixels are RGB565 little-endian, swizzled in 8 × 8 Morton-order tiles, ready for native texture upload. The token identifies the cover and avoids resending identical images. `media.art` links state to the cover token.
+
+## Extension display fields
+
+Workers speak [stdio API 1](EXTENSIONS.md), never the console socket. Their private arguments and programs remain on the computer. Extension-backed pages use ordinary buttons/entries; dashboards resolve to `dashboard:"extension"`.
 
 ```json
-{
-  "type": "action.result",
-  "id": 7,
-  "ok": false,
-  "message": "Spotify introuvable"
-}
+{"type":"state.update","extension_panels":[
+ {"page":"focus","title":"Focus","status":"ok","cards":[{"label":"Remaining","value":"24:12","detail":"Session","progress":4}]}
+],"extension_buttons":[{"page":"focus","id":"start","active":true,"available":true}]}
 ```
 
-Le message est affiché en notification sur l'écran supérieur. Un échec doit
-toujours être explicite : un bouton ne doit jamais sembler fonctionner sans
-effet.
+When present, these arrays replace their previous contents; an empty array clears them. Limits: 12 panels, four cards per panel, 72 button states; title 64, label 24, value 40, detail 64 UTF-8 bytes. Progress is optional, 0–100. Status is `neutral`, `ok`, `warning` or `error`. The parser's bounded JSON budget is 8,192 tokens; the frame limit remains 65,536 bytes.
 
-### `pong`
+Older clients ignore unknown fields but need updated homebrew to render new extension dashboards. Protocol 1 does not download custom code to the console.
 
-```json
-{ "type": "pong", "id": 12 }
-```
+## Trust boundary
 
-### `art` — pochette d'album
-
-La pochette est le seul message binaire du protocole. Elle est transmise comme
-une trame ordinaire, mais son contenu n'est pas du JSON : la charge utile
-commence par la signature ASCII `ART0`, suivie d'un en-tête puis des pixels.
-
-```
-+--------+--------+--------+--------+---------------------------+
-| "ART0" | width  | height | token  | pixels RGB565 swizzlés    |
-| 4 o.   | 2 o.   | 2 o.   | 4 o.   | width*height*2 octets     |
-+--------+--------+--------+--------+---------------------------+
-```
-
-Les entiers sont en little-endian. La 3DS reconnaît une pochette au préfixe
-`ART0` et n'essaie donc jamais de l'analyser comme du JSON.
-
-- `width` et `height` valent 128. La console refuse toute autre dimension.
-- `token` identifie la pochette. L'agent ne renvoie l'image que lorsque ce
-  jeton change, ce qui évite de retransmettre 32 Ko à chaque rafraîchissement.
-
-Les pixels sont déjà au format attendu par le processeur graphique de la
-console : RGB565 little-endian, réorganisés en tuiles de 8 × 8 selon l'ordre de
-Morton, l'index dans la tuile valant `interleave(x, y)`. Ce format a été
-vérifié en comparant la sortie de `tex3ds` sur une image témoin. La console peut
-donc téléverser le bloc tel quel, sans aucune conversion.
-
-Le champ `media.art` de `state.update` contient le jeton de la pochette
-courante, ou est absent s'il n'y en a pas. La console peut ainsi savoir qu'une
-image va arriver, et afficher un substitut en attendant.
-
-## Actions
-
-Les actions ne sont jamais des commandes shell arbitraires envoyées par la 3DS.
-La 3DS envoie un identifiant de bouton ; l'agent seul décide quoi exécuter, en
-consultant sa configuration locale.
-
-Actions reconnues dans `config.json` côté agent :
-
-| Action | Arguments | Effet |
-|---|---|---|
-| `volume.up` | `step` | Augmente le volume |
-| `volume.down` | `step` | Diminue le volume |
-| `volume.set` | `value` | Fixe le volume |
-| `volume.mute_toggle` | — | Bascule la sortie audio |
-| `mic.mute_toggle` | — | Bascule le micro |
-| `mic.mute` / `mic.unmute` | — | Force l'état du micro |
-| `media.play_pause` | — | Lecture/pause |
-| `media.next` / `media.previous` | — | Piste suivante/précédente |
-| `app.launch` | `target` | Lance/active une application |
-| `app.quit` | `target` | Quitte une application |
-| `url.open` | `url` | Ouvre une URL |
-| `path.open` | `path` | Ouvre un fichier ou dossier |
-| `hotkey` | `keys` | Envoie un raccourci clavier |
-| `script.run` | `script` | Exécute un script déclaré dans la config |
-| `page.open` | `page` | Change de page (traité côté 3DS) |
-| `system.lock` | — | Verrouille la session |
-
-`page.open` est le seul cas particulier : l'agent le renvoie sous forme de
-résultat que la 3DS interprète comme navigation, ce qui évite un aller-retour.
-
-## Robustesse
-
-### Extensions (champs facultatifs, protocole 1)
-
-Le contrat complet des programmes d'extension est dans [EXTENSIONS.md](EXTENSIONS.md).
-Ces programmes s'exécutent sur le PC via stdio ; ils ne parlent pas directement
-au socket 3DS. Les commandes et paramètres privés ne sont jamais transmis.
-
-Une page utilisant un écran d'extension reçoit `"dashboard":"extension"`.
-Les pages alimentées par une extension utilisent les tableaux `buttons`/`entries`
-existants. Leurs actions sont exécutées côté agent depuis les identifiants reçus.
-
-`state.update` peut inclure les tableaux suivants (remplacement complet quand
-présents ; tableaux vides = effacement ; absents = état inchangé) :
-
-```json
-{
-  "extension_panels": [{
-    "page": "focus", "title": "Focus", "status": "ok",
-    "cards": [{"label": "Temps restant", "value": "24:12", "detail": "Session", "progress": 4}]
-  }],
-  "extension_buttons": [{"page": "focus", "id": "start", "active": true, "available": true}]
-}
-```
-
-Bornes natives : 12 panneaux, 4 cartes/panneau, 72 états de boutons ; titre64,
-libellé24, valeur40 et détail64 octets UTF-8. `progress` est facultatif (0–100).
-Les couleurs de statut sont natives (`neutral`, `ok`, `warning`, `error`). La
-traduction est résolue par console. La limite de trame reste65536 octets ; les
-listes d'extensions volumineuses sont bornées par le budget global du message.
-Le parseur accepte8192 jetons JSON dans une allocation statique bornée.
-Les anciens clients ignorent les champs inconnus et nécessitent une mise à jour
-pour afficher les nouveaux panneaux ; les fonctions natives restent inchangées.
-
-- Un message JSON invalide entraîne un `action.result` en échec ou est ignoré,
-  jamais un plantage.
-- La 3DS reconnecte automatiquement toutes les 2 secondes après une coupure,
-  sans jamais bloquer le rendu.
-- L'agent tolère la disparition brutale d'un client et continue de tourner.
-- Plusieurs 3DS peuvent être connectées simultanément ; l'état est diffusé à
-  toutes.
+A network observer can see pairing traffic and bearer credentials. Monotonic IDs, rate limits and allow-lists do not secure a hostile LAN. A future encrypted protocol would require a negotiated, audited construction on both PC and 3DS; no homegrown cryptography is claimed. See [Security](SECURITY.md).

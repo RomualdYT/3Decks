@@ -13,10 +13,11 @@ export default defineConfig({
   server: {
     host: "127.0.0.1",
     port: 4173,
+    strictPort: true,
     proxy: { "/api": "http://127.0.0.1:38124" },
   },
   build: {
-    outDir: resolve(root, "../backend/deck3ds/ui/static"),
+    outDir: resolve(root, "../backend/deck3ds/api/static"),
     emptyOutDir: true,
     sourcemap: true,
   },

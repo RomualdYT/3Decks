@@ -1,13 +1,11 @@
 import { Button, Spinner, toast } from "@heroui/react";
 import { useCallback, useEffect, useState } from "react";
-import { agentApi } from "../api/client";
+import { agentApi, type ExtensionRequest } from "../api/client";
 import type { ExtensionCatalog, Locale } from "../app/types";
 import { DeckIcon } from "../components/DeckIcon";
 import { ExtensionCard } from "./ExtensionCard";
-import {
-  ExtensionApproval,
-  type ExtensionConfirmation,
-} from "./ExtensionApproval";
+import { ExtensionApproval } from "./ExtensionApproval";
+import type { ExtensionConfirmation } from "./requests";
 
 export function ExtensionsView({
   locale,
@@ -36,13 +34,10 @@ export function ExtensionsView({
     const timer = window.setInterval(() => void refresh(), 4000);
     return () => window.clearInterval(timer);
   }, [refresh]);
-  const operate = async (
-    operation: string,
-    values: Record<string, unknown> = {},
-  ) => {
+  const operate = async (request: ExtensionRequest) => {
     setBusy(true);
     try {
-      const result = await agentApi.manageExtension(operation, values);
+      const result = await agentApi.manageExtension(request);
       if (!result.cancelled) {
         toast.success(fr ? "Extension mise à jour" : "Extension updated");
         setConfirmation(null);
@@ -74,7 +69,7 @@ export function ExtensionsView({
           <Button
             variant="outline"
             isDisabled={busy}
-            onPress={() => void operate("rescan")}
+            onPress={() => void operate({ operation: "rescan" })}
           >
             <DeckIcon name="refresh" size={17} />
             {fr ? "Actualiser" : "Refresh"}
@@ -82,7 +77,7 @@ export function ExtensionsView({
           <Button
             variant="primary"
             isDisabled={busy}
-            onPress={() => void operate("install")}
+            onPress={() => void operate({ operation: "install" })}
           >
             <DeckIcon name="plus" size={17} />
             {fr ? "Importer une extension" : "Import extension"}

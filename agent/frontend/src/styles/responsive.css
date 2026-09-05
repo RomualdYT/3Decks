@@ -61,6 +61,7 @@
   .language-cards, .status-summary, .capability-grid { grid-template-columns: 1fr; }
   .status-workspace { padding: 25px 14px; }
   .token-panel, .address-card [data-slot="card-content"] { align-items: flex-start; flex-direction: column; gap: 12px; }
+  .paired-device-row { align-items: flex-start; flex-direction: column; gap: 10px; }
   .token-panel code { max-width: calc(100vw - 70px); }
   .save-bar { align-items: stretch; bottom: 8px; flex-direction: column; gap: 8px; padding: 10px; }
   .save-bar-copy small { display: none; }

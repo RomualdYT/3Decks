@@ -47,8 +47,8 @@ export function ExtensionField({
       <NumberControl
         label={label}
         value={Number(value ?? field.default ?? field.min ?? 0)}
-        min={field.min}
-        max={field.max}
+        min={field.min ?? undefined}
+        max={field.max ?? undefined}
         description={description}
         onChange={onChange}
       />

@@ -12,8 +12,12 @@ doit jamais sembler fonctionner sans effet.
 from __future__ import annotations
 
 import subprocess
+import threading
 from dataclasses import dataclass, field
 from dataclasses import fields as dataclass_fields
+from ..configuration.arguments import WebUrlError
+from ..configuration.arguments import normalize_web_url as _normalize_web_url
+from ..messages import msg
 
 
 class Unsupported(Exception):
@@ -26,6 +30,15 @@ class ActionFailed(Exception):
 
 class SelectionCancelled(Exception):
     """L'utilisateur a fermé un sélecteur natif sans choisir d'élément."""
+
+
+def normalize_web_url(value: str) -> str:
+    """Adapt neutral URL validation to a localized platform action error."""
+    try:
+        return _normalize_web_url(value)
+    except WebUrlError as error:
+        detail = msg("http_only") if error.code == "http_only" else msg("invalid_url")
+        raise ActionFailed(detail) from error
 
 
 @dataclass
@@ -226,6 +239,30 @@ class Platform:
     """
 
     name = "generique"
+    _dialog_guard = threading.Lock()
+
+    def run_dialog(self, command: list[str]) -> str:
+        from .dialogs import DialogProcess
+        with self._dialog_guard:
+            if getattr(self, "_dialogs_closed", False):
+                raise ActionFailed("Agent en cours d'arret")
+            runner = getattr(self, "_dialog_runner", None)
+            if runner is None:
+                runner = self._dialog_runner = DialogProcess()
+        try:
+            return runner.run(command)
+        except (RuntimeError, OSError) as error:
+            raise ActionFailed(str(error)) from error
+
+    def close_dialogs(self) -> None:
+        with self._dialog_guard:
+            self._dialogs_closed = True
+            runner = getattr(self, "_dialog_runner", None)
+        if runner is not None:
+            runner.close()
+
+    def close(self) -> None:
+        self.close_dialogs()
 
     def configure_features(self, features: object) -> None:
         """Applique les collectes activées sans coupler la plateforme au parseur."""
