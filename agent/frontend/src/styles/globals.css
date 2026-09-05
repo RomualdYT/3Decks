@@ -3,6 +3,7 @@
 @import "./tokens.css";
 @import "./shell.css";
 @import "./editor.css";
+@import "./console-top.css";
 @import "./settings.css";
 @import "./extensions.css";
 @import "./responsive.css";

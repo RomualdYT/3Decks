@@ -3,7 +3,9 @@ import type { AgentState, DeckConfig, Locale, PageConfig } from "../app/types";
 import type { CopyKey } from "../i18n/copy";
 import { localized } from "../utils/config";
 import { DeckIcon } from "../components/DeckIcon";
-import { ExtensionPreview, extensionSource } from "../extensions/ExtensionPreview";
+import { extensionSource } from "../extensions/ExtensionPreview";
+
+import { ConsoleTopScreen } from "./ConsoleTopScreen";
 
 interface Props {
   config: DeckConfig;
@@ -17,30 +19,6 @@ interface Props {
   onSelectPage: (index: number) => void;
   onSelectSlot: (slot: number) => void;
   onMoveButton: (from: number, to: number) => void;
-}
-
-function mediaData(status: AgentState | null) {
-  const value = status?.snapshot?.media;
-  return value && typeof value === "object" ? value as Record<string, unknown> : null;
-}
-
-function TopScreen({ page, status, locale }: Pick<Props, "page" | "status" | "locale">) {
-  const fr = locale === "fr";
-  const media = mediaData(status);
-  const cpu = status?.snapshot?.cpu;
-  const memory = status?.snapshot?.memory;
-  const notifications = Array.isArray(status?.snapshot?.notifications) ? status.snapshot.notifications as Array<Record<string, unknown>> : [];
-  const mode = page.dashboard === "auto" ? (media?.title ? "media" : "system") : page.dashboard;
-  return (
-    <section className="device-top-screen" aria-label={fr ? "Aperçu de l’écran supérieur" : "Top screen preview"}>
-      <header><span>3DECKS</span><span><i className={status?.clients.length ? "online" : ""} />{status?.clients.length ? (fr ? "CONNECTÉ" : "CONNECTED") : (fr ? "APERÇU" : "PREVIEW")}</span></header>
-      {mode === "media" && <div className="top-media"><div className="top-art"><DeckIcon name="music" size={35} /></div><div><small>{String(media?.app ?? "APPLE MUSIC · SPOTIFY")}</small><strong>{String(media?.title ?? (fr ? "Aucune lecture" : "Nothing playing"))}</strong><span>{String(media?.artist ?? (fr ? "Le média en cours apparaîtra ici" : "Current media will appear here"))}</span><div className="top-progress"><i /></div></div></div>}
-      {mode === "notifications" && <div className="top-dashboard-list"><div className="top-title"><DeckIcon name="bell" size={16} /><strong>{fr ? "Notifications" : "Notifications"}</strong><small>{notifications.length}</small></div>{notifications.length ? notifications.slice(0, 2).map((item, index) => <div className="top-list-row" key={index}><span><DeckIcon name="bell" size={14} /></span><div><strong>{String(item.title ?? item.app ?? "Notification")}</strong><small>{String(item.body ?? item.app ?? "")}</small></div></div>) : <div className="top-empty"><DeckIcon name="bell" size={24} /><span>{fr ? "Les notifications récentes apparaîtront ici" : "Recent notifications will appear here"}</span></div>}</div>}
-      {mode === "system" && <div className="top-system"><div className="top-title"><DeckIcon name="monitor" size={16} /><strong>{fr ? "Votre ordinateur" : "Your computer"}</strong></div><div className="system-metrics"><div><small>CPU</small><strong>{typeof cpu === "number" ? `${cpu}%` : "—"}</strong><i><b style={{ width: typeof cpu === "number" ? `${cpu}%` : "0%" }} /></i></div><div><small>{fr ? "MÉMOIRE" : "MEMORY"}</small><strong>{typeof memory === "number" ? `${memory}%` : "—"}</strong><i><b style={{ width: typeof memory === "number" ? `${memory}%` : "0%" }} /></i></div></div><div className="active-app"><span><DeckIcon name="app" size={16} /></span><div><small>{fr ? "APPLICATION ACTIVE" : "ACTIVE APPLICATION"}</small><strong>{String(status?.snapshot?.active_app ?? "3Decks Agent")}</strong></div></div></div>}
-      {mode.startsWith("ext:") && <ExtensionPreview dashboard={mode} status={status} locale={locale} />}
-      {!mode.startsWith("ext:") && !(["media", "notifications", "system"].includes(mode)) && <div className="top-page"><span><DeckIcon name={page.icon || "page"} size={38} /></span><strong>{localized(page.title, locale) || page.id}</strong><small>{fr ? "Cette page est prête" : "This page is ready"}</small></div>}
-    </section>
-  );
 }
 
 export function DeckPreview({ config, page, pageIndex, locale, selectedSlot, status, slots, t, onSelectPage, onSelectSlot, onMoveButton }: Props) {
@@ -58,7 +36,7 @@ export function DeckPreview({ config, page, pageIndex, locale, selectedSlot, sta
       <div className="device-stage">
         <div className="device-shell-wrap">
           <img className="device-shell-image" src="/device-shell.png" alt="" draggable={false} />
-          <TopScreen page={page} status={status} locale={locale} />
+          <ConsoleTopScreen page={page} status={status} locale={locale} />
           <section className="device-bottom-screen" aria-label={fr ? "Aperçu de l’écran tactile" : "Touch screen preview"}>
             <div className={`screen-content ${page.layout === "list" ? "list-mode" : "grid-mode"}`}>
               {dynamic && !generated.length ? <div className="dynamic-empty"><span><DeckIcon name={customSource ? "extension" : "app"} size={25} /></span><strong>{customSource ? (fr ? "Contenu d’extension" : "Extension content") : (fr ? "Fenêtres disponibles" : "Available windows")}</strong><p>{customSource ? (fr ? "Cette zone affichera les éléments fournis par l’extension. Vérifiez son activation dans Extensions." : "Items provided by the extension appear here. Check its status in Extensions.") : (fr ? "Cette zone se remplira automatiquement avec les applications ouvertes sur votre ordinateur." : "This area fills automatically with apps open on your computer.")}</p></div> : null}

@@ -128,6 +128,7 @@ class ArtworkCache:
         self._url = ""
         self._token = 0
         self._texture: bytes | None = None
+        self._preview: bytes | None = None
         self._accent = ""
 
     @property
@@ -139,6 +140,10 @@ class ArtworkCache:
         """Couleur dominante de la pochette, au format `#RRGGBB`."""
         return self._accent
 
+    def preview(self) -> bytes | None:
+        """Already encoded image; never downloads or converts on an HTTP read."""
+        return self._preview
+
     def update(self, url: str) -> bool:
         """Prépare la pochette de `url`. Retourne `True` si elle a changé."""
         if not url:
@@ -147,6 +152,7 @@ class ArtworkCache:
             self._url = ""
             self._token = 0
             self._texture = None
+            self._preview = None
             self._accent = ""
             return True
 
@@ -161,11 +167,14 @@ class ArtworkCache:
             # Échec du téléchargement ou de la conversion : la console affichera
             # son substitut, ce qui reste préférable à une image erronée.
             self._texture = None
+            self._preview = None
             self._token = 0
             self._accent = ""
             return True
 
+        preview = artwork.preview_png(texture)
         self._texture = texture
+        self._preview = preview
         self._token = artwork.token_for(url)
 
         # Couleur dominante : la console accorde son interface au morceau.

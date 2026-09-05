@@ -27,14 +27,15 @@ function readToken(): string {
 
 let token = readToken();
 
-async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+async function request<T>(method: string, path: string, body?: unknown, signal?: AbortSignal, binary = false): Promise<T> {
   const headers: Record<string, string> = { "X-Deck3DS-Token": token };
-  const options: RequestInit = { method, headers };
+  const options: RequestInit = { method, headers, ...(signal ? { signal } : {}) };
   if (body !== undefined) {
     headers["Content-Type"] = "application/json";
     options.body = JSON.stringify(body);
   }
   const response = await fetch(path, options);
+  if (response.ok && binary) return (response.status === 204 ? null : await response.blob()) as T;
   const text = await response.text();
   let payload: Record<string, unknown> = {};
   try { payload = text ? JSON.parse(text) as Record<string, unknown> : {}; }
@@ -49,6 +50,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 }
 
 export const agentApi = {
+  artwork: (signal: AbortSignal) => request<Blob | null>("GET", "/api/artwork", undefined, signal, true),
   health: () => request<components["schemas"]["Health"]>("GET", "/api/health"),
   validate: (config: DeckConfig) => request<components["schemas"]["ValidationResult"]>("POST", "/api/config/validate", config),
   extensions: () => request<ExtensionCatalog>("GET", "/api/extensions"),

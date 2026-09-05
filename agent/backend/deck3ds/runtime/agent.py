@@ -191,6 +191,7 @@ class AgentRuntime:
                 "pause_remaining": self.controls_pause_remaining,
             },
             self.native_pool,
+            artwork=self._artwork.preview,
         )
         extension_service = ExtensionService(
             self.extensions, system, self.extension_pool, lambda: self._wake().set()

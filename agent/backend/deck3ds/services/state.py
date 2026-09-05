@@ -33,6 +33,7 @@ class StateService:
         health: Callable[[], dict[str, Any]],
         controls: Callable[[], dict[str, Any]],
         pool: WorkPool,
+        artwork: Callable[[], bytes | None] = lambda: None,
     ) -> None:
         self.config, self.platform, self.extensions = config, platform, extensions
         self.pairing, self.version = pairing, version
@@ -57,6 +58,7 @@ class StateService:
             "access": "unknown",
         }
         self._metadata_at = 0.0
+        self.artwork = artwork
 
     async def refresh_metadata(self) -> None:
         if time.monotonic() - self._metadata_at < 10.0:

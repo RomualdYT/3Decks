@@ -110,17 +110,23 @@ static u32 media_accent(const App *app)
 static void draw_spotify_wave(float cx, float cy, float size, float thickness,
 	                              float z, u32 color)
 {
-	/* Quatre points forment une courbe stable, plus propre qu'un arc circulaire. */
-	const float x0 = cx - size * 0.34f;
-	const float x1 = cx - size * 0.12f;
-	const float x2 = cx + size * 0.12f;
-	const float x3 = cx + size * 0.34f;
-	draw_line(x0, cy + size * 0.04f, x1, cy - size * 0.04f, thickness, z,
-	          color);
-	draw_line(x1, cy - size * 0.04f, x2, cy - size * 0.02f, thickness, z,
-	          color);
-	draw_line(x2, cy - size * 0.02f, x3, cy + size * 0.08f, thickness, z,
-	          color);
+	/* Smooth quadratic strokes with round joins, readable at 16 console pixels.
+	 * Keep each band above one pixel instead of subpixel-width broken segments. */
+	thickness = fmaxf(thickness, 1.15f);
+	float previous_x = cx - size * 0.34f;
+	float previous_y = cy + size * 0.015f;
+	for (int step = 1; step <= 8; step++) {
+		const float t = (float)step / 8.0f;
+		const float inverse = 1.0f - t;
+		const float x = cx + size * (-0.34f + 0.68f * t);
+		const float y = cy + size * (inverse * inverse * 0.015f -
+		                            2.0f * inverse * t * 0.16f + t * t * 0.10f);
+		draw_line(previous_x, previous_y, x, y, thickness, z, color);
+		draw_circle(previous_x, previous_y, thickness * 0.5f, z, color);
+		previous_x = x;
+		previous_y = y;
+	}
+	draw_circle(previous_x, previous_y, thickness * 0.5f, z, color);
 }
 
 /** Marques dessinees en vecteurs, sans texture supplementaire. */
@@ -179,10 +185,10 @@ static void draw_media_brand_badge(const App *app, float x, float y,
 
 	draw_round_rect(x, y, width, 18.0f, 9.0f, z,
 	                theme_alpha(COL_BG, 0xA6));
-	draw_media_brand_mark(detect_media_brand(app), x + 10.0f, y + 9.0f, 14.0f,
+	draw_media_brand_mark(detect_media_brand(app), x + 10.0f, y + 9.0f, 16.0f,
 	                      z + 0.01f);
-	text_draw_clipped(x + 20.0f, y + 2.5f, z + 0.01f, TEXT_MICRO,
-	                  COL_TEXT_DIM, ALIGN_LEFT, width - 25.0f, label);
+	text_draw_clipped(x + 22.0f, y + 2.5f, z + 0.01f, TEXT_MICRO,
+	                  COL_TEXT_DIM, ALIGN_LEFT, width - 27.0f, label);
 }
 
 static void draw_luminous_progress(float x, float y, float w, float h,

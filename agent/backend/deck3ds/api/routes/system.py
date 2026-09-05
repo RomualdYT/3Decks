@@ -1,5 +1,5 @@
 from typing import Any
-from fastapi import APIRouter, Body
+from fastapi import APIRouter, Body, Response
 from ..dependencies import ApplicationServices
 from ..models import (
     AgentState,
@@ -17,6 +17,18 @@ from ..models import JsonBody
 from ..input_models import request_schema
 
 router = APIRouter(tags=["system"])
+
+
+@router.get(
+    "/artwork", response_class=Response, operation_id="get_artwork",
+    responses={
+        200: {"content": {"image/png": {"schema": {"type": "string", "format": "binary"}}}},
+        204: {"description": "No cached artwork"},
+    },
+)
+async def artwork(services: ApplicationServices) -> Response:
+    image = services.state.artwork()
+    return Response(content=image, status_code=200 if image else 204, media_type="image/png")
 
 
 @router.get(

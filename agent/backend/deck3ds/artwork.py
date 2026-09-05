@@ -20,6 +20,7 @@ compressé est fait ici.
 from __future__ import annotations
 
 import base64
+import io
 import os
 import struct
 import subprocess
@@ -274,6 +275,30 @@ def frame(texture: bytes, token: int) -> bytes:
         + struct.pack("<HHI", ART_SIZE, ART_SIZE, token & 0xFFFFFFFF)
         + texture
     )
+
+
+def preview_png(texture: bytes) -> bytes:
+    """Encode the exact cached console pixels once, off the HTTP/render loop."""
+    from PIL import Image
+
+    if len(texture) != ART_SIZE * ART_SIZE * 2:
+        raise ValueError("Invalid console texture size")
+    pixels = bytearray(ART_SIZE * ART_SIZE * 3)
+    for y in range(ART_SIZE):
+        for x in range(ART_SIZE):
+            tile = (y // 8) * (ART_SIZE // 8) + x // 8
+            offset = (tile * 64 + _MORTON[(y % 8) * 8 + x % 8]) * 2
+            value = texture[offset] | texture[offset + 1] << 8
+            target = (y * ART_SIZE + x) * 3
+            pixels[target:target + 3] = bytes((
+                ((value >> 11) & 31) * 255 // 31,
+                ((value >> 5) & 63) * 255 // 63,
+                (value & 31) * 255 // 31,
+            ))
+    image = Image.frombytes("RGB", (ART_SIZE, ART_SIZE), bytes(pixels))
+    output = io.BytesIO()
+    image.save(output, format="PNG")
+    return output.getvalue()
 
 
 def token_for(url: str) -> int:
