@@ -136,7 +136,7 @@ bool app_settings_save(const Settings *settings)
 	}
 
 	fprintf(file,
-	        "# Reglages Deck3DS\n"
+	        "# Reglages 3Decks\n"
 	        "# Fichier ecrit par l'application. Modifiable a la main.\n\n"
 	        "# Nom affiche par la decouverte automatique.\n"
 	        "agent_name = %s\n\n"

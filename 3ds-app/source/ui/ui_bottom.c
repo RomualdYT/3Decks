@@ -32,7 +32,7 @@ static void draw_title_bar(const App *app)
 	const u32 accent = (app->link == LINK_ONLINE) ? COL_ACCENT : COL_ERR;
 	draw_round_rect(GRID_MARGIN_X, 11.0f, 3.0f, 13.0f, 1.5f, Z_CONTENT, accent);
 
-	const char *title = (page != NULL) ? page->title : "Deck3DS";
+	const char *title = (page != NULL) ? page->title : "3Decks";
 	text_draw_clipped(GRID_MARGIN_X + 9.0f, 8.0f, Z_CONTENT, TEXT_LARGE, COL_TEXT,
 	                  ALIGN_LEFT, 190.0f, title);
 

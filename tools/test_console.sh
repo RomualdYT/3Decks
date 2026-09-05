@@ -20,6 +20,7 @@ run() {
     "$test_build/$name"
 }
 run test_framing "$src/network/framing.c"
+run test_localization "$src/ui/i18n.c"
 run test_text_layout "$src/graphics/text_layout.c"
 run test_interactions "${common[@]}" "$src/app/app_feedback.c" "$src/ui/ui_layout.c"
 run test_protocol "$src/protocol/json.c" "$src/protocol/protocol.c" "$src/protocol/model.c" "$src/protocol/extension_state.c" "$src/graphics/theme.c"

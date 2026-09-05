@@ -59,7 +59,7 @@ def command_probe() -> int:
 
 
 def _probe(platform: Platform) -> int:
-    print(f"Agent Deck3DS {VERSION}")
+    print(f"Agent 3Decks {VERSION}")
     print(f"Plateforme detectee : {platform.name} ({sys.platform})")
     print()
 
@@ -173,7 +173,7 @@ def command_check(path: Path) -> int:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="deck3ds",
-        description="Agent PC pour Deck3DS : transforme une 3DS en surface "
+        description="Agent PC pour 3Decks : transforme une 3DS en surface "
         "de controle.",
     )
     parser.add_argument(

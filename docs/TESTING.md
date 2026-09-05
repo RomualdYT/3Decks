@@ -27,6 +27,7 @@ From the root:
 ```sh
 python3 tools/check_docs.py
 python3 -m unittest discover -s tools -p test_check_docs.py
+bash tools/test_console.sh
 ./build.sh
 ```
 
@@ -47,6 +48,8 @@ Console builds need Docker or local devkitPro. The wheel smoke test installs int
 | Architecture | `test_architecture.py` | Actual import boundaries, including relative/absolute imports |
 
 Frontend behavior belongs in Vitest beside the relevant React hook/component or utility. A Python assertion about a string in a React source file is not evidence that an interaction works. Data catalogs and generated contracts may still require cross-component consistency checks.
+
+The native console suite in `3ds-app/tests/` runs production C logic on macOS/Linux with sanitizers and loopback sockets. It covers frame boundaries, deadlines, protocol/UTF-8, navigation, touch geometry, feedback and text cache eviction. SDK stubs do not emulate GPU or physical console behavior. See [console architecture](CONSOLE_ARCHITECTURE.md).
 
 ## Isolation and safety
 

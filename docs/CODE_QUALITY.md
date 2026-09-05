@@ -15,6 +15,7 @@ See [architecture](ARCHITECTURE.md) for the detailed ownership and concurrency r
 | Coverage gate | 90% combined lines in those four areas; not untouched adapters or every file |
 | Contract tests | HTTP, configuration transactions, TCP/UDP, pairing, extensions and lifecycle |
 | Property tests | Frame fragmentation/size, URLs and pairing-code input |
+| Console C | Sanitized host logic/loopback tests on macOS/Linux and devkitPro cross-build |
 | Frontend | TypeScript, Vitest, production build and OpenAPI drift |
 | Distribution | Required resources, excluded personal/cache files, isolated installed-package smoke |
 | Documentation | Local Markdown/HTML links checked by `tools/check_docs.py` |
@@ -28,6 +29,8 @@ Keep modules focused on a responsibility. Around 400 lines is a review trigger, 
 Prefer narrow composition to broad shared mutable contexts. Do not introduce generic layers without a concrete consumer. Keep platform behavior testable without claiming simulated calls prove actual OS permission support.
 
 Tests protect editor edits against stale HTTP responses, bound desktop background work, preserve media preferences and rotate logs without restart. Hidden tabs suspend polling and pause countdown changes do not repeatedly rebuild the menu.
+
+Console sources follow [explicit responsibilities](CONSOLE_ARCHITECTURE.md). Setup and touch-screen rendering share geometry with input handling; extension parsing is independent of rendering. Large static models avoid overflowing the console stack. Review remaining large rendering/parser modules for cohesive responsibilities rather than splitting by line count.
 
 ## Performance discipline
 

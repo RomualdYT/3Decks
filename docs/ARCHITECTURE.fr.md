@@ -6,6 +6,9 @@ Cette synthèse française présente les responsabilités. La référence anglai
 
 ## Couches
 
+L’[architecture console](CONSOLE_ARCHITECTURE.fr.md) décrit séparément les modules
+C, budgets réseau, cache de texte et tests sur ordinateur.
+
 Le paquet réel se trouve dans `agent/backend/deck3ds`. `agent/deck3ds` est un adaptateur d’import depuis les sources ; `config.py` et `server.py` sont des façades de compatibilité.
 
 | Dossier | Responsabilité |

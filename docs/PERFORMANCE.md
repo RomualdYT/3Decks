@@ -24,6 +24,23 @@ These tools exercise the current implementation only. The runtime report is JSON
 
 ## Interpret results honestly
 
+### Console text-layout workload
+
+Run `bash tools/test_console.sh` from the repository root. Its text-layout test
+uses a deterministic character-width callback: the first clipped label requires
+seven measurements, and 10,000 identical repeats require no additional
+measurements. Eviction, changed width/scale, long strings, UTF-8 and reset are
+checked separately. This measures eliminated layout work, not GPU text parsing,
+real font timing or FPS. The bounded caches reserve approximately 22 KiB.
+
+On physical hardware, compare the same page, language, media title, console
+model and stereo setting. Inspect touch responsiveness during large snapshots,
+artwork bursts and reconnects. Host sanitizers and cross-build success do not
+measure battery life, Wi-Fi latency or frame rate. See
+[console architecture](CONSOLE_ARCHITECTURE.md) for the per-frame limits.
+
+### Agent measurements
+
 Record commit, OS/interpreter, workload, connection mode and whether tracing was active. Compare identical workloads and retain outliers. Per-cycle percentiles are not pooled percentiles.
 
 Do not turn a short run into a long-term endurance claim. Loopback timing does not predict 3DS Wi-Fi or native Spotify/OBS latency. Tests verify report structure and cleanup, not fixed timing thresholds that depend on CI load.

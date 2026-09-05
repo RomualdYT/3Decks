@@ -10,3 +10,7 @@ typedef int32_t Result;
 #define R_FAILED(result) ((result) < 0)
 static inline Result socInit(u32 *buffer, size_t size) { (void)buffer; (void)size; return 0; }
 static inline void socExit(void) {}
+#define CFG_LANGUAGE_FR 2
+static inline Result cfguInit(void) { return -1; }
+static inline Result CFGU_GetSystemLanguage(u8 *language) { (void)language; return -1; }
+static inline void cfguExit(void) {}

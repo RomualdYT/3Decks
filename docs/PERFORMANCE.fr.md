@@ -20,3 +20,18 @@ L’endurance exerce reconnexions, sauvegardes et travail lent. Elle dure quatre
 Notez commit, OS/Python, scénario, connexions et instrumentation. Comparez le même travail, conservez les valeurs atypiques et ne confondez pas percentiles par cycle et globaux. Trente secondes ne prouvent pas plusieurs heures de stabilité ; le loopback ne mesure ni le Wi-Fi 3DS ni Spotify/OBS réel.
 
 Les tests contrôlent structure du rapport et nettoyage, pas des seuils de vitesse dépendants du runner. Avant livraison, mesurez aussi le repos avec le véritable interpréteur et les intégrations actives. Conservez protections HTTP et ressources bornées. Voir [qualification](QUALIFICATION.fr.md).
+
+## Disposition du texte sur console
+
+Depuis la racine : `bash tools/test_console.sh`. Le test utilise une mesure de
+caractères déterministe : le premier libellé tronqué demande sept mesures ;
+10 000 répétitions identiques n’en ajoutent aucune. Il contrôle aussi éviction,
+changement d’échelle/largeur, longues chaînes, UTF-8 et réinitialisation. Ce sont
+des calculs évités, pas une mesure de glyphes GPU, de police réelle ou de FPS.
+Les caches bornés réservent environ 22 Kio.
+
+Sur le matériel, comparez la même page, langue, titre musical, console et réglage
+stéréo. Vérifiez la réactivité tactile pendant les configurations volumineuses,
+rafales de pochettes et reconnexions. Sanitizers et compilation ne mesurent pas
+batterie, Wi-Fi ou fréquence d’affichage. Les budgets par frame sont décrits dans
+l’[architecture console](CONSOLE_ARCHITECTURE.fr.md).

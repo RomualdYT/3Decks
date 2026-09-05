@@ -145,6 +145,10 @@ bool net_connect(const char *host, int port)
 	}
 
 	net_disconnect();
+	if (host == NULL || port < 1 || port > 65535) {
+		set_error("invalid IPv4 endpoint");
+		return false;
+	}
 
 	s_socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	if (s_socket < 0) {

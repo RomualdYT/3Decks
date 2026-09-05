@@ -2,6 +2,8 @@
 
 [Documentation](README.md) · [Synthèse française](ARCHITECTURE.fr.md)
 
+For native client organization, frame budgets and host C tests, see [console architecture](CONSOLE_ARCHITECTURE.md).
+
 ## Boundaries
 
 This is a local desktop agent, not a cloud service or a multi-user web backend. See [performance measurement](PERFORMANCE.md) for repeatable local workloads and how to interpret them.

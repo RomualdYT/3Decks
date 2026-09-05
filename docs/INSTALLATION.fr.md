@@ -38,7 +38,7 @@ Les raccourcis sont créés dans le menu Démarrer et sur le Bureau. L’icône 
 
 Copiez `deck3ds.3dsx` de la même Release dans `sdmc:/3ds/deck3ds.3dsx`. Lancez-le depuis Homebrew Launcher, choisissez une langue et sélectionnez votre ordinateur. Saisissez le code court affiché dans le panneau de connexion de l’éditeur si demandé. Le secret est enregistré automatiquement sur la console.
 
-Si la découverte échoue, utilisez la configuration manuelle avec l’adresse LAN et le port TCP de l’agent, pas `127.0.0.1`. Voir le [dépannage](TROUBLESHOOTING.fr.md).
+Si la découverte échoue, utilisez la configuration manuelle avec l’adresse IPv4 numérique (par exemple `192.168.1.10`) et le port TCP de l’agent, pas `127.0.0.1`. Voir le [dépannage](TROUBLESHOOTING.fr.md).
 
 ## 3. Utilisation
 

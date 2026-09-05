@@ -21,7 +21,9 @@
 #include "theme.h"
 
 #include "setup_internal.h"
-#define PROBE_TIMEOUT 4.0f
+#include "monotonic.h"
+#include "network_policy.h"
+#define PROBE_TIMEOUT (CONNECT_TIMEOUT_SECONDS + HELLO_TIMEOUT_SECONDS + 2.0)
 
 void setup_begin(Setup *setup, bool first_run)
 {
@@ -169,6 +171,7 @@ void start_probe(Setup *setup, App *app)
 {
 	setup->probe = PROBE_RUNNING;
 	setup->probe_time = 0.0f;
+	setup->probe_started_at = monotonic_seconds();
 
 	/*
 	 * Le test réutilise la connexion normale : réussir ici garantit donc que
@@ -214,18 +217,18 @@ void setup_update(Setup *setup, App *app, float dt)
 		}
 	}
 
-	if (setup->probe != PROBE_RUNNING) {
+	if (setup->probe != PROBE_RUNNING && setup->probe != PROBE_FAILURE) {
 		return;
 	}
 
-	setup->probe_time += dt;
+	setup->probe_time = (float)(monotonic_seconds() - setup->probe_started_at);
 
 	if (app->handshake_ok && app->config_received) {
 		setup->probe = PROBE_SUCCESS;
 		return;
 	}
 
-	if (setup->probe_time > PROBE_TIMEOUT) {
+	if (deadline_reached(monotonic_seconds(), setup->probe_started_at + PROBE_TIMEOUT)) {
 		setup->probe = PROBE_FAILURE;
 	}
 }

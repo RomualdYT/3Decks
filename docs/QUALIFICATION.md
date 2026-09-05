@@ -22,6 +22,7 @@ Retain the CI report and artifacts for the candidate. Report actual outcomes in 
 - [ ] Test Windows native actions, media and dialogs; test notification denial/approval with the intended MSIX identity.
 - [ ] Test Spotify/Music as supported, file/folder selection and real OBS without affecting a live stream.
 - [ ] Use a physical 3DS: discovery, manual connection, pairing/revocation, FR/EN, actions, sleep/wake and reconnection.
+- [ ] On the 3DS, receive large configurations/artwork bursts; check touch alignment in grid/list/setup, text clipping in both languages and stereo rendering. Stop the agent mid-session and verify timeouts and recovery.
 - [ ] Import, review, enable, configure, restart and remove an extension; verify native cards and generated lists.
 - [ ] Stop while saving, while a dialog is open and while an extension is slow; inspect remaining processes/sockets.
 - [ ] Test second launch, launch at login, restart, update, uninstall and rollback with backed-up data.

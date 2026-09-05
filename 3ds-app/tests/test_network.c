@@ -60,12 +60,23 @@ static void pump_until_handshake(void)
 }
 int main(void)
 {
+    alarm(20); /* A transport regression must fail, not hang the CI runner. */
     assert(!deadline_reached(7.9, 8) && deadline_reached(8, 8));
     const double expected[] = {2,4,8,15,30,30};
     for (int i = 0; i < 6; i++) assert(network_retry_delay(i) == expected[i]);
     assert(net_init());
+    assert(!net_connect(NULL, 9000) && !net_connect("127.0.0.1", 65536));
     assert(!net_connect("not-an-ip.invalid", 9000) && net_state() == NET_IDLE);
     int port, listener = open_listener(&port);
+    assert(net_connect("127.0.0.1", port));
+    if (net_state() == NET_CONNECTING) {
+        test_now += CONNECT_TIMEOUT_SECONDS;
+        net_poll();
+        assert(net_state() == NET_IDLE);
+    }
+    net_disconnect();
+    int expired_peer = accept(listener, NULL, NULL);
+    if (expired_peer >= 0) close(expired_peer);
     int peer = connect_peer(listener, port);
     memset(output, 'x', NET_MAX_MESSAGE);
     send_payload(peer, output, NET_MAX_MESSAGE);

@@ -18,6 +18,7 @@
 - [Extensions](EXTENSIONS.fr.md) : démarrage en français ; contrat exhaustif en anglais.
 - [Architecture](ARCHITECTURE.fr.md) : synthèse française et référence détaillée anglaise.
 - [API HTTP](api/README.fr.md) : guide français, OpenAPI commun aux deux langues.
+- [Architecture console](CONSOLE_ARCHITECTURE.fr.md) : modules C, budgets réseau, cache et tests sur ordinateur.
 - [Protocole console](PROTOCOL.fr.md) : découverte UDP, TCP, messages et pochettes.
 - [Installation Python](PYTHON_SETUP.fr.md) : environnement, wheel et choix de configuration.
 

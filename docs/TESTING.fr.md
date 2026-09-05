@@ -22,13 +22,15 @@ uv build
 uv run --locked python tools/qualify_wheel.py
 ```
 
-Depuis la racine : `python3 tools/check_docs.py`, `python3 -m unittest discover -s tools -p test_check_docs.py` et `./build.sh` (Docker/devkitPro).
+Depuis la racine : `python3 tools/check_docs.py`, `python3 -m unittest discover -s tools -p test_check_docs.py` `bash tools/test_console.sh` (compilateur C macOS/Linux) et `./build.sh` (Docker/devkitPro).
 
 ## Organisation
 
 Les tests HTTP vérifient les vraies réponses ASGI et complètent les essais Uvicorn. Le catalogue a ses propres tests métier : capacités, limites et libellés FR/EN. Les autres fichiers couvrent configuration/transactions, services/runtime, TCP/UDP, adaptateurs natifs, menu système, extensions et distribution. La [table anglaise](TESTING.md#test-responsibilities) donne le détail des fichiers.
 
 Les interactions React se testent avec Vitest près du hook/composant, pas en cherchant des chaînes dans son code depuis Python. Les catalogues et contrats générés peuvent nécessiter des contrôles de cohérence entre composants.
+
+La suite C `3ds-app/tests/` compile le code réel avec sanitizers et sockets loopback : messages, délais, protocole/UTF-8, navigation, géométrie tactile, retours d’action et cache. Les substituts SDK ne simulent pas le GPU ni le matériel ; voir [architecture console](CONSOLE_ARCHITECTURE.fr.md).
 
 ## Règles
 

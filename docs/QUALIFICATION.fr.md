@@ -20,6 +20,7 @@ Le contrôle du paquet teste assets, CLI/HTTP/TCP et extension hors dépôt. Les
 - [ ] Actions/médias/dialogues Windows ; notifications avec identité MSIX prévue.
 - [ ] Spotify/Musique compatibles, sélection fichier/dossier et OBS hors diffusion.
 - [ ] Vraie 3DS : découverte, manuel, appairage/révocation, FR/EN, actions, veille/réveil.
+- [ ] Configurations/pochettes volumineuses : alignement tactile grille/liste/assistant, troncature FR/EN et rendu stéréo. Fermer l’agent en session puis vérifier délais et reprise.
 - [ ] Extension : import, approbation, configuration, redémarrage/retrait, cartes et listes.
 - [ ] Arrêt pendant sauvegarde, dialogue ou extension lente ; processus/sockets restants.
 - [ ] Second lancement, ouverture de session, restart, mise à jour, désinstallation et retour arrière.

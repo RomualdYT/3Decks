@@ -44,7 +44,7 @@ sdmc:/3ds/deck3ds.3dsx
 
 Open it from Homebrew Launcher. Choose a language, select the discovered computer by name and enter the short code shown in the computer editor's connection panel when prompted. The console saves its credential automatically.
 
-If discovery fails, open **Manual setup** and enter the address and TCP port shown by the agent. This does not use the browser's `127.0.0.1` address. [Connection troubleshooting](TROUBLESHOOTING.md) explains the network checks.
+If discovery fails, open **Manual setup** and enter the numeric IPv4 address (for example, `192.168.1.10`) and TCP port shown by the agent. This does not use the browser's `127.0.0.1` address. [Connection troubleshooting](TROUBLESHOOTING.md) explains the network checks.
 
 ## 3. Create your controls
 

@@ -207,7 +207,7 @@ void setup_draw_top(const Setup *setup, const App *app)
 	/* Titre de l'application, en tête. */
 	text_draw(SCREEN_TOP_W * 0.5f, 14.0f, Z_CONTENT, TEXT_LARGE, COL_TEXT,
 	          ALIGN_CENTER,
-	          setup->first_run ? tr(STR_WELCOME_TITLE) : "Deck3DS");
+	          setup->first_run ? tr(STR_WELCOME_TITLE) : "3Decks");
 
 	if (setup->first_run) {
 		draw_steps(setup);

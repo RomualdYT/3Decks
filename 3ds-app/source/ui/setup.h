@@ -41,6 +41,7 @@ typedef struct {
 	int selection;    /**< Ligne sélectionnée dans les réglages. */
 	ProbeState probe;
 	float probe_time; /**< Durée écoulée depuis le début du test. */
+	double probe_started_at; /**< Horloge monotone, indépendante du rendu. */
 	/** Pause entre deux recherches automatiques lorsqu'aucun agent n'est trouvé. */
 	float discovery_retry;
 	bool manual_connection; /**< Affiche les champs IP/port avancés. */

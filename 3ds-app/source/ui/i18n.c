@@ -84,7 +84,7 @@ static const char *const kEnglish[STR_COUNT] = {
     [STR_CONFIG_REQUESTED] = "Layout requested",
 
     /* Premier démarrage */
-    [STR_WELCOME_TITLE] = "Welcome to Deck3DS",
+    [STR_WELCOME_TITLE] = "Welcome to 3Decks",
     [STR_WELCOME_SUBTITLE] = "Turn your console into a control surface",
     [STR_CHOOSE_LANGUAGE] = "Choose your language",
     [STR_SETUP_STEP_LANGUAGE] = "Language",
@@ -109,10 +109,10 @@ static const char *const kEnglish[STR_COUNT] = {
     [STR_SETUP_TESTING] = "Testing...",
     [STR_SETUP_TEST_OK] = "Connection works",
     [STR_SETUP_TEST_FAIL] = "No answer from this address",
-    [STR_SETUP_FINISH] = "Start using Deck3DS",
+    [STR_SETUP_FINISH] = "Start using 3Decks",
     [STR_SETUP_DONE_TITLE] = "All set",
-    [STR_SETUP_DONE_HELP] = "Your pages and buttons can now be changed from "
-                            "the 3Decks interface on your computer.",
+    [STR_SETUP_DONE_HELP] = ("Your pages and buttons can now be changed from "
+                            "the 3Decks interface on your computer."),
     [STR_CONTINUE] = "Continue",
     [STR_BACK] = "Back",
     [STR_NEXT] = "Next",
@@ -214,7 +214,7 @@ static const char *const kFrench[STR_COUNT] = {
     [STR_CONFIG_REQUESTED] = "Configuration demandée",
 
     /* Premier démarrage */
-    [STR_WELCOME_TITLE] = "Bienvenue dans Deck3DS",
+    [STR_WELCOME_TITLE] = "Bienvenue dans 3Decks",
     [STR_WELCOME_SUBTITLE] = "Votre console devient une surface de contrôle",
     [STR_CHOOSE_LANGUAGE] = "Choisissez votre langue",
     [STR_SETUP_STEP_LANGUAGE] = "Langue",

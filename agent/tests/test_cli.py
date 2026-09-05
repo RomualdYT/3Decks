@@ -12,6 +12,13 @@ from deck3ds.transports.parts import Options
 from .fixtures import FakePlatform
 
 
+def test_help_uses_public_product_name(capsys):
+    with pytest.raises(SystemExit) as error:
+        cli.main(["--help"])
+    assert error.value.code == 0
+    assert "Agent PC pour 3Decks" in capsys.readouterr().out
+
+
 @pytest.mark.parametrize("stopped, expected", [(True, 0), (False, 1)])
 def test_stop_uses_instance_control_without_loading_configuration(tmp_path, stopped, expected):
     from deck3ds.desktop.instance import InstanceLock

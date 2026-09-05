@@ -10,6 +10,8 @@ Ruff couvre Python ; mypy strict couvre API/services/runtime/desktop. Le seuil d
 
 Le [guide de test](TESTING.fr.md) décrit les contrôles automatiques ; [Qualification](QUALIFICATION.fr.md) couvre les essais natifs.
 
+Les [sources console](CONSOLE_ARCHITECTURE.fr.md) séparent application, réseau, protocole, interface, graphismes et plateforme. Géométrie partagée pour dessin et touch, décodage des extensions hors rendu, tests C avec sanitizers sur macOS/Linux et compilation devkitPro complètent les contrôles.
+
 ## Maintenabilité et performances
 
 Une taille proche de 400 lignes appelle une revue, pas un découpage artificiel. Les adaptateurs natifs et l’orchestration d’extensions restent à surveiller. Préférez des dépendances explicites et étroites ; les simulations ne prouvent pas l’accord des permissions OS.

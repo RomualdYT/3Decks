@@ -156,6 +156,19 @@ jobs:
             -Version $version `
             -Output build/windows/3Decks-test.msix
 
+  console-tests:
+    name: Console C tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v6
+      - name: Host logic and loopback transport with sanitizers
+        run: bash tools/test_console.sh
+
   console:
     name: Nintendo 3DS build
     runs-on: ubuntu-latest

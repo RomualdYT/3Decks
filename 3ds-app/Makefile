@@ -23,7 +23,7 @@ ROMFS		:=	romfs
 
 # Ces trois valeurs sont inscrites dans le SMDH, donc affichees par le menu
 # Homebrew de la console : c'est la premiere attribution que voit l'utilisateur.
-APP_TITLE	:=	Deck3DS
+APP_TITLE	:=	3Decks
 APP_DESCRIPTION	:=	Surface de controle et tableau de bord PC
 APP_AUTHOR	:=	Romuald (@RomualdYT)
 
