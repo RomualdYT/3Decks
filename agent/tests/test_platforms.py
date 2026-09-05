@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-import inspect
 import json
 import unittest
+from unittest.mock import Mock
 
 
 from deck3ds import config as config_module
@@ -324,17 +324,15 @@ class TestWindowsAdapter(unittest.TestCase):
             self.assertTrue(script.rstrip().endswith("$corps"))
 
     def test_helper_asynchrone_est_defini_avant_ses_appels(self):
-        """PowerShell exige que la fonction précède son premier appel.
-
-        Le motif `AsTask` était recopié trois fois ; il est désormais factorisé.
-        Ce test vérifie que la factorisation reste correcte.
-        """
-        import re
+        """The emitted PowerShell defines its async helper before calling it."""
 
         from deck3ds.platforms.windows import WindowsPlatform
 
-        source = inspect.getsource(WindowsPlatform.get_media)
-        script = eval(re.search(r"script = (r'''.*?''')", source, re.S).group(1))
+        platform = WindowsPlatform.__new__(WindowsPlatform)
+        platform._shell = Mock()
+        platform._shell.run.return_value = ""
+        platform.get_media()
+        script = platform._shell.run.call_args.args[0]
         lines = script.strip().splitlines()
 
         definition = next(
@@ -357,12 +355,13 @@ class TestWindowsAdapter(unittest.TestCase):
 
     def test_script_media_conserve_les_champs_attendus(self):
         """Le serveur lit ces clés : en perdre une viderait l'affichage."""
-        import re
-
         from deck3ds.platforms.windows import WindowsPlatform
 
-        source = inspect.getsource(WindowsPlatform.get_media)
-        script = eval(re.search(r"script = (r'''.*?''')", source, re.S).group(1))
+        platform = WindowsPlatform.__new__(WindowsPlatform)
+        platform._shell = Mock()
+        platform._shell.run.return_value = ""
+        platform.get_media()
+        script = platform._shell.run.call_args.args[0]
 
         for field in (
             "title",

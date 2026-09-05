@@ -120,12 +120,7 @@ class TestMessages(unittest.TestCase):
         )
 
     def test_aucune_traduction_inutilisee(self):
-        """Une clé jamais appelée signale un message écrit en dur ailleurs.
-
-        Quatre clés traduites étaient ignorées, les adaptateurs levant des
-        libellés français littéraux : la console recevait donc du français
-        même lorsqu'elle demandait l'anglais.
-        """
+        """Every translated action message has a call site in the adapters."""
         import re
 
         from deck3ds import messages

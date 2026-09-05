@@ -6,6 +6,13 @@
 
 **Your Nintendo 3DS. Your desktop controls.**
 
+<p>
+<img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows-66CB10?style=flat-square" alt="macOS and Windows">
+<img src="https://img.shields.io/badge/console-3DS%20%7C%202DS%20%7C%20New%203DS-66CB10?style=flat-square" alt="3DS, 2DS and New 3DS">
+<img src="https://img.shields.io/badge/python-3.12%2B-3776AB?style=flat-square" alt="Python 3.12 or newer">
+<img src="https://img.shields.io/badge/license-GPL--3.0-F59E0B?style=flat-square" alt="GPL-3.0 license">
+</p>
+
 Build a personal control surface for macOS and Windows, with a visual editor on your computer and live dashboards on your console.
 
 [Get started](docs/INSTALLATION.md) · [Documentation](docs/README.md) · [Create an extension](docs/EXTENSIONS.md) · [Français](README.fr.md)
@@ -56,7 +63,7 @@ See [troubleshooting and platform limits](docs/TROUBLESHOOTING.md) and the [secu
 | Contribute or build from source | [Contributor guide](docs/CONTRIBUTING_AGENT.md) |
 | Explore the implementation | [Architecture](docs/ARCHITECTURE.md), [HTTP API](docs/api/README.md), [3DS protocol](docs/PROTOCOL.md) |
 
-[All documentation](docs/README.md) includes release procedures, migration notes and qualification evidence. English is the reference language; French guides are separate and linked from each available translation.
+[All documentation](docs/README.md) includes setup, testing and release procedures. English is the reference language; French guides are separate and linked from each available translation.
 
 ## Development
 

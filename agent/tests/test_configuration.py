@@ -129,11 +129,7 @@ class TestConfig(unittest.TestCase):
         return raw
 
     def test_raccourci_invalide_refuse_a_l_enregistrement(self):
-        """Le défaut corrigé : l'erreur surgissait sur la console, pas ici.
-
-        Un raccourci fautif était accepté par l'éditeur et n'échouait qu'à
-        l'appui du bouton, à l'endroit le moins propice au diagnostic.
-        """
+        """Reject invalid shortcuts before installing a configuration."""
         for combination in ("nimportequoi", "ctrl+alt+banane", "", "cmd", "a+b", "f13"):
             with self.assertRaises(config_module.ConfigError, msg=combination):
                 config_module.parse(self._with_hotkey(combination))

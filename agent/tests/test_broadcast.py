@@ -11,11 +11,7 @@ from .fixtures import FakePlatform, minimal_config
 
 
 class TestBroadcast(unittest.IsolatedAsyncioTestCase):
-    """Diffusion aux consoles, éviction comprise.
-
-    La même boucle était recopiée à quatre endroits ; ces tests fixent le
-    comportement attendu de la version factorisée.
-    """
+    """Broadcast current state and evict clients that cannot receive it."""
 
     class _FakeClient:
         def __init__(self, authenticated=True, alive=True, language="en"):

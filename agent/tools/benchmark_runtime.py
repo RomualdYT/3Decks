@@ -30,6 +30,8 @@ async def cycle(
 
     started = time.perf_counter()
     agent = AgentRuntime(Config(pages=[PageConfig("main")]), Platform())
+    # Keep synthetic diagnostics in memory; stdout is one machine-readable report.
+    agent.logs._append_line = agent._logs.append
     if populated:
         from tools.benchmark_data import populate
 

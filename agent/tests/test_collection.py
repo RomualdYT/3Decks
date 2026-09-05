@@ -185,12 +185,7 @@ class TestPollLoop(unittest.IsolatedAsyncioTestCase):
         return refreshes
 
     async def test_effet_lent_declenche_une_seconde_lecture(self):
-        """Régression : le délai d'attente ne relisait pas l'état.
-
-        Le code dormait 2,2 s puis remontait la boucle sans mesurer. L'écran
-        conservait donc l'ancien état, ce que le commentaire prétendait pourtant
-        éviter — le bouton semblait sans effet.
-        """
+        """A delayed action receives an additional confirmation state read."""
         rapides = await self._run_one_wake_cycle(slow=False)
         lents = await self._run_one_wake_cycle(slow=True)
 

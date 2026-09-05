@@ -6,6 +6,13 @@
 
 **Votre Nintendo 3DS devient votre télécommande de bureau.**
 
+<p>
+<img src="https://img.shields.io/badge/plateforme-macOS%20%7C%20Windows-66CB10?style=flat-square" alt="macOS et Windows">
+<img src="https://img.shields.io/badge/console-3DS%20%7C%202DS%20%7C%20New%203DS-66CB10?style=flat-square" alt="3DS, 2DS et New 3DS">
+<img src="https://img.shields.io/badge/python-3.12%2B-3776AB?style=flat-square" alt="Python 3.12 minimum">
+<img src="https://img.shields.io/badge/licence-GPL--3.0-F59E0B?style=flat-square" alt="Licence GPL-3.0">
+</p>
+
 Créez une surface de contrôle pour macOS et Windows, avec un éditeur visuel sur l’ordinateur et des tableaux de bord sur la console.
 
 [Installer](docs/INSTALLATION.fr.md) · [Documentation](docs/README.fr.md) · [Extensions](docs/EXTENSIONS.fr.md) · [English](README.md)
