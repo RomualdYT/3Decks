@@ -29,6 +29,7 @@
 #include "stereo.h"
 #include "artwork.h"
 #include "net.h"
+#include "discovery.h"
 #include "protocol.h"
 #include "text.h"
 #include "theme.h"
@@ -448,14 +449,23 @@ int main(int argc, char *argv[])
 	 */
 	romfsInit();
 
-	C3D_Init(C3D_DEFAULT_CMDBUF_SIZE);
+	if (!C3D_Init(C3D_DEFAULT_CMDBUF_SIZE)) {
+		romfsExit();
+		gfxExit();
+		return 1;
+	}
 	/*
 	 * Le budget d'objets est relevé : en relief, l'écran supérieur est dessiné
 	 * deux fois, et les icônes vectorielles consomment davantage de géométrie
 	 * que des images. La mesure donne environ 3600 objets dans le pire cas,
 	 * auxquels s'ajoute le texte.
 	 */
-	C2D_Init(C2D_DEFAULT_MAX_OBJECTS * 2);
+	if (!C2D_Init(C2D_DEFAULT_MAX_OBJECTS * 2)) {
+		C3D_Fini();
+		romfsExit();
+		gfxExit();
+		return 1;
+	}
 	C2D_Prepare();
 
 	C3D_RenderTarget *top = C2D_CreateScreenTarget(GFX_TOP, GFX_LEFT);
@@ -463,10 +473,11 @@ int main(int argc, char *argv[])
 	C3D_RenderTarget *top_right = C2D_CreateScreenTarget(GFX_TOP, GFX_RIGHT);
 	C3D_RenderTarget *bottom = C2D_CreateScreenTarget(GFX_BOTTOM, GFX_LEFT);
 
-	if (!text_init()) {
+	if (top == NULL || top_right == NULL || bottom == NULL || !text_init()) {
 		/* Sans tampon de texte, l'interface serait muette : on s'arrête. */
 		C2D_Fini();
 		C3D_Fini();
+		romfsExit();
 		gfxExit();
 		return 1;
 	}
@@ -624,6 +635,7 @@ int main(int argc, char *argv[])
 
 	/* --- Libération --- */
 	aptUnhook(&apt_cookie);
+	discovery_stop();
 	net_exit();
 	ptmuExit();
 	sound_exit();

@@ -23,7 +23,7 @@ import time
 from pathlib import Path
 
 from ..config import MAX_LIST_ENTRIES
-from ..coreaudio import CoreAudio
+from .coreaudio import CoreAudio
 from ..keys import InvalidHotkey, parse_hotkey
 from ..messages import msg
 from .macos_notifications import NotificationReader

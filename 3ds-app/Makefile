@@ -14,9 +14,9 @@ include $(DEVKITARM)/3ds_rules
 #---------------------------------------------------------------------------------
 TARGET		:=	deck3ds
 BUILD		:=	build
-SOURCES		:=	source
+SOURCES		:=	source source/app source/network source/protocol source/ui source/graphics source/platform
 DATA		:=	data
-INCLUDES	:=	source
+INCLUDES	:=	$(SOURCES)
 GRAPHICS	:=	gfx
 GFXBUILD	:=	$(BUILD)
 ROMFS		:=	romfs
