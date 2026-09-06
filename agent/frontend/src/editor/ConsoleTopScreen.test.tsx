@@ -7,7 +7,7 @@ import type { AgentState, PageConfig } from "../app/types";
 
 vi.mock("../api/client", () => ({ agentApi: { artwork: vi.fn() } }));
 let root: Root, container: HTMLDivElement;
-const page = { id: "main", title: "Main", dashboard: "auto", buttons: [] } as PageConfig;
+const page: PageConfig = { id: "main", title: "Main", icon: "star", dashboard: "auto", buttons: [] };
 beforeEach(() => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   vi.stubGlobal("URL", { createObjectURL: vi.fn(() => "blob:test-cover"), revokeObjectURL: vi.fn() });
@@ -28,7 +28,7 @@ it("renders real media metadata, artwork and duration; disposes the image on mod
   const status = { clients: [{}], snapshot: { time: "12:34", media: {
     title: "Example song", artist: "Example artist", album: "Album", app: "Spotify",
     position: 65, duration: 285, art: 123, playing: true,
-  } } } as AgentState;
+  } } } as unknown as AgentState;
   await act(async () => root.render(<ConsoleTopScreen page={page} status={status} locale="en" />));
   expect(container.textContent).toContain("Example song");
   expect(container.textContent).toContain("Album");
@@ -39,6 +39,10 @@ it("renders real media metadata, artwork and duration; disposes the image on mod
   await act(async () => root.render(<ConsoleTopScreen page={{ ...page, dashboard: "audio" }} status={status} locale="fr" />));
   expect(container.textContent).toContain("SORTIE AUDIO");
   expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:test-cover");
+  // Returning before the next download finishes must not reference a revoked URL.
+  vi.mocked(agentApi.artwork).mockReturnValueOnce(new Promise(() => {}));
+  await act(async () => root.render(<ConsoleTopScreen page={page} status={status} locale="en" />));
+  expect(container.querySelector("image")).toBeNull();
 });
 
 it("does not invent metrics or keep media on an empty frame page", async () => {

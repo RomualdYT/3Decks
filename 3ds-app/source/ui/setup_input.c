@@ -95,6 +95,9 @@ static void activate_row(Setup *setup, App *app, int row)
 		setup->step = SETUP_LANGUAGE;
 		setup->probe = PROBE_IDLE;
 		break;
+	case ROW_COMPANION:
+		app->settings.companion = (app->settings.companion + 1) % 3;
+		break;
 	default:
 		break;
 	}

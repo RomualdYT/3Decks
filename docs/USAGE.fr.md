@@ -65,6 +65,43 @@ Les actions d’appui long sont facultatives. Le retour attente/succès/erreur p
 
 Les réglages restent accessibles pendant la connexion. Langue, connexion, son et atténuation sont enregistrés dans `sdmc:/3ds/deck3ds/settings.cfg`. Ce fichier peut contenir un secret : ne le publiez pas.
 
+## Le compagnon Decky
+
+Au lancement, Decky se réveille et salue pendant une courte animation de
+1,2 seconde, tandis que la recherche/connexion réseau continue. Un bouton ou
+un toucher permet de la passer (START quitte toujours l’application). Elle ne
+rejoue pas après une reconnexion ou un réveil et est désactivée lorsque Decky
+est masqué dans les réglages de la console.
+
+Sur la **3DS**, ouvre les réglages (roue dentée ou L + SELECT), puis sélectionne
+**Decky**. Un toucher ou A fait défiler trois choix :
+
+- **Désactivé** : aucune apparition du compagnon.
+- **Discret** (par défaut) : accueil et connexion, puis sommeil pendant la veille
+  lorsqu’aucun titre musical n’est disponible. La pochette existante reste prioritaire.
+- **Veille compagnon** : Decky occupe l’écran supérieur pendant la veille
+  automatique. Il écoute avec son casque pendant la lecture et se repose sinon.
+  L’écran inférieur conserve ses informations ; un toucher réveille l’application.
+
+La ligne sélectionnée affiche un aperçu des six expressions sur l’écran du haut.
+Enregistre pour conserver ton choix sur la SD. Le délai de veille existant
+s’applique aussi à Decky ; « Jamais » désactive la veille automatique. Le mode
+pochette choisi manuellement ne change pas. Les animations sont décoratives et
+silencieuses, sans requête réseau, permission supplémentaire ou pénalité d’absence.
+Ce réglage propre à la console n’est pas encore reproduit dans l’aperçu PC.
+
+Sur PC, Decky apparaît dans la fenêtre de connexion, pendant le chargement,
+en cas d’agent indisponible et dans la page des extensions vide. **Réglages →
+Langue & apparence** permet de découvrir ses expressions ou de masquer ces
+apparitions. Ce choix est immédiat et propre au navigateur, indépendant de la 3DS.
+Le logo reste visible : il cligne brièvement des yeux toutes les huit secondes et
+salue une fois au survol ou au focus clavier. Masquer Decky ou activer la réduction
+des mouvements du système le laisse immobile.
+
+Le dessin portable se trouve dans `3ds-app/source/graphics/decky.c`. L’outil
+`tools/render_decky.c` exporte les six poses depuis le même code ; les tests sont
+lancés avec `bash tools/test_console.sh`.
+
 ## Intégrations
 
 N’activez que ce qui vous sert. Couper le groupe médias conserve les préférences de lecteurs/pochettes. Certaines autorisations nécessitent un redémarrage ; voir le [dépannage](TROUBLESHOOTING.fr.md).

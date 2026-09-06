@@ -14,6 +14,8 @@ Retain the CI report and artifacts for the candidate. Report actual outcomes in 
 
 ## Native checklist
 
+- [ ] Install the CIA with FBI; verify Decky's HOME icon/banner, launch without a `.3dsx`, SD settings retention, HOME suspend/resume, START exit and an in-place CIA update. Also launch the `.3dsx` from Homebrew Launcher. See [console packages](CONSOLE_PACKAGING.md).
+
 - [ ] Install the published-format artifact on macOS and Windows.
 - [ ] Open every editor view; check fonts, console image, responsive layout and keyboard navigation.
 - [ ] Create, reorder, save and reload pages/buttons. Test shortcut capture and explicit concurrent-edit conflicts.

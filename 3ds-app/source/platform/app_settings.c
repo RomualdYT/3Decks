@@ -54,6 +54,7 @@ void app_settings_load(Settings *settings)
 	settings->language = (int)LANG_EN;
 	settings->dim_delay = 45;
 	settings->stereo = true;
+	settings->companion = 1;
 	settings->configured = false;
 
 	FILE *file = fopen(SETTINGS_PATH, "r");
@@ -104,6 +105,10 @@ void app_settings_load(Settings *settings)
 			settings->stereo = strcmp(value, "0") != 0 &&
 			                   strcmp(value, "false") != 0 &&
 			                   strcmp(value, "off") != 0;
+		} else if (strcmp(key, "companion") == 0) {
+			if (strcmp(value, "0") == 0 || strcmp(value, "1") == 0 || strcmp(value, "2") == 0) {
+				settings->companion = value[0] - '0';
+			}
 		} else if (strcmp(key, "configured") == 0) {
 			settings->configured = strcmp(value, "0") != 0 &&
 			                       strcmp(value, "false") != 0;
@@ -154,12 +159,14 @@ bool app_settings_save(const Settings *settings)
 	        "# Relief 3D de l'ecran du haut : 1 ou 0.\n"
 	        "# L'intensite suit le curseur 3D de la console.\n"
 	        "stereo = %d\n\n"
+	        "# Decky: 0 off, 1 discreet, 2 companion standby.\n"
+	        "companion = %d\n\n"
 	        "# Mis a 1 une fois la configuration initiale effectuee.\n"
 	        "configured = 1\n",
 	        settings->agent_name, settings->host, settings->port,
 	        settings->token, settings->language == (int)LANG_FR ? "fr" : "en",
 	        settings->sound ? 1 : 0, settings->dim_delay,
-	        settings->stereo ? 1 : 0);
+	        settings->stereo ? 1 : 0, settings->companion);
 
 	bool write_ok = fflush(file) == 0;
 	if (write_ok) {

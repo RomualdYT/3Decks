@@ -8,7 +8,7 @@ Ce guide décrit une procédure ; il n’annonce pas une publication GitHub ou S
 
 Relisez le diff complet et les assets générés. Conservez la démonstration neutre ; excluez réglages personnels, registres d’appairage et journaux. Mettez à jour `agent/backend/deck3ds/version.py`, les deux langues et sauvegardez vos données privées séparément.
 
-Depuis la racine : `python3 tools/check_docs.py` puis `./build.sh` pour la console.
+Depuis la racine : `python3 tools/check_docs.py` puis `./build.sh all` pour la console. Voir le [packaging console](CONSOLE_PACKAGING.fr.md) pour les versions et essais HOME.
 
 Depuis `agent/` :
 
@@ -36,7 +36,7 @@ Après revue et essais natifs, créez et poussez intentionnellement le tag corre
 
 Le workflow Release attend Quality pour les artefacts agent : frontend, paquet, matrice Linux/macOS/Windows × Python 3.12–3.14, contrats, installation isolée et build console. La publication attend ses jobs requis et refuse un écart tag/wheel.
 
-Vérifiez les assets : wheel, archive source, deux lanceurs, icônes, `.3dsx`, `SHA256SUMS.txt`, ainsi que les URL du README. L’empreinte n’est pas une signature. Les lanceurs préservent les données et demandent l’arrêt propre ; un délai dépassé interrompt la mise à jour. Une ancienne instance peut nécessiter Quitter manuellement.
+Vérifiez les assets : wheel, archive source, deux lanceurs, icônes, `.3dsx`, `.cia`, `SHA256SUMS.txt`, ainsi que les URL du README. L’empreinte n’est pas une signature. Les lanceurs préservent les données et demandent l’arrêt propre ; un délai dépassé interrompt la mise à jour. Une ancienne instance peut nécessiter Quitter manuellement.
 
 ## Store facultatif
 

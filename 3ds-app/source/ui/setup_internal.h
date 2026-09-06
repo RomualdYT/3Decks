@@ -3,7 +3,7 @@
 #include <3ds.h>
 #include <stddef.h>
 /** Nombre de lignes de l'écran de réglages. */
-#define SETTINGS_ROWS 6
+#define SETTINGS_ROWS 7
 
 /* Indices des lignes de réglages. */
 enum {
@@ -12,6 +12,7 @@ enum {
 	ROW_SOUND,
 	ROW_DIM,
 	ROW_STEREO,
+	ROW_COMPANION,
 	ROW_RESET,
 };
 

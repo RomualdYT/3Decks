@@ -25,6 +25,7 @@ Start with the guide matching your task. English documents are the reference; tr
 | [Architecture](ARCHITECTURE.md) | Layers, transactions, resource ownership | [FR overview](ARCHITECTURE.fr.md) |
 | [HTTP API](api/README.md) | Local session, routes, errors, OpenAPI | [FR guide](api/README.fr.md) |
 | [Console architecture](CONSOLE_ARCHITECTURE.md) | C modules, network budgets, text cache and host tests | [FR](CONSOLE_ARCHITECTURE.fr.md) |
+| [Console packages](CONSOLE_PACKAGING.md) | HOME installation, CIA/3DSX builds, Decky icon and banner | [FR](CONSOLE_PACKAGING.fr.md) |
 | [Console protocol](PROTOCOL.md) | UDP discovery, TCP framing, state and artwork | [FR](PROTOCOL.fr.md) |
 | [Manual Python setup](PYTHON_SETUP.md) | Manual wheel installation and configuration selection | [FR](PYTHON_SETUP.fr.md) |
 

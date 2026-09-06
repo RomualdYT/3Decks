@@ -2,6 +2,7 @@ import type { AgentState, Locale, View } from "../app/types";
 import type { CopyKey } from "../i18n/copy";
 import { ConsoleStatusBadge } from "./ConsoleStatusBadge";
 import { DeckIcon } from "./DeckIcon";
+import { DeckyLogo } from "./Decky";
 
 interface Props {
   view: View;
@@ -16,7 +17,7 @@ export function AppHeader({ view, locale, status, t, onView, onLocale }: Props) 
   return (
     <header className="app-header">
       <button className="brand" type="button" onClick={() => onView("editor")} aria-label="3Decks">
-        <img src="/3decks-logo.png" alt="" />
+        <DeckyLogo />
         <span>3Decks</span>
       </button>
       <nav className="main-nav" aria-label="Navigation principale">

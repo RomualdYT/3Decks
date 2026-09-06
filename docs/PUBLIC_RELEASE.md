@@ -36,7 +36,7 @@ uv build
 uv run --locked python tools/qualify_wheel.py
 ```
 
-Build the console with `./build.sh` from the root. Run the [native checklist](QUALIFICATION.md) on both target operating systems before declaring a release qualified.
+Build the console with `./build.sh all` from the root. See [console packaging](CONSOLE_PACKAGING.md) for title versions and HOME installation checks. Run the [native checklist](QUALIFICATION.md) on both target operating systems before declaring a release qualified.
 
 The public-config checker only checks selected credential fields and personal paths in `agent/config.json` and, optionally, its locally reachable history. Fetch complete history for that mode. It never prints values. **Audit the rest of the repository/history separately**; this is not a comprehensive secret scan. Rotate exposed credentials before any history cleanup.
 
@@ -46,7 +46,7 @@ After review and native qualification, create and push the matching version tag 
 
 The reusable `Quality` workflow gates the release agent job. It builds the frontend/wheel and runs the Linux/macOS/Windows × Python 3.12–3.14 matrix, contract checks, installed-package smoke tests and console build. The release workflow renders launchers, checks tag/wheel consistency and publishes only after its required jobs succeed.
 
-Expected assets include the wheel, source archive, macOS/Windows launchers, icons, console `.3dsx` and `SHA256SUMS.txt`. Check that the README installation URLs resolve against the resulting Release. A checksum is not a signing certificate.
+Expected assets include the wheel, source archive, macOS/Windows launchers, icons, console `.3dsx`, `.cia` and `SHA256SUMS.txt`. Check that the README installation URLs resolve against the resulting Release. A checksum is not a signing certificate.
 
 Launchers use the same wheel, prepare private Python through uv and preserve user data. They request graceful shutdown before update/removal; timeout aborts replacement. An older agent may need manual Quit.
 

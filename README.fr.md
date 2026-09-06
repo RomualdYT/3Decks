@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="cover.png" alt="3Decks : une Nintendo 3DS pour piloter son ordinateur" width="100%">
+<img src="docs/assets/3decks-banner.fr.svg" alt="3Decks et Decky, son petit compagnon pixel art à deux écrans" width="100%">
 
 # 3Decks
 
@@ -33,7 +33,7 @@ Créez une surface de contrôle pour macOS et Windows, avec un éditeur visuel s
 Il vous faut une **3DS, 2DS ou New 3DS avec homebrew**, un **Mac ou PC Windows** et un réseau local de confiance commun.
 
 1. [Installez l’application ordinateur](docs/INSTALLATION.fr.md).
-2. Copiez `deck3ds.3dsx` de la Release dans `sdmc:/3ds/deck3ds.3dsx`, puis lancez-le depuis Homebrew Launcher.
+2. [Installez `deck3ds.cia` sur HOME](docs/CONSOLE_PACKAGING.fr.md) avec FBI (firmware personnalisé requis), ou copiez `deck3ds.3dsx` dans `sdmc:/3ds/deck3ds.3dsx` pour Homebrew Launcher.
 3. Sélectionnez votre ordinateur et saisissez le code d’appairage affiché dans l’éditeur.
 4. [Créez votre première page](docs/USAGE.fr.md) et enregistrez.
 

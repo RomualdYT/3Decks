@@ -2,6 +2,7 @@
 3ds-app/build/
 3ds-app/*.elf
 3ds-app/*.3dsx
+3ds-app/*.cia
 3ds-app/*.smdh
 3ds-app/*.map
 

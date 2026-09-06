@@ -15,6 +15,11 @@ static Language s_language = LANG_EN;
  */
 
 static const char *const kEnglish[STR_COUNT] = {
+    [STR_DECKY_DISCREET] = "Discreet",
+    [STR_DECKY_STANDBY] = "Companion idle",
+    [STR_DECKY_LISTENING] = "A little music, a little company.",
+    [STR_DECKY_RESTING] = "Resting here with you.",
+    [STR_DECKY_HELP] = "Choose off, discreet or companion idle below.",
     [STR_EXTENSION_WAITING] = "Waiting for extension data",
     [STR_EXTENSION_UNAVAILABLE] = "Enable this extension on your computer",
     /* Liaison */
@@ -145,6 +150,11 @@ static const char *const kEnglish[STR_COUNT] = {
 };
 
 static const char *const kFrench[STR_COUNT] = {
+    [STR_DECKY_DISCREET] = "Discret",
+    [STR_DECKY_STANDBY] = "Veille compagnon",
+    [STR_DECKY_LISTENING] = "Un peu de musique, un peu de compagnie.",
+    [STR_DECKY_RESTING] = "Une petite pause avec toi.",
+    [STR_DECKY_HELP] = "Choisis le mode de Decky sur l'écran du bas.",
     [STR_EXTENSION_WAITING] = "En attente de l'extension",
     [STR_EXTENSION_UNAVAILABLE] = "Activez cette extension sur l'ordinateur",
     /* Liaison */

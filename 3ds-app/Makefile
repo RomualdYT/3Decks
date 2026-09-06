@@ -24,8 +24,12 @@ ROMFS		:=	romfs
 # Ces trois valeurs sont inscrites dans le SMDH, donc affichees par le menu
 # Homebrew de la console : c'est la premiere attribution que voit l'utilisateur.
 APP_TITLE	:=	3Decks
-APP_DESCRIPTION	:=	Surface de controle et tableau de bord PC
+APP_DESCRIPTION	:=	Your desktop companion
 APP_AUTHOR	:=	Romuald (@RomualdYT)
+ICON            := ../packaging/3ds/icon.png
+PACKAGE_DIR     := ../packaging/3ds
+# CIA version encoding: major * 1024 + minor * 16 + patch (0..15).
+APP_VERSION     ?= 1
 
 #---------------------------------------------------------------------------------
 # Options de generation de code
@@ -130,11 +134,26 @@ ifneq ($(ROMFS),)
 	export ROMFSFILES := $(shell find $(CURDIR)/$(ROMFS) -type f 2>/dev/null)
 endif
 
-.PHONY: all clean run send
+.PHONY: all clean run send cia release
 
 #---------------------------------------------------------------------------------
 all: $(BUILD) $(GFXBUILD) $(DEPSDIR) $(ROMFS_T3XFILES) $(T3XHFILES)
 	@$(MAKE) --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile
+
+# The CIA contains the same ELF and embedded font as the 3DSX.
+$(BUILD)/banner.wav: $(PACKAGE_DIR)/silent_banner.py | $(BUILD)
+	python3 $< $@
+
+$(BUILD)/banner.bnr: $(PACKAGE_DIR)/banner.png $(BUILD)/banner.wav
+	bannertool makebanner -i $< -a $(BUILD)/banner.wav -o $@
+
+cia: all $(BUILD)/banner.bnr
+	makerom -f cia -target t -exefslogo -o $(TARGET).cia \
+		-elf $(TARGET).elf -rsf $(PACKAGE_DIR)/application.rsf \
+		-icon $(TARGET).smdh -banner $(BUILD)/banner.bnr -ver $(APP_VERSION)
+	python3 ../tools/check_console_package.py --objdump $(DEVKITARM)/bin/arm-none-eabi-objdump
+
+release: cia
 
 #---------------------------------------------------------------------------------
 # Envoi par Wi-Fi vers la console.
@@ -171,7 +190,7 @@ endif
 #---------------------------------------------------------------------------------
 clean:
 	@echo nettoyage ...
-	@rm -fr $(BUILD) $(TARGET).3dsx $(OUTPUT).smdh $(TARGET).elf $(GFXBUILD)
+	@rm -fr $(BUILD) $(TARGET).3dsx $(OUTPUT).smdh $(TARGET).elf $(GFXBUILD) $(TARGET).cia
 
 #---------------------------------------------------------------------------------
 $(GFXBUILD)/%.t3x	$(BUILD)/%.h	:	%.t3s
@@ -186,6 +205,8 @@ else
 # Cibles principales
 #---------------------------------------------------------------------------------
 $(OUTPUT).3dsx	:	$(OUTPUT).elf $(_3DSXDEPS) $(ROMFSFILES)
+
+$(OUTPUT).smdh: $(APP_ICON) $(TOPDIR)/Makefile
 
 $(OFILES_SOURCES) : $(HFILES)
 

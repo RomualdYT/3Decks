@@ -540,11 +540,11 @@ void app_update(App *app, float dt)
 		app->dimmed = true;
 
 		/*
-		 * La veille réutilise l'affichage plein écran : la pochette et l'heure
-		 * valent mieux qu'un simple assombrissement, et l'image changeant à
-		 * chaque morceau, l'usure de la dalle reste maîtrisée.
+		 * Reuse the existing idle/wake path for artwork or Decky. Do not hide
+		 * connection instructions before the first configuration arrives.
 		 */
-		if (app->state.media_present && !app->frame_mode) {
+		if (app->config_received && !app->frame_mode &&
+		    (app->state.media_present || app->settings.companion > 0)) {
 			app->frame_mode = true;
 			app->frame_from_idle = true;
 		}

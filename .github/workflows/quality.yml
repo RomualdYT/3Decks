@@ -175,9 +175,15 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - name: Build with devkitPro
-        run: ./build.sh
+        run: ./build.sh all
+      - name: Verify HOME artwork and packaging regression tests
+        run: |
+          docker run --rm -v "$PWD":/repo -w /repo 3decks-console-packaging:local bash packaging/3ds/generate_artwork.sh --check
+          python3 -m unittest discover -s tools -p test_console_package.py
       - uses: actions/upload-artifact@v7
         with:
           name: homebrew-3ds
-          path: 3ds-app/deck3ds.3dsx
+          path: |
+            3ds-app/deck3ds.3dsx
+            3ds-app/deck3ds.cia
           if-no-files-found: error

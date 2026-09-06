@@ -3,6 +3,7 @@ import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import type { Locale, View } from "./types";
 import { AppHeader } from "../components/AppHeader";
 import { SaveBar } from "../components/SaveBar";
+import { Decky } from "../components/Decky";
 import { initialLocale, translate } from "../i18n/copy";
 import { useDeckConfig } from "../hooks/useDeckConfig";
 
@@ -53,8 +54,8 @@ export function App() {
     deck.setError("");
   }, [deck.config, deck.error, deck.loading, deck.setError, locale]);
 
-  if (deck.loading) return <div className="loading-screen"><img src="/3decks-logo.png" alt="3Decks" /><Spinner size="lg" /><p>Préparation de votre console…</p></div>;
-  if (!deck.config || !deck.schema) return <div className="loading-screen error"><img src="/3decks-logo.png" alt="3Decks" /><h1>3Decks</h1><p>{t("loadError", { message: deck.error || "Agent indisponible" })}</p><button type="button" onClick={() => void deck.reload()}>Réessayer</button></div>;
+  if (deck.loading) return <div className="loading-screen"><Decky mood="search" size={120} /><strong>3Decks</strong><Spinner size="lg" /><p>{locale === "fr" ? "Préparation de votre console…" : "Getting your console ready…"}</p></div>;
+  if (!deck.config || !deck.schema) return <div className="loading-screen error"><Decky mood="confused" size={120} /><h1>3Decks</h1><p>{t("loadError", { message: deck.error || (locale === "fr" ? "Agent indisponible" : "Agent unavailable") })}</p><button type="button" onClick={() => void deck.reload()}>{locale === "fr" ? "Réessayer" : "Try again"}</button></div>;
   return <div className="app-shell">
     <Toast.Provider placement="bottom end" />
     <AppHeader view={view} locale={locale} status={deck.status} t={t} onView={selectView} onLocale={setLocale} />

@@ -11,7 +11,7 @@
 
 @media (max-width: 920px) {
   .app-header { grid-template-columns: auto minmax(120px, 1fr) auto; padding: 0 12px; }
-  .brand span { display: none; }
+  .brand > span:not(.decky-brand-mark) { display: none; }
   .main-nav { justify-content: flex-start; }
   .main-nav button { padding: 0 12px; }
   .console-status span:not(.status-pulse) { display: none; }

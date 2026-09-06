@@ -21,6 +21,7 @@ Requests require JSON Content-Type when they have a JSON body. Limits: 512 KiB b
 | `PUT /api/config` | Config document; retain revision from GET | `{saved: true, config}` with new revision |
 | `POST /api/config/validate` | Candidate JSON | `{valid, error}`; invalid domain config is a 200 with `valid: false`, no write |
 | `GET /api/state` | — | Cached state, clients, paired-device metadata, bounded logs/events and counters |
+| `GET /api/artwork` | — | Cached console artwork as `image/png`, or 204 when unavailable; local session required |
 | `GET /api/apps` | — | `{apps: string[]}` from an off-loop native query |
 | `POST /api/paths/pick` | `{kind: "file" \| "folder"}` | `{cancelled, path, kind}`; cancellation is successful, not a failure |
 | `POST /api/permissions/open` | `{permission: string}` | `{opened: true, permission}`; native adapter validates supported settings |
@@ -35,6 +36,8 @@ Requests require JSON Content-Type when they have a JSON body. Limits: 512 KiB b
 Localized values keep their existing string or language-map representation. Actions accept short names such as `"volume.up"` or objects such as `{"type":"app.launch","target":"Music"}`. Extension argument objects remain namespaced and dynamically validated against their manifests. Optional sections use the domain defaults, not an HTTP-specific copy. `scripts` is always restored from the current trusted document before validation/save; supplying it over HTTP never changes executable commands. Full config reads necessarily contain the local console/OBS credentials and therefore require the local session.
 
 For safe optimistic concurrency, **always echo the revision** returned by GET. A revisionless legacy document remains accepted for compatibility, but cannot provide stale-browser detection; external file fingerprint checks still apply.
+
+The artwork preview is encoded once when the console texture changes. Reading `/api/artwork` performs no native collection or remote download. Like other API responses it is not browser-cached; the editor keeps a temporary object URL until `snapshot.media.art` changes or the media view closes.
 
 ### Extension operation bodies
 

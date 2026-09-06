@@ -4,6 +4,7 @@ import { agentApi } from "../api/client";
 import type { AgentState, DeckConfig, FeatureSpec, Locale, Schema } from "../app/types";
 import type { CopyKey } from "../i18n/copy";
 import { DeckIcon } from "../components/DeckIcon";
+import { DeckySettings } from "../components/DeckySettings";
 import { AppleMusicIcon, SpotifyIcon } from "../components/BrandIcons";
 import { NumberControl, TextControl } from "../components/FormControls";
 
@@ -61,6 +62,7 @@ export function SettingsView({ config, schema, status, locale, t, update, onLoca
           <section className="settings-card"><div className="setting-row"><div className="setting-icon"><DeckIcon name="lock" /></div><div><h3>{t("security")}</h3><p>{t("tokenHelp")}</p></div><Switch aria-label={t("security")} isSelected={Boolean(config.server.token)} onChange={(enabled) => update((draft) => { draft.server.token = enabled ? tokenValue() : ""; })}><Switch.Content><Switch.Control><Switch.Thumb /></Switch.Control></Switch.Content></Switch></div><div className={`token-panel ${config.server.token ? "" : "token-empty"}`}><div><small>{locale === "fr" ? "Secret d’appairage" : "Pairing bootstrap secret"}</small>{config.server.token ? <code aria-label={locale === "fr" ? "Secret masqué" : "Secret hidden"}>••••••••••••</code> : <p>{locale === "fr" ? "Appairage ouvert. Activez la protection pour exiger le code affiché ci-dessus." : "Pairing is open. Enable protection to require the code shown above."}</p>}</div><div>{config.server.token ? <Button size="sm" variant="ghost" onPress={() => update((draft) => { draft.server.token = tokenValue(); })}>{locale === "fr" ? "Régénérer" : "Regenerate"}</Button> : <Button size="sm" variant="outline" onPress={() => update((draft) => { draft.server.token = tokenValue(); })}><DeckIcon name="lock" size={15} />{locale === "fr" ? "Activer et générer" : "Enable and generate"}</Button>}</div></div></section>
         </div>}
         {section === "appearance" && <div className="settings-content"><SettingsHeading icon="language" title={t("appearance")} help={t("detailsHelp")} />
+          <DeckySettings locale={locale} />
           <section className="settings-card"><h3>{t("language")}</h3><div className="language-cards"><button type="button" className={locale === "fr" ? "active" : ""} onClick={() => onLocale("fr")}><span>FR</span><strong>{t("french")}</strong>{locale === "fr" && <DeckIcon name="sparkle" />}</button><button type="button" className={locale === "en" ? "active" : ""} onClick={() => onLocale("en")}><span>EN</span><strong>{t("english")}</strong>{locale === "en" && <DeckIcon name="sparkle" />}</button></div></section>
         </div>}
         {section === "obs" && <div className="settings-content"><SettingsHeading icon="video" title={t("obsTitle")} help={t("obsHelp")} />

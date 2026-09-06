@@ -21,6 +21,7 @@
 #include "theme.h"
 
 #include "setup_internal.h"
+#include "ui_companion.h"
 
 /* --- Rendu de l'écran supérieur ------------------------------------------- */
 
@@ -107,8 +108,13 @@ static void draw_host_step(const Setup *setup, const App *app)
 			text_draw_clipped(110.0f, 140.0f, Z_OVERLAY, TEXT_MICRO,
 			                  COL_TEXT_FAINT, ALIGN_LEFT, 205.0f, detail);
 		} else {
-			icons_draw(ICON_POWER, cx, 126.0f, 30.0f, Z_CONTENT,
-			           discovery_scanning() ? COL_ACCENT : COL_TEXT_FAINT);
+			if (app->settings.companion) {
+				ui_companion_draw(discovery_scanning() ? DECKY_SEARCH : DECKY_CONFUSED,
+				                  app->uptime, cx - 20, 106, 1);
+			} else {
+				icons_draw(ICON_POWER, cx, 126.0f, 30.0f, Z_CONTENT,
+				           discovery_scanning() ? COL_ACCENT : COL_TEXT_FAINT);
+			}
 			text_draw(cx, 148.0f, Z_CONTENT, TEXT_SMALL,
 			          discovery_scanning() ? COL_TEXT_DIM : COL_TEXT_FAINT,
 			          ALIGN_CENTER,
@@ -170,7 +176,11 @@ static void draw_done_step(const Setup *setup, const App *app)
 	const float cx = SCREEN_TOP_W * 0.5f;
 
 	if (setup->first_run) {
-		icons_draw(ICON_STAR, cx, 92.0f, 40.0f, Z_CONTENT, COL_ACCENT);
+		if (app->settings.companion) {
+			ui_companion_draw(DECKY_WAVE, app->uptime, cx - 20, 76, 1);
+		} else {
+			icons_draw(ICON_STAR, cx, 92.0f, 40.0f, Z_CONTENT, COL_ACCENT);
+		}
 		text_draw(cx, 122.0f, Z_CONTENT, TEXT_TITLE, COL_TEXT, ALIGN_CENTER,
 		          tr(STR_SETUP_DONE_TITLE));
 		text_draw_clipped(cx, 152.0f, Z_CONTENT, TEXT_MICRO, COL_TEXT_DIM,
@@ -180,6 +190,19 @@ static void draw_done_step(const Setup *setup, const App *app)
 	}
 
 	/* Hors premier démarrage : rappel des commandes. */
+	if (setup->selection == ROW_COMPANION) {
+		text_draw(cx, 59, Z_CONTENT, TEXT_TITLE, COL_TEXT, ALIGN_CENTER, "Decky");
+		if (app->settings.companion) {
+			/* Cycle the six expressions here so the setting is also a live preview. */
+			const DeckyMood mood = (DeckyMood)((int)(fmodf(app->uptime, 24.0f) / 4.0f));
+			ui_companion_draw(mood, app->uptime, cx - 60, 85, 3);
+		} else {
+			text_draw(cx, 140, Z_CONTENT, TEXT_LARGE, COL_TEXT_DIM, ALIGN_CENTER, tr(STR_OFF));
+		}
+		text_draw_clipped(cx, 214, Z_CONTENT, TEXT_MICRO, COL_TEXT_DIM,
+		                  ALIGN_CENTER, 380, tr(STR_DECKY_HELP));
+		return;
+	}
 	text_draw(cx, 70.0f, Z_CONTENT, TEXT_TITLE, COL_TEXT, ALIGN_CENTER,
 	          tr(STR_SETTINGS));
 
@@ -216,6 +239,9 @@ void setup_draw_top(const Setup *setup, const App *app)
 	switch (setup->step) {
 	case SETUP_LANGUAGE:
 		draw_language_step(setup);
+		if (app->settings.companion) {
+			ui_companion_draw(DECKY_WAVE, app->uptime, 160, 153, 2);
+		}
 		break;
 	case SETUP_HOST:
 		draw_host_step(setup, app);

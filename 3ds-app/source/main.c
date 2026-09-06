@@ -34,6 +34,8 @@
 #include "text.h"
 #include "theme.h"
 #include "ui.h"
+#include "ui_intro.h"
+#include "ui_companion.h"
 
 /** Durée d'un pas de temps nominal (60 images par seconde). */
 #define FRAME_TIME (1.0f / 60.0f)
@@ -534,6 +536,9 @@ int main(int argc, char *argv[])
 	/* Mesure du temps réel : les animations restent correctes même si le
 	 * nombre d'images par seconde varie. */
 	u64 previous_tick = svcGetSystemTick();
+	UiIntro intro;
+	ui_intro_begin(&intro, s_app.settings.companion != COMPANION_OFF);
+	bool intro_input_guard = intro.active;
 
 	while (aptMainLoop()) {
 		if (s_network_resume_requested) {
@@ -552,7 +557,16 @@ int main(int argc, char *argv[])
 		}
 
 		/* --- Entrées --- */
-		handle_input(&s_app);
+		if (intro_input_guard) {
+			hidScanInput();
+			const bool was_active = intro.active;
+			ui_intro_update(&intro, dt, hidKeysDown() != 0);
+			/* A dismissing press (including a held touch) cannot activate
+			 * a control on the screen underneath. START still exits. */
+			if (!was_active && hidKeysHeld() == 0) intro_input_guard = false;
+		} else {
+			handle_input(&s_app);
+		}
 
 		if (hidKeysDown() & KEY_START) {
 			break;
@@ -608,7 +622,9 @@ int main(int argc, char *argv[])
 
 			C2D_TargetClear(target, COL_BG);
 			C2D_SceneBegin(target);
-			if (s_setup.active) {
+			if (intro.active) {
+				ui_intro_draw_top(&intro);
+			} else if (s_setup.active) {
 				setup_draw_top(&s_setup, &s_app);
 			} else {
 				ui_draw_top(&s_app);
@@ -619,7 +635,9 @@ int main(int argc, char *argv[])
 
 		C2D_TargetClear(bottom, COL_BG);
 		C2D_SceneBegin(bottom);
-		if (s_setup.active) {
+		if (intro.active) {
+			ui_intro_draw_bottom();
+		} else if (s_setup.active) {
 			setup_draw_bottom(&s_setup, &s_app);
 		} else {
 			ui_draw_bottom(&s_app);

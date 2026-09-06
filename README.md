@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="cover.png" alt="3Decks: a Nintendo 3DS controlling a computer" width="100%">
+<img src="docs/assets/3decks-banner.svg" alt="3Decks with Decky, its smiling two-screen pixel companion" width="100%">
 
 # 3Decks
 
@@ -35,7 +35,7 @@ The editor uses React, HeroUI and Inter. The console shows native controls and d
 You need a homebrew-enabled **3DS, 2DS or New 3DS**, a **Mac or Windows PC**, and a trusted local network shared by both.
 
 1. [Install the computer app](docs/INSTALLATION.md) using a GitHub Release launcher.
-2. Copy the release's `deck3ds.3dsx` to `sdmc:/3ds/deck3ds.3dsx` and open it in Homebrew Launcher.
+2. [Install `deck3ds.cia` on HOME](docs/CONSOLE_PACKAGING.md) with FBI (custom firmware required), or copy `deck3ds.3dsx` to `sdmc:/3ds/deck3ds.3dsx` for Homebrew Launcher.
 3. Select your computer by name and enter the pairing code shown in the editor.
 4. [Create your first page](docs/USAGE.md), save it and try a button.
 

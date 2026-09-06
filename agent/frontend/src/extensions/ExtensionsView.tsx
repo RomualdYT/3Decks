@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { agentApi, type ExtensionRequest } from "../api/client";
 import type { ExtensionCatalog, Locale } from "../app/types";
 import { DeckIcon } from "../components/DeckIcon";
+import { Decky } from "../components/Decky";
 import { ExtensionCard } from "./ExtensionCard";
 import { ExtensionApproval } from "./ExtensionApproval";
 import type { ExtensionConfirmation } from "./requests";
@@ -109,9 +110,7 @@ export function ExtensionsView({
       )}
       {catalog && !catalog.extensions.length && (
         <section className="extension-empty">
-          <span>
-            <DeckIcon name="extension" size={46} />
-          </span>
+          <Decky mood="idle" size={80} />
           <h2>
             {fr
               ? "La prochaine intégration est la vôtre."

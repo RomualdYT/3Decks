@@ -18,6 +18,8 @@ Tous ces chemins sont sous `/api/`. Les requêtes/réponses exactes et variantes
 
 ## Erreurs et mutations
 
+`GET /api/artwork` renvoie la pochette du cache de la console en `image/png`, ou 204 si elle est indisponible. Cette route exige la session locale. L’image est encodée une seule fois lors du changement de texture ; sa lecture ne déclenche ni collecte native ni téléchargement. L’éditeur libère son URL temporaire au changement de pochette ou à la fermeture de la vue musicale.
+
 Les erreurs applicatives contiennent error, code, request_id. Les erreurs de parsing Uvicorn peuvent survenir avant cette enveloppe. Limites : corps 512 Kio même fragmenté, en-têtes applicatifs 16 Kio, réception 15 secondes, concurrence Uvicorn 64, keepalive 5 secondes.
 
 Renvoyez la revision obtenue par GET pour éviter une sauvegarde obsolète. Un conflit renvoie 409 ; une configuration invalide à enregistrer renvoie 422. La prévalidation retourne valid:false sans écrire. Annuler un sélecteur natif n’est pas une panne. scripts reste issu du document de confiance et n’est pas modifiable par HTTP.

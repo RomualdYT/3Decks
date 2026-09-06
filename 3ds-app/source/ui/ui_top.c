@@ -15,6 +15,7 @@
 #include "ui.h"
 #include "ui_top_media.h"
 #include "ui_top_system.h"
+#include "ui_companion.h"
 #include "extension_ui.h"
 
 /*
@@ -367,8 +368,13 @@ static void draw_link_screen(const App *app)
 {
 	const float cx = SCREEN_TOP_W * 0.5f;
 
-	icons_draw(ICON_POWER, cx, 96.0f, 52.0f, Z_CONTENT,
-	           app->link == LINK_CONNECTING ? COL_WARN : COL_TEXT_FAINT);
+	if (app->settings.companion) {
+		ui_companion_draw(app->link == LINK_CONNECTING ? DECKY_SEARCH : DECKY_CONFUSED,
+		                  app->uptime, cx - 40, 42, 2);
+	} else {
+		icons_draw(ICON_POWER, cx, 96.0f, 52.0f, Z_CONTENT,
+		           app->link == LINK_CONNECTING ? COL_WARN : COL_TEXT_FAINT);
+	}
 
 	text_draw(cx, 126.0f, Z_CONTENT, TEXT_TITLE, COL_TEXT, ALIGN_CENTER,
 	          app->link == LINK_CONNECTING ? tr(STR_CONNECTING_TO_PC)
@@ -459,6 +465,11 @@ static void draw_toast(const App *app)
 
 void ui_draw_top(const App *app)
 {
+	if (ui_companion_standby(app)) {
+		ui_companion_standby_draw(app);
+		draw_toast(app);
+		return;
+	}
 	/*
 	 * Tant que la configuration n'est pas arrivée, l'écran de liaison est plus
 	 * utile qu'un tableau de bord vide : il indique quoi corriger.

@@ -246,7 +246,10 @@ async def test_factory_export_is_deterministic_and_does_not_start_core():
         assert first == specification()
     document = json.loads(first)
     assert document["security"] == [{"LocalSession": []}]
-    assert len(document["paths"]) == 12
+    assert len(document["paths"]) == 13
+    artwork = document["paths"]["/api/artwork"]["get"]["responses"]
+    assert "image/png" in artwork["200"]["content"]
+    assert "204" in artwork
     exported = Path(__file__).resolve().parents[2] / "docs" / "api" / "openapi.json"
     assert exported.read_text(encoding="utf-8") == first
 

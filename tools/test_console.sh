@@ -20,6 +20,18 @@ run() {
     "$test_build/$name"
 }
 run test_framing "$src/network/framing.c"
+run test_decky "$src/graphics/decky.c"
+"$cc" "${flags[@]}" -I"$src/graphics" "$repo/tools/export_decky_sprite.c" "$src/graphics/decky.c" -lm -o "$test_build/export-decky"
+"$test_build/export-decky" "$test_build/decky.svg"
+cmp "$test_build/decky.svg" "$repo/agent/frontend/public/decky.svg"
+"$cc" "${flags[@]}" -I"$src/graphics" "$repo/tools/export_decky_brand.c" "$src/graphics/decky.c" -lm -o "$test_build/export-decky-brand"
+"$test_build/export-decky-brand" "$test_build/logo.svg" logo
+cmp "$test_build/logo.svg" "$repo/agent/frontend/public/decky-logo.svg"
+"$test_build/export-decky-brand" "$test_build/banner.svg" en
+cmp "$test_build/banner.svg" "$repo/docs/assets/3decks-banner.svg"
+"$test_build/export-decky-brand" "$test_build/banner.fr.svg" fr
+cmp "$test_build/banner.fr.svg" "$repo/docs/assets/3decks-banner.fr.svg"
+run test_companion "$src/graphics/decky.c" "$src/ui/ui_companion.c" "$src/ui/ui_intro.c" "$src/graphics/theme.c" "$src/ui/i18n.c"
 run test_localization "$src/ui/i18n.c"
 run test_text_layout "$src/graphics/text_layout.c"
 run test_interactions "${common[@]}" "$src/app/app_feedback.c" "$src/ui/ui_layout.c"

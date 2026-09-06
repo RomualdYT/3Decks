@@ -30,7 +30,7 @@
 .extension-catalog-list { padding-left: 16px; display: grid; gap: 10px; }
 .extension-catalog-list small { display: block; color: var(--muted); }
 .extension-empty { text-align: center; border: 1px dashed var(--border-strong); border-radius: 24px; padding: 44px 20px; margin-bottom: 20px; }
-.extension-empty > span { color: var(--accent); display: inline-flex; padding: 20px; background: var(--accent-soft); border-radius: 24px; margin-bottom: 18px; }
+.extension-empty > span:not(.decky) { color: var(--accent); display: inline-flex; padding: 20px; background: var(--accent-soft); border-radius: 24px; margin-bottom: 18px; }
 .extension-empty p { max-width: 520px; margin: 12px auto 24px; }
 .extension-steps { display: flex; justify-content: center; flex-wrap: wrap; gap: 24px; color: var(--muted); font-size: 12px; }
 .extension-developer { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; padding: 28px; margin-top: 28px; background: var(--bg-soft); border: 1px solid var(--border); border-radius: 22px; }

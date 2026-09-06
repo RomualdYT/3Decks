@@ -66,11 +66,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - run: ./build.sh
+      - name: Encode the console title version
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: python3 packaging/3ds/package_version.py "$RELEASE_TAG" >> "$GITHUB_ENV"
+      - run: ./build.sh all
       - uses: actions/upload-artifact@v7
         with:
           name: release-homebrew
-          path: 3ds-app/deck3ds.3dsx
+          path: |
+            3ds-app/deck3ds.3dsx
+            3ds-app/deck3ds.cia
           if-no-files-found: error
 
   publish:

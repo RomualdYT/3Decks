@@ -59,7 +59,8 @@ function Track({ x, y, width, ratio, color = "var(--media-accent)" }: { x: numbe
   return <g><rect x={x} y={y} width={width} height={5} rx={2.5} fill="#34343a" />
     {filled > 0 && <rect x={x} y={y} width={filled} height={5} rx={2.5} fill={color} />}</g>;
 }
-function Media({ media, frame, image, fr }: { media: Data; frame: boolean; image?: string; fr: boolean }) {
+function Media({ media, frame, fr }: { media: Data; frame: boolean; fr: boolean }) {
+  const image = useArtwork(number(media.art));
   if (!media.title) return <g><Icon name="music" x={180} y={94} size={40} color="#686872" />
     <Label x={30} y={162} width={340} align="center">{fr ? "Aucune lecture en cours" : "Nothing playing"}</Label></g>;
   const art = frame ? 206 : 174, y = frame ? 17 : 48, x = frame ? 242 : 211, width = 384 - x;
@@ -131,7 +132,6 @@ function System({ snapshot, fr }: { snapshot: Data; fr: boolean }) {
 export function ConsoleTopScreen({ page, status, locale }: { page: PageConfig; status: AgentState | null; locale: Locale }) {
   const fr = locale === "fr", snapshot = record(status?.snapshot), media = record(snapshot.media);
   const mode = dashboardMode(page, media), frame = mode === "frame";
-  const image = useArtwork(mode === "media" || frame ? number(media.art) : null);
   const id = useId();
   const accent = /^#[0-9a-f]{6}$/i.test(string(media.accent)) ? string(media.accent) : /spotify/i.test(string(media.app)) ? "#1ed760" : /music/i.test(string(media.app)) ? "#fa3d58" : "#66cb10";
   const notifications = list(snapshot.notifications).map(record);
@@ -143,7 +143,7 @@ export function ConsoleTopScreen({ page, status, locale }: { page: PageConfig; s
     <svg viewBox="0 0 400 240" width="100%" height="100%" role="img" aria-label={fr ? "Écran supérieur de la console" : "Console top screen"}>
       <defs><linearGradient id={id} x2="0" y2="1"><stop stopColor={mode === "media" || frame ? accent : "#0d0d0f"} stopOpacity={mode === "media" || frame ? .2 : 1} /><stop offset="1" stopColor="#0d0d0f" /></linearGradient></defs>
       <rect width={400} height={240} fill="#0d0d0f" /><rect width={400} height={240} fill={`url(#${id})`} />
-      {mode === "media" || frame ? <Media media={media} frame={frame} image={image} fr={fr} /> : mode === "audio" ? <Audio snapshot={snapshot} media={media} fr={fr} /> : mode === "system" ? <System snapshot={snapshot} fr={fr} /> : mode === "notifications" ?
+      {mode === "media" || frame ? <Media key={number(media.art) ?? 0} media={media} frame={frame} fr={fr} /> : mode === "audio" ? <Audio snapshot={snapshot} media={media} fr={fr} /> : mode === "system" ? <System snapshot={snapshot} fr={fr} /> : mode === "notifications" ?
         <g><Label x={16} y={40} width={365} size={20} bold color="#f6f6f7">Notifications</Label>
           {notifications.length ? notifications.slice(0, 3).map((item, i) => <g key={i}><rect x={12} y={72 + i * 51} width={376} height={46} rx={8} fill="#1a1a1e" /><Icon name="chat" x={23} y={85 + i * 51} color="#ffb020" /><Label x={50} y={76 + i * 51} width={325} bold>{string(item.app, "Notification")}</Label><Label x={50} y={95 + i * 51} width={325} size={12.6}>{string(item.title)}</Label></g>) :
             <Label x={20} y={124} width={360} align="center">{fr ? "Aucune notification" : "No notifications"}</Label>}</g> :

@@ -12,6 +12,8 @@ Le contrôle du paquet teste assets, CLI/HTTP/TCP et extension hors dépôt. Les
 
 ## Vérifications natives
 
+- [ ] Installer le CIA avec FBI ; vérifier icône/bannière Decky, lancement sans `.3dsx`, persistance SD, retour HOME/reprise, sortie START et mise à jour par-dessus. Tester aussi Homebrew Launcher. Voir les [paquets console](CONSOLE_PACKAGING.fr.md).
+
 - [ ] Installer l’artefact de livraison sur macOS et Windows.
 - [ ] Toutes les vues : polices, image console, responsive et navigation clavier.
 - [ ] Créer, trier, sauvegarder/recharger pages/boutons ; capture clavier et conflits.

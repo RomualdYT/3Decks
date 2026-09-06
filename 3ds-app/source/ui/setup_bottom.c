@@ -236,6 +236,10 @@ void setup_draw_bottom(const Setup *setup, const App *app)
 	         setup->selection == ROW_STEREO);
 	draw_row(ROW_RESET, tr(STR_SETTINGS_RESET_SETUP), "",
 	         setup->selection == ROW_RESET);
+	draw_row(ROW_COMPANION, "Decky",
+	         tr(app->settings.companion == 0 ? STR_OFF :
+	            app->settings.companion == 1 ? STR_DECKY_DISCREET : STR_DECKY_STANDBY),
+	         setup->selection == ROW_COMPANION);
 
 	draw_primary_button(tr(STR_SETTINGS_SAVE), COL_OK);
 }

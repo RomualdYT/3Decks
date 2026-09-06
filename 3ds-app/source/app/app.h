@@ -27,6 +27,8 @@ typedef struct {
 	int dim_delay;
 	/** Relief stéréoscopique de l'écran supérieur. */
 	bool stereo;
+	/** Decky: 0 hidden, 1 discreet, 2 dedicated standby. */
+	int companion;
 	/** Faux tant que l'assistant de premier démarrage n'a pas été suivi. */
 	bool configured;
 } Settings;

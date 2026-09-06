@@ -36,7 +36,11 @@ Start menu and Desktop shortcuts are created. The menu icon appears near the clo
 
 ## 2. Install on the console
 
-Download `deck3ds.3dsx` from the same release and copy it to:
+**HOME menu:** on a console with custom firmware, install the release's
+`deck3ds.cia` using FBI. Decky appears as the application icon, with a banner on
+the upper screen. Follow the [HOME installation steps](CONSOLE_PACKAGING.md).
+
+**Homebrew Launcher:** download `deck3ds.3dsx` from the same release and copy it to:
 
 ```text
 sdmc:/3ds/deck3ds.3dsx
@@ -54,7 +58,7 @@ Follow the [user guide](USAGE.md). The system menu reopens the editor after you 
 
 Run the same installation command to update. The launcher requests graceful shutdown before replacing the installed program. If an older instance cannot respond, quit it from its menu and retry; a shutdown timeout aborts the update rather than forcibly killing it.
 
-Configuration, paired consoles and extension data are retained. Back them up before updating; see [storage locations](CONFIGURATION.md). Also replace the SD card's `.3dsx` when updating the console application.
+Configuration, paired consoles and extension data are retained. Back them up before updating; see [storage locations](CONFIGURATION.md). On the console, install the newer CIA over the existing title, or replace the SD card's `.3dsx`, depending on the format you use.
 
 To uninstall, download the installer as above and run the downloaded file with:
 
