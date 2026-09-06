@@ -31,7 +31,7 @@ class ConsoleConfiguration:
                 self._fill_dynamic_pages(windows, active)
             except Exception:
                 self.context.debug(
-                    "Pages dynamiques indisponibles; une prochaine collecte reessaiera"
+                    "Dynamic pages unavailable; retrying on the next collection"
                 )
         await self.context._broadcast_config()
 

@@ -3,7 +3,7 @@
 Usage :
     python3 -m deck3ds                      démarre avec config.json
     python3 -m deck3ds --config autre.json  fichier de configuration explicite
-    python3 -m deck3ds --check              valide la configuration et quitte
+    python3 -m deck3ds --check              validate configuration and exit
     python3 -m deck3ds --probe              teste les capacités de la machine
     python3 -m deck3ds --ui                 ouvre l'interface de configuration
 """
@@ -41,7 +41,7 @@ def _open_browser(url: str) -> None:
     """
     import webbrowser
 
-    print(f"Interface de configuration : {url}", flush=True)
+    print(f"Configuration editor: {url}", flush=True)
     webbrowser.open(url)
 
 
@@ -59,25 +59,25 @@ def command_probe() -> int:
 
 
 def _probe(platform: Platform) -> int:
-    print(f"Agent 3Decks {VERSION}")
-    print(f"Plateforme detectee : {platform.name} ({sys.platform})")
+    print(f"3Decks agent {VERSION}")
+    print(f"Detected platform: {platform.name} ({sys.platform})")
     print()
 
     snapshot = platform.snapshot()
 
     def show(label: str, value: object, unit: str = "") -> None:
         if value is None or value == "" or value == []:
-            print(f"  {label:<22} indisponible")
+            print(f"  {label:<22} unavailable")
         else:
             print(f"  {label:<22} {value}{unit}")
 
-    print("Lecture de l'etat :")
+    print("Current state:")
     show("volume", snapshot.volume, " %")
-    show("son coupe", snapshot.muted)
-    show("micro coupe", snapshot.mic_muted)
-    show("processeur", snapshot.cpu, " %")
-    show("memoire", snapshot.memory, " %")
-    show("application active", snapshot.active_app)
+    show("muted", snapshot.muted)
+    show("microphone muted", snapshot.mic_muted)
+    show("CPU", snapshot.cpu, " %")
+    show("memory", snapshot.memory, " %")
+    show("active application", snapshot.active_app)
     show("applications", len(snapshot.apps) or None)
     notification_status = platform.notification_status()
     show(
@@ -87,43 +87,42 @@ def _probe(platform: Platform) -> int:
 
     if snapshot.media is not None:
         show("media", f"{snapshot.media.title} — {snapshot.media.artist}")
-        show("lecteur", snapshot.media.app)
+        show("player", snapshot.media.app)
     else:
         show("media", None)
 
     if snapshot.apps:
         print()
-        print("Applications visibles :")
+        print("Visible applications:")
         for name in snapshot.apps:
             print(f"  - {name}")
 
     print()
     if snapshot.mic_muted is None:
         print(
-            "Note : l'etat du micro n'est pas lisible sur ce poste. Le bouton\n"
-            "       fonctionnera, mais l'ecran affichera « MICRO ? » jusqu'au\n"
-            "       premier basculement."
+            "Note: microphone state is unavailable on this computer. The button\n"
+            "      will work, but its state remains unknown until the first toggle."
         )
     if snapshot.media is None:
         if sys.platform == "darwin":
             print(
-                "Note : aucun media detecte. Autorisez l'application Terminal\n"
-                "       a piloter Spotify ou Musique dans Reglages Systeme,\n"
-                "       rubrique Confidentialite et securite, puis Automatisation."
+                "Note: no media detected. Allow the application running the agent\n"
+                "      to control Spotify or Music in System Settings >\n"
+                "      Privacy & Security > Automation."
             )
         else:
             print(
-                "Note : aucun media detecte. Lancez une lecture dans une application\n"
-                "       compatible avec les controles media de Windows."
+                "Note: no media detected. Start playback in an application\n"
+                "      that supports Windows media controls."
             )
     if sys.platform in ("win32", "cygwin") and not notification_status["available"]:
         print(
-            "Note : les notifications Windows exigent l'installation MSIX et\n"
-            "       l'autorisation UserNotificationListener. Aucun acces de\n"
-            "       secours a la base SQLite de Windows n'est utilise."
+            "Note: Windows notifications require an MSIX installation and\n"
+            "      UserNotificationListener permission. No Windows SQLite\n"
+            "      database fallback is used."
         )
         if notification_status["error"]:
-            print(f"       Detail : {notification_status['error']}")
+            print(f"       Details: {notification_status['error']}")
     return 0
 
 
@@ -131,21 +130,21 @@ def command_check(path: Path) -> int:
     try:
         loaded = config_module.load(path)
     except config_module.ConfigError as error:
-        print(f"Configuration invalide : {error}", file=sys.stderr)
+        print(f"Invalid configuration: {error}", file=sys.stderr)
         return 1
 
-    print(f"Configuration valide : {path}")
+    print(f"Valid configuration: {path}")
     print(f"  revision      : {loaded.revision}")
-    print(f"  ecoute        : {loaded.host}:{loaded.port}")
-    print(f"  jeton         : {'oui' if loaded.token else 'non'}")
-    print(f"  rafraichissement : {loaded.poll_interval} s")
-    print(f"  pas de volume : {loaded.volume_step}")
+    print(f"  listen        : {loaded.host}:{loaded.port}")
+    print(f"  token set     : {'yes' if loaded.token else 'no'}")
+    print(f"  refresh interval : {loaded.poll_interval} s")
+    print(f"  volume step   : {loaded.volume_step}")
     print(f"  pages         : {len(loaded.pages)}")
 
     for page in loaded.pages:
         print(
             f"    - {page.id} ({page.title('en')}), "
-            f"tableau de bord « {page.dashboard} »"
+            f"dashboard « {page.dashboard} »"
         )
         for button in sorted(page.buttons, key=lambda item: item.slot):
             action = button.action.kind
@@ -156,14 +155,14 @@ def command_check(path: Path) -> int:
                 )
             hold = ""
             if button.hold_action is not None:
-                hold = f", appui long : {button.hold_action.kind}"
+                hold = f", long press: {button.hold_action.kind}"
             print(
                 f"        [{button.slot}] {button.label('en'):<14} "
                 f"{action}{details}{hold}"
             )
 
     if loaded.scripts:
-        print("  scripts declares :")
+        print("  configured scripts:")
         for name, command in loaded.scripts.items():
             print(f"    - {name}: {' '.join(command)}")
 
@@ -173,64 +172,64 @@ def command_check(path: Path) -> int:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="deck3ds",
-        description="Agent PC pour 3Decks : transforme une 3DS en surface "
-        "de controle.",
+        description="3Decks desktop agent: turn a 3DS into a "
+        "control surface.",
     )
     parser.add_argument(
         "--config",
         type=Path,
-        help="configuration explicite (sinon depot historique ou repertoire utilisateur)",
+        help="configuration path (otherwise source checkout or user directory)",
     )
     parser.add_argument(
-        "--host", help="adresse d'ecoute, remplace celle de la configuration"
+        "--host", help="listen address, overriding the configuration"
     )
     parser.add_argument(
-        "--port", type=int, help="port d'ecoute, remplace celui de la configuration"
+        "--port", type=int, help="listen port, overriding the configuration"
     )
     parser.add_argument(
-        "--check", action="store_true", help="valide la configuration et quitte"
+        "--check", action="store_true", help="validate configuration and exit"
     )
     parser.add_argument(
         "--probe",
         action="store_true",
-        help="teste les capacites de la machine et quitte",
+        help="probe this computer's capabilities and exit",
     )
     parser.add_argument(
         "--ui",
         action="store_true",
-        help="ouvre l'interface de configuration locale dans le navigateur",
+        help="open the local configuration editor in the browser",
     )
     parser.add_argument(
         "--ui-port",
         type=int,
         default=DEFAULT_UI_PORT,
-        help=f"port de l'interface locale (defaut : {DEFAULT_UI_PORT})",
+        help=f"local editor port (default: {DEFAULT_UI_PORT})",
     )
     parser.add_argument(
         "--init-config",
         action="store_true",
-        help="cree une configuration de demonstration, sans ecraser de fichier",
+        help="create a demo configuration without overwriting an existing file",
     )
     parser.add_argument(
         "--init-if-missing",
         action="store_true",
-        help="cree la configuration si elle manque, puis continue le demarrage",
+        help="create configuration if missing, then continue startup",
     )
     parser.add_argument(
         "--ui-dev-origin",
         action="append",
         default=[],
-        help="autorise explicitement une origine Vite locale, par exemple http://127.0.0.1:4173",
+        help="explicitly allow a local Vite origin, for example http://127.0.0.1:4173",
     )
     parser.add_argument(
-        "--verbose", action="store_true", help="journalisation detaillee"
+        "--verbose", action="store_true", help="verbose logging"
     )
     parser.add_argument("--desktop", action="store_true", help=argparse.SUPPRESS)
-    parser.add_argument("--stop", action="store_true", help="arrete proprement l'instance graphique et attend sa fermeture")
+    parser.add_argument("--stop", action="store_true", help="stop the desktop instance gracefully and wait for shutdown")
     parser.add_argument(
         "--background",
         action="store_true",
-        help="demarre l'interface sans ouvrir automatiquement le navigateur",
+        help="start the editor without opening the browser automatically",
     )
     parser.add_argument("--version", action="version", version=f"deck3ds {VERSION}")
 
@@ -243,7 +242,7 @@ def main(argv: list[str] | None = None) -> int:
 
         if InstanceLock.for_config(args.config).request_stop():
             return 0
-        print("3Decks est encore en cours d'arret. Reessayez une fois ses operations terminees.", file=sys.stderr)
+        print("3Decks is still shutting down. Try again after its operations have completed.", file=sys.stderr)
         return 1
     from .api.security import local_origin
 
@@ -257,9 +256,9 @@ def main(argv: list[str] | None = None) -> int:
         try:
             initialize(args.config)
         except (OSError, config_module.ConfigError) as error:
-            print(f"Creation impossible : {error}", file=sys.stderr)
+            print(f"Could not create configuration: {error}", file=sys.stderr)
             return 1
-        print(f"Configuration creee : {args.config}")
+        print(f"Configuration created: {args.config}")
         return 0
 
     if args.init_if_missing and not args.config.exists():
@@ -271,10 +270,10 @@ def main(argv: list[str] | None = None) -> int:
             # l'autorite qui validera le document obtenu.
             pass
         except (OSError, config_module.ConfigError) as error:
-            print(f"Creation impossible : {error}", file=sys.stderr)
+            print(f"Could not create configuration: {error}", file=sys.stderr)
             return 1
         else:
-            print(f"Configuration creee : {args.config}")
+            print(f"Configuration created: {args.config}")
 
     if args.probe:
         return command_probe()
@@ -285,9 +284,9 @@ def main(argv: list[str] | None = None) -> int:
     try:
         loaded = config_module.load(args.config)
     except config_module.ConfigError as error:
-        print(f"Configuration invalide : {error}", file=sys.stderr)
+        print(f"Invalid configuration: {error}", file=sys.stderr)
         print(
-            "Creez une configuration avec deck3ds --init-config, ou verifiez-la avec --check.",
+            "Create a configuration with deck3ds --init-config, or validate it with --check.",
             file=sys.stderr,
         )
         return 1
@@ -365,7 +364,7 @@ def main(argv: list[str] | None = None) -> int:
         asyncio.run(run_agent(server))
     except KeyboardInterrupt:
         print()
-        print("Agent arrete.")
+        print("Agent stopped.")
 
     return 0
 

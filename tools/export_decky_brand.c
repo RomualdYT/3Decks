@@ -27,17 +27,13 @@ int main(int argc, char **argv)
               "<rect width='1200' height='440' rx='28' fill='#111514'/>"
               "<ellipse cx='270' cy='210' rx='320' ry='220' fill='url(#glow)'/>"
               "<rect x='24' y='24' width='1152' height='392' rx='18' fill='none' stroke='#ffffff' stroke-opacity='.07'/>"
-              "<g transform='translate(106 70) scale(7)' shape-rendering='crispEdges'>",out);
+              "<g transform='translate(106 80) scale(7)' shape-rendering='crispEdges'>",out);
         decky_draw(DECKY_WAVE,0,paint,out);
         fputs("</g><g font-family='Inter,system-ui,-apple-system,Segoe UI,sans-serif'>",out);
-        fprintf(out,"<text x='460' y='124' fill='#b4f575' font-size='14' letter-spacing='3'>%s</text>",
-                fr ? "DEUX ÉCRANS. PLEIN DE POSSIBILITÉS." : "TWO SCREENS. ENDLESS POSSIBILITIES.");
-        fputs("<text x='454' y='227' fill='#f2f6ee' font-size='98' font-weight='800' letter-spacing='-5'>3Decks</text>",out);
-        fprintf(out,"<text x='460' y='273' fill='#bdc8c0' font-size='24'>%s</text>",
+        fputs("<text x='454' y='234' fill='#f2f6ee' font-size='98' font-weight='800' letter-spacing='-5'>3Decks</text>",out);
+        fprintf(out,"<text x='460' y='287' fill='#bdc8c0' font-size='24'>%s</text>",
                 fr ? "Votre 3DS. Votre PC. Un peu de compagnie." : "Your 3DS. Your desktop. A little company.");
-        fputs("<g fill='#8d9d92' font-size='15'><text x='460' y='330'>macOS + Windows</text>"
-              "<text x='643' y='330' fill='#66cb10'>·</text>",out);
-        fprintf(out,"<text x='665' y='330'>%s</text></g></g>",fr ? "Personnalisable. Extensible. À vous." : "Customizable. Extensible. Yours.");
+        fputs("</g>",out);
     }
     fputs("</svg>\n",out);
     const int failed = ferror(out);

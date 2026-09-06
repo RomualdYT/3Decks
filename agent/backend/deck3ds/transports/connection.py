@@ -29,7 +29,7 @@ class Connection:
         if pending >= MAX_PENDING_CONNECTIONS:
             self.context.event(
                 "tcp.connection.refused",
-                f"Connexion refusee depuis {client.address}: trop de handshakes en attente",
+                f"Connection refused from {client.address}: too many pending handshakes",
                 level="warning",
                 reason="pending_limit",
                 address=client.address,
@@ -47,7 +47,7 @@ class Connection:
         self.context.clients.add(client)
         self.context.event(
             "tcp.connection.opened",
-            f"Console #{client.id} connectee depuis {client.address}",
+            f"Console #{client.id} connected from {client.address}",
             client_id=client.id,
             address=client.address,
         )
@@ -57,7 +57,7 @@ class Connection:
         except TimeoutError:
             self.context.event(
                 "tcp.handshake.timeout",
-                f"Console #{client.id}: handshake expire",
+                f"Console #{client.id}: handshake timed out",
                 level="warning",
                 client_id=client.id,
             )
@@ -70,7 +70,7 @@ class Connection:
             await client.close()
             self.context.event(
                 "tcp.connection.closed",
-                f"Console #{client.id} deconnectee",
+                f"Console #{client.id} disconnected",
                 client_id=client.id,
                 authenticated=client.authenticated,
             )
@@ -99,7 +99,7 @@ class Connection:
     async def _dispatch_available(self, client: Client) -> bool:
         """Traite les messages complets déjà reçus.
 
-        Retourne `False` si une trame invalide impose de couper la connexion :
+        Retourne `False` si une invalid frame impose de couper la connexion :
         le flux est alors désynchronisé et rien ne permet de s'y resynchroniser.
         """
         try:
@@ -108,7 +108,7 @@ class Connection:
         except protocol.ProtocolError as error:
             self.context.event(
                 "tcp.frame.invalid",
-                f"Console #{client.id}: trame invalide ({error})",
+                f"Console #{client.id}: invalid frame ({error})",
                 level="warning",
                 client_id=client.id,
             )
@@ -125,7 +125,7 @@ class Connection:
         # Tout le reste exige un handshake réussi.
         if not client.authenticated:
             self.context.debug(
-                f"Console #{client.id}: message avant handshake ({kind})"
+                f"Console #{client.id}: message before handshake ({kind})"
             )
             return
 
@@ -140,7 +140,7 @@ class Connection:
         }
         handler = handlers.get(kind)
         if handler is None:
-            self.context.debug(f"Console #{client.id}: type ignore ({kind})")
+            self.context.debug(f"Console #{client.id}: ignored message type ({kind})")
             return
         await handler(client, message)
 

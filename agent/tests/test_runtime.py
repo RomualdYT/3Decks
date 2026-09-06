@@ -110,7 +110,7 @@ async def test_background_failure_is_supervised(agent):
     with pytest.raises(RuntimeError):
         await agent.start()
     assert agent._closed
-    assert "Collecte interrompue" in " ".join(agent.recent_logs())
+    assert "Collection stopped" in " ".join(agent.recent_logs())
 
 
 async def test_cancellation_closes_runtime_and_rejects_restart(agent):
@@ -136,7 +136,7 @@ async def test_shutdown_continues_after_native_cleanup_failure(agent):
     await agent.close()
     assert agent._closed
     assert agent.operations_pool._pool is None
-    assert "nettoyage" in " ".join(agent.recent_logs())
+    assert "continuing cleanup" in " ".join(agent.recent_logs())
 
 
 async def test_shutdown_drains_extension_operations_before_final_cleanup(agent):

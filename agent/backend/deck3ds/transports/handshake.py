@@ -31,7 +31,7 @@ class Handshake:
             await self.context._reject_handshake(
                 client,
                 f"protocole {version}, attendu {protocol.PROTOCOL_VERSION}",
-                "version de protocole incompatible",
+                "incompatible protocol version",
             )
             return False
 
@@ -40,7 +40,7 @@ class Handshake:
             await self.context._reject_handshake(
                 client,
                 "serveur occupe",
-                "limite de consoles authentifiees atteinte",
+                "authenticated console limit reached",
                 code="server_busy",
             )
             return False
@@ -75,9 +75,9 @@ class Handshake:
                             "trop de tentatives d'appairage"
                             if pairing_result is PairingResult.RATE_LIMITED
                             else "jeton invalide, appairage requis",
-                            "appairage temporairement limite"
+                            "pairing temporarily rate limited"
                             if pairing_result is PairingResult.RATE_LIMITED
-                            else "appairage requis",
+                            else "pairing required",
                             code="pairing_rate_limited"
                             if pairing_result is PairingResult.RATE_LIMITED
                             else "pairing_required",
@@ -95,7 +95,7 @@ class Handshake:
                 await self.context._reject_handshake(
                     client,
                     "identite de console indisponible",
-                    "registre de consoles indisponible",
+                    "console registry unavailable",
                     code="credential_store_error",
                 )
                 return False
@@ -149,7 +149,7 @@ class Handshake:
             await self.context._reject_handshake(
                 client,
                 "handshake deja effectue",
-                "second handshake refuse",
+                "duplicate handshake rejected",
             )
             return
         if not await self.context._accept_handshake(client, message):
@@ -188,10 +188,10 @@ class Handshake:
         await client.send(self.context._config_message(client.language))
         await self.context._send_initial_state(client)
 
-        suffix = " apres appairage" if client.paired_now else ""
+        suffix = " after pairing" if client.paired_now else ""
         self.context.event(
             "tcp.handshake.accepted",
-            f"Console #{client.id}: handshake accepte{suffix}",
+            f"Console #{client.id}: handshake accepted{suffix}",
             client_id=client.id,
             device_id=client.device_id,
             paired=client.paired_now,

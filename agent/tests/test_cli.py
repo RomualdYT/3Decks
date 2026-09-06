@@ -16,7 +16,7 @@ def test_help_uses_public_product_name(capsys):
     with pytest.raises(SystemExit) as error:
         cli.main(["--help"])
     assert error.value.code == 0
-    assert "Agent PC pour 3Decks" in capsys.readouterr().out
+    assert "3Decks desktop agent" in capsys.readouterr().out
 
 
 @pytest.mark.parametrize("stopped, expected", [(True, 0), (False, 1)])

@@ -24,7 +24,7 @@ class Lifecycle:
             )
             agent._addresses = await agent.native_pool.run(agent.find_addresses)
             agent.log(
-                f"Agent 3Decks {agent.version} en ecoute sur le port {agent.config.port}"
+                f"3Decks agent {agent.version} listening on port {agent.config.port}"
             )
             await agent._start_discovery()
             await self.start_ui()
@@ -64,7 +64,7 @@ class Lifecycle:
         except (OSError, RuntimeError):
             await ui.close()
             agent.log(
-                f"Interface indisponible sur le port {agent.ui_port}; la console reste utilisable"
+                f"Web UI unavailable on port {agent.ui_port}; console connectivity remains available"
             )
             return
         agent._ui = ui
@@ -72,7 +72,7 @@ class Lifecycle:
             try:
                 await agent.operations_pool.run(agent.on_ui_ready, ui.url)
             except Exception:
-                agent.debug("Ouverture automatique du navigateur impossible")
+                agent.debug("Could not open the browser automatically")
 
     async def close(self) -> None:
         agent = self.owner
@@ -86,14 +86,14 @@ class Lifecycle:
                 await operation()
             except Exception as error:
                 agent.log(
-                    f"Arret {label}: {type(error).__name__}; nettoyage des autres ressources poursuivi"
+                    f"Shutdown of {label}: {type(error).__name__}; continuing cleanup of remaining resources"
                 )
 
         if agent._server:
             agent._server.close()
         agent._stop_discovery()
         await finish(
-            "dialogues", lambda: agent.operations_pool.run(agent.platform.close_dialogs)
+            "dialogs", lambda: agent.operations_pool.run(agent.platform.close_dialogs)
         )
         if agent._ui:
             await finish("HTTP", agent._ui.close)
@@ -123,7 +123,7 @@ class Lifecycle:
         ):
             await finish("operations", pool.close)
         await finish(
-            "plateforme", lambda: agent.operations_pool.close(agent.platform.close)
+            "platform", lambda: agent.operations_pool.close(agent.platform.close)
         )
         agent.clients.clear()
         agent._closed = True

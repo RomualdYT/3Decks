@@ -135,7 +135,7 @@ class TestPollLoop(unittest.IsolatedAsyncioTestCase):
             await server._poll_loop()
 
         journal = "\n".join(server.recent_logs())
-        self.assertIn("Collecte interrompue", journal)
+        self.assertIn("Collection stopped", journal)
         self.assertIn("RuntimeError", journal)
 
     async def _run_one_wake_cycle(self, slow):

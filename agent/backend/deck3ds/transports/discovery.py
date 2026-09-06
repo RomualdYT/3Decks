@@ -67,7 +67,7 @@ class _DiscoveryProtocol(asyncio.DatagramProtocol):
 
         now = time.monotonic()
         if now - self._last_log.get(address[0], 0.0) >= 8.0:
-            self.owner.log(f"Recherche automatique recue de {address[0]}")
+            self.owner.log(f"Discovery request received from {address[0]}")
             self._last_log[address[0]] = now
 
         payload = self.owner.discovery_payload()
@@ -81,7 +81,7 @@ class _DiscoveryProtocol(asyncio.DatagramProtocol):
             self.transport.sendto(encoded, address)
 
     def error_received(self, error: Exception) -> None:
-        self.owner.debug(f"decouverte locale: {error}")
+        self.owner.debug(f"Local discovery: {error}")
 
 
 class Discovery:
@@ -122,7 +122,7 @@ class Discovery:
             try:
                 sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, membership)
             except OSError as error:
-                self.context.debug(f"multicast de decouverte indisponible : {error}")
+                self.context.debug(f"Discovery multicast unavailable: {error}")
             sock.setblocking(False)
             transport, _ = await loop.create_datagram_endpoint(
                 lambda: _DiscoveryProtocol(self.context),
@@ -131,12 +131,12 @@ class Discovery:
         except OSError as error:
             sock.close()
             self.context.log(
-                f"Decouverte automatique indisponible sur le port "
+                f"Automatic discovery unavailable on port "
                 f"{DISCOVERY_PORT} : {error}"
             )
             return
         self.context._discovery_transport = transport
-        self.context.log(f"Decouverte automatique active sur UDP {DISCOVERY_PORT}")
+        self.context.log(f"Automatic discovery listening on UDP {DISCOVERY_PORT}")
 
     def _stop_discovery(self) -> None:
         transport = self.context._discovery_transport

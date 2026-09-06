@@ -23,8 +23,8 @@ def build_platform(features: object | None = None) -> Platform:
     # Aucun adaptateur : l'agent démarre quand même, mais les actions
     # échoueront avec un message explicite plutôt qu'en silence.
     print(
-        f"Attention : plateforme '{sys.platform}' non prise en charge, "
-        "les actions systeme seront indisponibles.",
+        f"Warning: unsupported platform '{sys.platform}'; "
+        "system actions will be unavailable.",
         file=sys.stderr,
     )
     return Platform()

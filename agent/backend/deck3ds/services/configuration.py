@@ -156,7 +156,7 @@ class ConfigService:
             self._install(copy.deepcopy(parsed))
             await self._publish_safely()
             self._log(
-                f"Configuration enregistree (revision {parsed.revision}, {len(parsed.pages)} pages)"
+                f"Configuration saved (revision {parsed.revision}, {len(parsed.pages)} pages)"
             )
             return {"saved": True, "config": configuration.to_raw(parsed)}
 
@@ -165,7 +165,7 @@ class ConfigService:
             await self._publish()
         except Exception:
             self._log(
-                "Configuration enregistree; diffusion differee jusqu'a la prochaine connexion"
+                "Configuration saved; broadcast deferred until the next connection"
             )
 
     async def reload_if_changed(self) -> bool:
@@ -181,7 +181,7 @@ class ConfigService:
                 loaded = configuration.parse(json.loads(text))
                 self._validate_extensions(loaded)
             except (OSError, ValueError, ConfigError, ExtensionError):
-                self._log("Configuration externe invalide; ancienne version conservee")
+                self._log("Invalid external configuration; previous version retained")
                 return False
             loaded.revision = max(loaded.revision, self.current.revision + 1)
             self.current = loaded
@@ -189,7 +189,7 @@ class ConfigService:
             self._observed = self._accepted
             self._install(copy.deepcopy(loaded))
             await self._publish_safely()
-            self._log(f"Configuration rechargee (revision {loaded.revision})")
+            self._log(f"Configuration reloaded (revision {loaded.revision})")
             return True
 
     def stop_admissions(self) -> None:

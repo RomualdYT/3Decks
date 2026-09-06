@@ -39,7 +39,7 @@ class Command:
             )
             self.context.event(
                 "action.replay_rejected",
-                f"Console #{client.id}: requete rejouee refusee",
+                f"Console #{client.id}: replayed request rejected",
                 level="warning",
                 client_id=client.id,
                 request_id=request_id,
@@ -59,7 +59,7 @@ class Command:
         await client.send(protocol.action_result(request_id, False, message))
         self.context.event(
             "action.paused",
-            f"Console #{client.id}: commande refusee pendant la pause",
+            f"Console #{client.id}: command rejected while paused",
             level="info",
             client_id=client.id,
             request_id=request_id,
@@ -85,7 +85,7 @@ class Command:
                 )
                 self.context.event(
                     "action.denied",
-                    f"Console #{client.id}: action refusee {button_id}",
+                    f"Console #{client.id}: action denied {button_id}",
                     level="warning",
                     client_id=client.id,
                     action=button_id,
@@ -104,7 +104,7 @@ class Command:
             )
             self.context.event(
                 "action.unknown",
-                f"Console #{client.id}: element inconnu {page_id}/{button_id}",
+                f"Console #{client.id}: unknown item {page_id}/{button_id}",
                 level="warning",
                 client_id=client.id,
                 page=page_id,
@@ -185,7 +185,7 @@ class Command:
             button, action, hold, client.language
         )
 
-        status = "ok" if outcome.ok else "echec"
+        status = "ok" if outcome.ok else "failed"
         self.context.event(
             "action.succeeded" if outcome.ok else "action.failed",
             f"Console #{client.id}: {page_id}/{button_id}"

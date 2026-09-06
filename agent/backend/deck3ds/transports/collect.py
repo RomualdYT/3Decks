@@ -48,7 +48,7 @@ class Collect:
         try:
             await self.context._refresh_state()
         except Exception as error:  # la boucle ne doit jamais s'arrêter
-            self.context.debug(f"collecte en echec: {type(error).__name__}: {error}")
+            self.context.debug(f"Collection failed: {type(error).__name__}: {error}")
 
     async def _confirm_after_action(self) -> None:
         """Relit l'état après une action, une fois le système stabilisé.

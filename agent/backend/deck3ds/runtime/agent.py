@@ -292,7 +292,7 @@ class AgentRuntime:
             raise
         except Exception as error:
             self.log(
-                f"Collecte interrompue : {type(error).__name__}. Arret supervise de l'agent."
+                f"Collection stopped: {type(error).__name__}. Shutting down the agent safely."
             )
             raise
 
@@ -324,22 +324,22 @@ class AgentRuntime:
         )
         self.event(
             "controls.paused",
-            "Commandes 3DS suspendues"
-            + ("" if seconds is None else f" pour {seconds // 60} min"),
+            "3DS controls paused"
+            + ("" if seconds is None else f" for {seconds // 60} min"),
         )
 
     def resume_controls(self) -> None:
         if self._controls_paused_until is None:
             return
         self._controls_paused_until = None
-        self.event("controls.resumed", "Commandes 3DS reactivees")
+        self.event("controls.resumed", "3DS controls resumed")
 
     def expire_controls_pause(self) -> bool:
         until = self._controls_paused_until
         if until is None or math.isinf(until) or until > time.monotonic():
             return False
         self._controls_paused_until = None
-        self.event("controls.resumed", "Commandes 3DS reactivees automatiquement")
+        self.event("controls.resumed", "3DS controls resumed automatically")
         return True
 
     async def close(self) -> None:

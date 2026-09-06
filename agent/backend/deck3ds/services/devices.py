@@ -233,5 +233,5 @@ class DeviceService:
                 self._devices[device_id] = removed
                 raise
         await self._disconnect(device_id)
-        self._log(f"Console appairee revoquee: {removed.name}")
+        self._log(f"Paired console revoked: {removed.name}")
         return {"revoked": True}
