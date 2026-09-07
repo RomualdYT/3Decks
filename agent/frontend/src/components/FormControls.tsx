@@ -58,7 +58,7 @@ export function SelectControl({ label, value, choices, onChange, description }: 
         <Select.Indicator />
       </Select.Trigger>
       {description && <Description>{description}</Description>}
-      <Select.Popover className="ui-popover">
+      <Select.Popover className="ui-popover" maxHeight={360}>
         <ListBox>
           {choices.map((choice) => (
             <ListBox.Item id={choice.id} key={choice.id} textValue={choice.label}>
@@ -100,7 +100,7 @@ export function ComboControl({ label, value, choices, onChange, description, pla
         <ComboBox.Trigger />
       </ComboBox.InputGroup>
       {description && <Description>{description}</Description>}
-      <ComboBox.Popover className="ui-popover">
+      <ComboBox.Popover className="ui-popover" maxHeight={360}>
         <ListBox>
           {unique.map((choice) => <ListBox.Item id={choice} key={choice} textValue={choice}><DeckIcon name="app" size={18} /><span>{choice}</span></ListBox.Item>)}
         </ListBox>

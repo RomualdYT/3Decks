@@ -151,7 +151,9 @@
 .ui-rich-select [data-slot="select-value"] .choice-copy strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ui-rich-select [data-slot="select-value"] .choice-copy small { display: -webkit-box; line-height: 1.3; margin-top: 2px; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .ui-field:focus-within > [data-slot="input"], .ui-field:focus-within [data-slot="combo-box-input-group"], .ui-field:focus-within [data-slot="number-field-group"], .ui-field:focus-within [data-slot="select-trigger"] { border-color: rgba(102,203,16,.7); box-shadow: 0 0 0 3px rgba(102,203,16,.1); }
-.ui-popover, [data-slot="select-popover"], [data-slot="combo-box-popover"] { background: var(--surface-overlay) !important; border: 1px solid var(--border-strong); border-radius: 13px; box-shadow: var(--shadow); max-height: min(360px, var(--available-height)) !important; min-width: var(--trigger-width); overflow-y: auto; padding: 6px; z-index: 220; }
+/* Let React Aria's inline max-height shrink the menu to the available space.
+   An !important rule using an undefined variable disables that measurement. */
+.ui-popover, [data-slot="select-popover"], [data-slot="combo-box-popover"] { background: var(--surface-overlay) !important; border: 1px solid var(--border-strong); border-radius: 13px; box-shadow: var(--shadow); max-height: min(360px, calc(100dvh - 24px)); min-width: var(--trigger-width); overflow-y: auto; overscroll-behavior: contain; padding: 6px; z-index: 220; }
 .ui-popover [data-slot="list-box-item"], [data-slot="select-popover"] [data-slot="list-box-item"], [data-slot="combo-box-popover"] [data-slot="list-box-item"] { align-items: center; border-radius: 9px; cursor: pointer; display: flex; gap: 9px; min-height: 40px; padding: 7px 9px; }
 [data-slot="list-box-item"][data-focused="true"], [data-slot="list-box-item"][data-selected="true"] { background: var(--accent-soft); color: #eaffd9; }
 .choice-icon { align-items: center; background: rgba(255,255,255,.05); border-radius: 7px; color: var(--accent); display: flex; height: 29px; justify-content: center; width: 29px; }
