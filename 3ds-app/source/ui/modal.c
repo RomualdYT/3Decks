@@ -577,6 +577,12 @@ void modal_buttons(Modal *modal, App *app, u32 pressed)
 		}
 	}
 
+	if (pressed & (KEY_ZL | KEY_ZR)) {
+		const int delta = (pressed & KEY_ZR) ? step : -step;
+		set_row_value(modal, MODAL_ROW_SYSTEM, modal->system_volume + delta);
+		flush(modal, app);
+	}
+
 	if (pressed & KEY_A) {
 		if (modal->row == MODAL_ROW_OUTPUT) {
 			app_press_action(app, "audio_output.cycle");

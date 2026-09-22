@@ -17,7 +17,13 @@ from .ports import AgentPort
 # contourner une page configurée. Étendre le catalogue des actions ne doit
 # jamais étendre implicitement cette frontière réseau.
 DIRECT_ACTIONS = frozenset(
-    {"audio_output.cycle", "volume.mute_toggle", "mic.mute_toggle"}
+    {
+        "audio_output.cycle",
+        "volume.mute_toggle",
+        "mic.mute_toggle",
+        "volume.up",
+        "volume.down",
+    }
 )
 
 

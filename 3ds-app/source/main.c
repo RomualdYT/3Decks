@@ -425,6 +425,25 @@ static void handle_input(App *app)
 		app_cycle_page(app, 1);
 	}
 
+	if (down & KEY_ZL) {
+		if (app->link == LINK_ONLINE) {
+			app_press_action(app, "volume.down");
+			sound_play(SOUND_TAP);
+		} else {
+			sound_play(SOUND_ERROR);
+			app_notify(app, tr(STR_PC_DISCONNECTED), true);
+		}
+	}
+	if (down & KEY_ZR) {
+		if (app->link == LINK_ONLINE) {
+			app_press_action(app, "volume.up");
+			sound_play(SOUND_TAP);
+		} else {
+			sound_play(SOUND_ERROR);
+			app_notify(app, tr(STR_PC_DISCONNECTED), true);
+		}
+	}
+
 	handle_grid_controls(app, down);
 	request_config(app, down);
 }

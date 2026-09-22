@@ -68,7 +68,7 @@ One absolute five-second deadline covers the entire handshake, including fragmen
 
 Mutation IDs must be nonnegative integers increasing across both press/value requests within a TCP session. Duplicate/older IDs are rejected, preventing duplicate effects in that session. The counter resets with the connection; this is not cryptographic replay protection. A paused agent rejects mutations while keeping state/connection alive.
 
-The reserved `__direct` page accepts only `audio_output.cycle`, `volume.mute_toggle` and `mic.mute_toggle`. Other actions resolve from configured identifiers. The dynamic editor catalog describes supported action arguments; adding an action does not extend the direct network allow-list.
+The reserved `__direct` page accepts only `audio_output.cycle`, `volume.mute_toggle`, `mic.mute_toggle`, `volume.up` and `volume.down`. Other actions resolve from configured identifiers. The dynamic editor catalog describes supported action arguments; adding an action does not extend the direct network allow-list.
 
 ## Agent responses
 

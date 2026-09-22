@@ -41,19 +41,23 @@ class TestDirectAction(unittest.IsolatedAsyncioTestCase):
 
     async def test_action_de_la_liste_blanche_acceptee(self):
         server = self._server()
-        client = self._FakeClient()
-
-        cible = await server._resolve_target(
-            client, 1, "__direct", "audio_output.cycle"
-        )
-
-        self.assertIsNotNone(cible)
-        _, action = cible
-        self.assertEqual(action.kind, "audio_output.cycle")
+        for action in (
+            "audio_output.cycle",
+            "volume.mute_toggle",
+            "mic.mute_toggle",
+            "volume.up",
+            "volume.down",
+        ):
+            with self.subTest(action=action):
+                client = self._FakeClient()
+                cible = await server._resolve_target(client, 1, "__direct", action)
+                self.assertIsNotNone(cible)
+                _, act = cible
+                self.assertEqual(act.kind, action)
 
     async def test_action_connue_mais_absente_des_panneaux_est_refusee(self):
         server = self._server()
-        for action in ("system.lock", "mic.unmute", "obs.record.toggle", "volume.up"):
+        for action in ("system.lock", "mic.unmute", "obs.record.toggle", "media.play_pause"):
             with self.subTest(action=action):
                 client = self._FakeClient()
                 cible = await server._resolve_target(client, 1, "__direct", action)
