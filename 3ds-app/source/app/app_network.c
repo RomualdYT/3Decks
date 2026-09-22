@@ -14,6 +14,7 @@
 
 #include "app_network.h"
 
+#include <3ds.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -56,11 +57,52 @@ static void remember_network_error(App *app, const char *raw)
 	snprintf(app->link_error, sizeof(app->link_error), "%s", friendly);
 }
 
+static const char *detect_device_model(void)
+{
+	static const char *s_device_model = NULL;
+	if (s_device_model != NULL) {
+		return s_device_model;
+	}
+
+	u8 model = 0;
+	if (R_SUCCEEDED(cfguInit())) {
+		const Result res = CFGU_GetSystemModel(&model);
+		cfguExit();
+		if (R_SUCCEEDED(res)) {
+			switch (model) {
+			case CFG_MODEL_3DS:
+				s_device_model = "3ds";
+				return s_device_model;
+			case CFG_MODEL_3DSXL:
+				s_device_model = "3ds_xl";
+				return s_device_model;
+			case CFG_MODEL_N3DS:
+				s_device_model = "new_3ds";
+				return s_device_model;
+			case CFG_MODEL_2DS:
+				s_device_model = "2ds";
+				return s_device_model;
+			case CFG_MODEL_N3DSXL:
+				s_device_model = "new_3ds_xl";
+				return s_device_model;
+			case CFG_MODEL_N2DSXL:
+				s_device_model = "new_2ds_xl";
+				return s_device_model;
+			default:
+				break;
+			}
+		}
+	}
+
+	s_device_model = "3ds";
+	return s_device_model;
+}
+
 static void send_hello(App *app)
 {
 	char payload[192];
 	const int written = protocol_encode_hello(
-	    payload, sizeof(payload), "new3dsxl", app->settings.token,
+	    payload, sizeof(payload), detect_device_model(), app->settings.token,
 	    app->pair_code, i18n_language() == LANG_FR ? "fr" : "en");
 	if (written > 0 && (size_t)written < sizeof(payload) &&
 	    net_send(payload, (size_t)written)) {

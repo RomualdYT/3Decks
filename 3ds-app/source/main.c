@@ -434,6 +434,13 @@ int main(int argc, char *argv[])
 	(void)argc;
 	(void)argv;
 
+	/*
+	 * Sur New 3DS / New 2DS, débloque la fréquence CPU à 804 MHz et le cache L2
+	 * pour assurer 60 FPS constants lors du rendu stéréoscopique double passe.
+	 * Sans effet sur consoles Old 3DS.
+	 */
+	osSetSpeedupEnable(true);
+
 	/* --- Initialisation graphique --- */
 	gfxInitDefault();
 	/*
@@ -607,12 +614,12 @@ int main(int argc, char *argv[])
 
 		/*
 		 * Intensité du relief : produit du curseur de la console et du réglage
-		 * de l'application. Une intensité nulle évite de dessiner la seconde
-		 * image, et donc son coût.
+		 * de l'application. En veille (dimmed), le relief est désactivé afin
+		 * d'éviter la seconde passe de rendu et d'économiser la batterie.
 		 */
 		const float slider = osGet3DSliderState();
 		const float depth_strength =
-		    s_app.settings.stereo ? slider : 0.0f;
+		    (!s_app.dimmed && s_app.settings.stereo) ? slider : 0.0f;
 		const bool stereo = depth_strength > 0.01f;
 
 		for (int eye = 0; eye < (stereo ? 2 : 1); eye++) {
@@ -649,6 +656,16 @@ int main(int argc, char *argv[])
 		}
 
 		C3D_FrameEnd(0);
+
+		/*
+		 * En veille (inactivité prolongée), on espace les images en attendant
+		 * une synchronisation verticale supplémentaire : cela ramène la boucle
+		 * à 30 images par seconde et réduit nettement la charge CPU/GPU
+		 * ainsi que l'échauffement et la consommation de la batterie.
+		 */
+		if (s_app.dimmed) {
+			gspWaitForVBlank();
+		}
 	}
 
 	/* --- Libération --- */

@@ -69,3 +69,20 @@ async def test_api_lists_and_revokes_device(agent, client):
     missing = await client.delete(f"/api/paired-devices/{device['id']}")
     assert missing.status_code == 404
     assert missing.json()["code"] == "device_not_found"
+
+
+async def test_device_model_friendly_names(tmp_path):
+    pool = WorkPool("test-models", workers=1)
+    service = DeviceService(tmp_path / "consoles.json", pool, lambda _id: None, lambda _m: None)
+    try:
+        _, d1 = await service.issue("new_3ds_xl")
+        assert d1["name"] == "New Nintendo 3DS XL"
+        _, d2 = await service.issue("2ds")
+        assert d2["name"] == "Nintendo 2DS"
+        _, d3 = await service.issue("new3dsxl")
+        assert d3["name"] == "New Nintendo 3DS XL"
+        _, d4 = await service.issue("3ds")
+        assert d4["name"] == "Nintendo 3DS"
+    finally:
+        await pool.close()
+

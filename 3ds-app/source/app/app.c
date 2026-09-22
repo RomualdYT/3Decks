@@ -249,14 +249,6 @@ void app_clear_focus(App *app)
 {
 	app->list_focus = -1;
 	app->grid_focus = -1;
-	app->battery_level = -1;
-
-	/*
-	 * Le service d'alimentation reste ouvert pendant toute la durée de vie de
-	 * l'application : l'ouvrir à chaque relevé coûterait plus que la lecture
-	 * elle-même.
-	 */
-	ptmuInit();
 }
 
 void app_move_grid_focus(App *app, int dx, int dy)

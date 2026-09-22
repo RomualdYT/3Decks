@@ -54,13 +54,24 @@ def _now() -> str:
     return datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
+DEVICE_MODEL_NAMES = {
+    "3ds": "Nintendo 3DS",
+    "3ds_xl": "Nintendo 3DS XL",
+    "new_3ds": "New Nintendo 3DS",
+    "new_3ds_xl": "New Nintendo 3DS XL",
+    "2ds": "Nintendo 2DS",
+    "new_2ds_xl": "New Nintendo 2DS XL",
+    "new3dsxl": "New Nintendo 3DS XL",
+}
+
+
 def _device_name(value: object) -> str:
     if not isinstance(value, str):
         return "Console 3DS"
     candidate = " ".join(value.strip().split())
     if not candidate or any(ord(char) < 32 or ord(char) == 127 for char in candidate):
         return "Console 3DS"
-    return candidate[:64]
+    return DEVICE_MODEL_NAMES.get(candidate.lower(), candidate[:64])
 
 
 def _secret_hash(secret: str) -> str:
