@@ -18,6 +18,7 @@
 
 #include <3ds.h>
 #include <citro2d.h>
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -293,8 +294,14 @@ static void handle_list_controls(App *app, u32 down)
 
 	circlePosition circle;
 	hidCircleRead(&circle);
+	circlePosition cstick;
+	hidCstickRead(&cstick);
 
-	const float value = (float)circle.dy;
+	/* Sélectionne l'axe vertical le plus incliné entre Circle Pad et C-Stick */
+	const float value = (fabsf((float)cstick.dy) > fabsf((float)circle.dy))
+	                        ? (float)cstick.dy
+	                        : (float)circle.dy;
+
 	if (value > CIRCLE_DEAD_ZONE || value < -CIRCLE_DEAD_ZONE) {
 		const float amount =
 		    (value - (value > 0.0f ? CIRCLE_DEAD_ZONE : -CIRCLE_DEAD_ZONE)) /
@@ -302,7 +309,7 @@ static void handle_list_controls(App *app, u32 down)
 		const float speed =
 		    amount * amount * amount * LIST_SCROLL_SPEED;
 
-		/* Le pavé pointé vers le haut fait remonter la liste. */
+		/* Le pavé ou le C-Stick pointé vers le haut fait remonter la liste. */
 		app_scroll_list(app, -speed * FRAME_TIME, max_scroll);
 		app_touch_activity(app);
 	}
@@ -360,13 +367,6 @@ static void handle_grid_controls(App *app, u32 down)
 
 	if (down & KEY_B) {
 		app_clear_focus(app);
-	}
-
-	if (down & KEY_X) {
-		app_press_button(app, 2, false);
-	}
-	if (down & KEY_Y) {
-		app_press_button(app, 3, false);
 	}
 }
 

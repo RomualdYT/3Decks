@@ -4,6 +4,7 @@ import type { AgentState, Locale } from "../app/types";
 import { ConsoleConnectionIcon } from "./BrandIcons";
 import { DeckIcon } from "./DeckIcon";
 import { Decky, useDeckyPreference } from "./Decky";
+import { formatDeviceName } from "../utils/devices";
 
 interface Props {
   status: AgentState | null;
@@ -39,7 +40,7 @@ export function ConsoleStatusBadge({ status, locale, onOpenSettings }: Props) {
                 <p>{connected ? (fr ? "Decky a retrouvé ta console." : "Decky found your console.") : (fr ? "Decky t’accompagne. Les étapes sont juste en dessous." : "Decky is here to help. Follow the steps below.")}</p>
               </div></div>}
               {connected ? (
-                <div className="connected-list">{status?.clients.map((client) => <div key={client.id}><span className="status-pulse" /><div><strong>Nintendo 3DS</strong><small>{client.address}</small></div><span className="connected-label">{fr ? "En ligne" : "Online"}</span></div>)}</div>
+                <div className="connected-list">{status?.clients.map((client) => <div key={client.id}><span className="status-pulse" /><div><strong>{formatDeviceName(client.name)}</strong><small>{client.address}</small></div><span className="connected-label">{fr ? "En ligne" : "Online"}</span></div>)}</div>
               ) : (
                 <ol className="connection-steps">
                   <li><span>1</span><div><strong>{fr ? "Laissez cet agent ouvert" : "Keep this agent open"}</strong><p>{fr ? "Votre ordinateur et votre console doivent utiliser le même Wi-Fi." : "Your computer and console must use the same Wi-Fi."}</p></div></li>

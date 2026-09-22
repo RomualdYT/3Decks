@@ -5,8 +5,9 @@ import type { AgentState, DeckConfig, FeatureSpec, Locale, Schema } from "../app
 import type { CopyKey } from "../i18n/copy";
 import { DeckIcon } from "../components/DeckIcon";
 import { DeckySettings } from "../components/DeckySettings";
-import { AppleMusicIcon, SpotifyIcon } from "../components/BrandIcons";
+import { AppleMusicIcon, ConsoleConnectionIcon, SpotifyIcon } from "../components/BrandIcons";
 import { NumberControl, TextControl } from "../components/FormControls";
+import { formatDeviceName } from "../utils/devices";
 
 type Section = "connection" | "features" | "appearance" | "obs" | "advanced";
 
@@ -96,7 +97,7 @@ function PairedDevices({ devices, locale }: { devices: AgentState["paired_device
       .finally(() => setRevoking(null));
   };
   return <section className="settings-card"><div className="setting-row"><div className="setting-icon"><DeckIcon name="lock" /></div><div><h3>{locale === "fr" ? "Consoles autorisées" : "Authorized consoles"}</h3><p>{locale === "fr" ? "Chaque console utilise désormais un secret distinct, révocable sans déconnecter les autres." : "Each console now uses a separate credential that can be revoked independently."}</p></div></div>
-    {visible.length === 0 ? <p className="paired-device-empty">{locale === "fr" ? "Aucune console appairée individuellement." : "No individually paired console yet."}</p> : <div className="paired-device-list">{visible.map((device) => <div className="paired-device-row" key={device.id}><div><strong>{device.name}</strong><small>{locale === "fr" ? `Dernière connexion : ${new Date(device.last_seen).toLocaleString("fr-FR")}` : `Last seen: ${new Date(device.last_seen).toLocaleString("en-US")}`}</small></div><Button size="sm" variant="outline" isDisabled={revoking === device.id} onPress={() => revoke(device)}>{revoking === device.id ? (locale === "fr" ? "Révocation…" : "Revoking…") : (locale === "fr" ? "Révoquer" : "Revoke")}</Button></div>)}</div>}
+    {visible.length === 0 ? <p className="paired-device-empty">{locale === "fr" ? "Aucune console appairée individuellement." : "No individually paired console yet."}</p> : <div className="paired-device-list">{visible.map((device) => <div className="paired-device-row" key={device.id}><div style={{ display: "flex", alignItems: "center", gap: "12px" }}><ConsoleConnectionIcon connected size={24} /><div><strong>{formatDeviceName(device.name)}</strong><small>{locale === "fr" ? `Dernière connexion : ${new Date(device.last_seen).toLocaleString("fr-FR")}` : `Last seen: ${new Date(device.last_seen).toLocaleString("en-US")}`}</small></div></div><Button size="sm" variant="outline" isDisabled={revoking === device.id} onPress={() => revoke(device)}>{revoking === device.id ? (locale === "fr" ? "Révocation…" : "Revoking…") : (locale === "fr" ? "Révoquer" : "Revoke")}</Button></div>)}</div>}
   </section>;
 }
 

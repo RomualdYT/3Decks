@@ -25,3 +25,11 @@ static inline void cfguExit(void) {}
 static inline Result CFGU_GetSystemModel(u8 *model) { (void)model; return -1; }
 static inline Result osSetSpeedupEnable(bool enable) { (void)enable; return 0; }
 static inline void gspWaitForVBlank(void) {}
+
+typedef int16_t s16;
+typedef struct {
+	s16 dx;
+	s16 dy;
+} circlePosition;
+static inline void hidCircleRead(circlePosition *pos) { if (pos) { pos->dx = 0; pos->dy = 0; } }
+static inline void hidCstickRead(circlePosition *pos) { if (pos) { pos->dx = 0; pos->dy = 0; } }
