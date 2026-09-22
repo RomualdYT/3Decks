@@ -122,7 +122,7 @@ def _save(path: Path, devices: dict[str, _Device]) -> None:
         except OSError:
             # Windows ACLs are authoritative; chmod is best-effort there.
             pass
-        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+        with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as stream:
             stream.write(text)
             stream.flush()
             os.fsync(stream.fileno())

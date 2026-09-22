@@ -1,4 +1,5 @@
 import json
+import sys
 import zipfile
 from pathlib import Path
 
@@ -46,7 +47,8 @@ def test_release_assets_are_immutable_verified_and_user_facing(tmp_path):
     assert manifest["wheel"] == {"name": wheel.name, "sha256": sha256(wheel)}
     assert json.loads((output / "release.json").read_text())["tag"] == "v1.2.3"
     assert (output / "3decks.ico").read_bytes()[:6] == b"\0\0\1\0\1\0"
-    assert (output / "install-3decks-macos.sh").stat().st_mode & 0o111
+    if sys.platform != "win32":
+        assert (output / "install-3decks-macos.sh").stat().st_mode & 0o111
 
     for name in ("install-3decks-macos.sh", "install-3decks-windows.ps1"):
         installer = (output / name).read_text(encoding="utf-8")

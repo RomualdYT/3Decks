@@ -20,7 +20,7 @@ from .translations import translate
 
 class PystrayTray:
     def __init__(self, actions: TrayActions, language: str) -> None:
-        import pystray  # type: ignore[import-untyped]
+        import pystray  # type: ignore[import-untyped,import-not-found,unused-ignore]
 
         self._pystray = pystray
         self.actions = actions

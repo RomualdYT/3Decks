@@ -113,7 +113,7 @@ jobs:
         run: uv run --locked pytest --cov --cov-report=term-missing --cov-report=xml
       - name: Contracts, services and real transports
         if: "!(runner.os == 'Linux' && matrix.python == '3.12')"
-        run: uv run --locked pytest -q
+        run: uv run --locked pytest --tb=short
 
   package:
     name: Package and qualify distribution

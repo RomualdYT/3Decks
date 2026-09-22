@@ -24,8 +24,9 @@ class FrontendFiles(StaticFiles):
         if target != self.root and self.root not in target.parents:
             raise HTTPException(403, "chemin refuse")
         response = await super().get_response(path, scope)
-        if path.startswith("assets/") and re.search(
-            r"-[A-Za-z0-9_-]{8,}\.(?:js|css|woff2?|png|svg)$", path
+        normalized_path = path.replace("\\", "/")
+        if normalized_path.startswith("assets/") and re.search(
+            r"-[A-Za-z0-9_-]{8,}\.(?:js|css|woff2?|png|svg)$", normalized_path
         ):
             response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
         else:

@@ -186,7 +186,10 @@ class Worker:
                 pass
             for stream in (process.stdin, process.stdout, process.stderr):
                 if stream:
-                    stream.close()
+                    try:
+                        stream.close()
+                    except OSError:
+                        pass
 
     def stop(self) -> None:
         """Best-effort cooperative shutdown; never depend on an untrusted hook."""

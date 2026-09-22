@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import stat
+import sys
 
 import pytest
 
@@ -25,7 +26,8 @@ async def test_credentials_are_hashed_persisted_and_individually_revocable(tmp_p
         stored = path.read_text(encoding="utf-8")
         assert credential not in stored
         assert credential.rsplit(".", 1)[1] not in stored
-        assert stat.S_IMODE(path.stat().st_mode) & 0o077 == 0
+        if sys.platform != "win32":
+            assert stat.S_IMODE(path.stat().st_mode) & 0o077 == 0
 
         reloaded = DeviceService(path, pool, disconnect, lambda _message: None)
         authenticated = await reloaded.authenticate(credential, "Console salon")

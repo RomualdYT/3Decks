@@ -38,13 +38,14 @@ class InstanceLock:
             self.directory.chmod(0o700)
         except OSError:
             pass
-        stream = self.lock_path.open("a+b")
-        stream.seek(0)
-        if stream.read(1) == b"":
-            stream.write(b"0")
-            stream.flush()
-        stream.seek(0)
+        stream = None
         try:
+            stream = self.lock_path.open("a+b")
+            stream.seek(0)
+            if stream.read(1) == b"":
+                stream.write(b"0")
+                stream.flush()
+            stream.seek(0)
             if sys.platform in {"win32", "cygwin"}:
                 import msvcrt
 
@@ -55,7 +56,8 @@ class InstanceLock:
 
                 fcntl.flock(stream.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
         except OSError:
-            stream.close()
+            if stream is not None and not stream.closed:
+                stream.close()
             return False
         self._stream = stream
         self._identity = secrets.token_hex(16)

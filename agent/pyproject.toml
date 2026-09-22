@@ -69,6 +69,10 @@ strict = true
 files = ["backend/deck3ds/api", "backend/deck3ds/services", "backend/deck3ds/runtime", "backend/deck3ds/desktop"]
 follow_imports = "silent"
 
+[[tool.mypy.overrides]]
+module = "pystray.*"
+ignore_missing_imports = true
+
 [tool.ruff]
 target-version = "py312"
 
