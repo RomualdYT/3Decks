@@ -30,6 +30,8 @@ class Worker:
         if self.manifest["runtime"] == "python":
             command = [
                 sys.executable,
+                "-X",
+                "utf8",
                 "-u",
                 "-B",
                 "-c",
@@ -46,6 +48,8 @@ class Worker:
         environment["PYTHONPATH"] = sdk_root
         environment["PYTHONDONTWRITEBYTECODE"] = "1"
         environment["PYTHONUNBUFFERED"] = "1"
+        environment["PYTHONUTF8"] = "1"
+        environment["PYTHONIOENCODING"] = "utf-8"
         try:
             self.process = subprocess.Popen(
                 command,

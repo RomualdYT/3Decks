@@ -88,6 +88,11 @@ class Extension:
         return handler
 
     def serve(self) -> None:
+        try:
+            sys.stdin.reconfigure(encoding="utf-8", errors="replace")
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace", newline="\n")
+        except AttributeError:
+            pass
         output = sys.stdout
         context = None
         with contextlib.redirect_stdout(sys.stderr):
