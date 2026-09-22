@@ -10,12 +10,14 @@ permissions:
 
 jobs:
   qualification:
+    name: Full qualification suite
     uses: ./.github/workflows/quality.yml
 
   agent:
+    name: Agent release assets and launchers
     needs: qualification
-    name: Agent and launchers
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: agent
@@ -24,22 +26,10 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+      - uses: actions/download-artifact@v8
         with:
-          version: "0.10.12"
-      - uses: actions/setup-node@v6
-        with:
-          node-version: "24"
-          package-manager-cache: false
-      - run: npm install --global pnpm@11.19.0
-      - run: uv sync --locked
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm typecheck
-      - run: pnpm test:frontend
-      - run: pnpm build
-      - run: uv build
-      - name: Qualify the exact wheel outside the checkout
-        run: uv run --locked python tools/qualify_wheel.py
+          name: python-distribution
+          path: agent/dist
       - name: Render immutable launchers
         shell: bash
         env:
@@ -48,7 +38,7 @@ jobs:
         run: |
           wheel="$(find dist -maxdepth 1 -name 'deck3ds-*.whl' -print -quit)"
           source_archive="$(find dist -maxdepth 1 -name 'deck3ds-*.tar.gz' -print -quit)"
-          uv run --locked python tools/release_assets.py \
+          python tools/release_assets.py \
             --wheel "$wheel" \
             --source-archive "$source_archive" \
             --output release \
@@ -63,9 +53,22 @@ jobs:
 
   console:
     name: Nintendo 3DS homebrew
+    needs: qualification
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Build and cache 3DS packaging container
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: packaging/3ds/Dockerfile
+          tags: 3decks-console-packaging:local
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
       - name: Encode the console title version
         env:
           RELEASE_TAG: ${{ github.ref_name }}
@@ -83,6 +86,7 @@ jobs:
     name: Publish GitHub Release
     needs: [agent, console]
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: write
     steps:
@@ -98,7 +102,9 @@ jobs:
         run: |
           rm -f SHA256SUMS.txt
           for file in *; do
-            sha256sum "$file" >> SHA256SUMS.txt
+            if [ -f "$file" ] && [ "$file" != "SHA256SUMS.txt" ]; then
+              sha256sum "$file" >> SHA256SUMS.txt
+            fi
           done
       - name: Create or update the release
         env:

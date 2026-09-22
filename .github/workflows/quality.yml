@@ -3,18 +3,23 @@ name: Quality
 on:
   workflow_call:
   push:
+    branches: [main]
+    tags-ignore: ["v*"]
   pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
 
 jobs:
-  frontend:
-    name: Frontend and distribution
+  lint:
+    name: Code standards, contracts and documentation
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: agent
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
@@ -23,51 +28,55 @@ jobs:
       - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
           version: "0.10.12"
+          enable-cache: true
+          cache-dependency-glob: "agent/uv.lock"
+      - name: Check the public example for credentials and personal paths
+        run: python agent/tools/audit_public_config.py
+      - name: Check documentation links
+        run: |
+          python tools/check_docs.py
+          python -m unittest discover -s tools -p test_check_docs.py
+      - name: Verify OpenAPI contract and static Python quality
+        working-directory: agent
+        run: |
+          uv sync --locked
+          uv run --locked python -m deck3ds.api.export --check ../docs/api/openapi.json
+          uv run --locked ruff check backend/deck3ds deck3ds tests tools
+          uv run --locked mypy
+
+  frontend:
+    name: Frontend quality and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: agent
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.19.0
+          run_install: false
       - uses: actions/setup-node@v6
         with:
           node-version: "24"
-          package-manager-cache: false
-      - run: npm install --global pnpm@11.19.0
-      - run: uv sync --locked
-      - name: Check the public example for credentials and personal paths
-        run: uv run --locked python tools/audit_public_config.py
-      - name: Check documentation links
-        run: |
-          uv run --locked python ../tools/check_docs.py
-          uv run --locked python -m unittest discover -s ../tools -p test_check_docs.py
+          cache: "pnpm"
+          cache-dependency-path: agent/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
-      - name: Verify OpenAPI and generated TypeScript
-        run: |
-          uv run --locked python -m deck3ds.api.export --check ../docs/api/openapi.json
-          pnpm api:check
-      - run: pnpm typecheck
-      - run: pnpm test:frontend
-      - run: pnpm build
-      - name: Check compiled modules
+      - name: Verify generated TypeScript contract
+        run: pnpm api:check
+      - name: TypeScript check
+        run: pnpm typecheck
+      - name: Frontend unit tests
+        run: pnpm test:frontend
+      - name: Build frontend assets
+        run: pnpm build
+      - name: Check compiled modules syntax
         shell: bash
         run: |
           for file in backend/deck3ds/api/static/assets/*.js; do
             node --input-type=module --check < "$file"
           done
-      - run: uv build
-      - name: Audit and install wheel outside checkout
-        run: uv run --locked python tools/qualify_wheel.py
-      - name: Validate release launchers
-        shell: bash
-        run: |
-          version="$(uv run --locked deck3ds --version | awk '{print $2}')"
-          wheel="$(find dist -maxdepth 1 -name 'deck3ds-*.whl' -print -quit)"
-          uv run --locked python tools/release_assets.py \
-            --wheel "$wheel" \
-            --output build/release-smoke \
-            --repository RomualdYT/3Decks \
-            --tag "v$version"
-          bash -n build/release-smoke/install-3decks-macos.sh
-      - uses: actions/upload-artifact@v7
-        with:
-          name: python-distribution
-          path: agent/dist/*
-          if-no-files-found: error
       - uses: actions/upload-artifact@v7
         with:
           name: frontend
@@ -76,8 +85,8 @@ jobs:
 
   agent:
     name: Agent (${{ matrix.os }}, Python ${{ matrix.python }})
-    needs: frontend
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -96,23 +105,83 @@ jobs:
       - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
           version: "0.10.12"
-      - uses: actions/download-artifact@v8
+          enable-cache: true
+          cache-dependency-glob: "agent/uv.lock"
+      - run: uv sync --locked
+      - name: Contracts, services and real transports (with coverage)
+        if: runner.os == 'Linux' && matrix.python == '3.12'
+        run: uv run --locked pytest --cov --cov-report=term-missing --cov-report=xml
+      - name: Contracts, services and real transports
+        if: "!(runner.os == 'Linux' && matrix.python == '3.12')"
+        run: uv run --locked pytest -q
+
+  package:
+    name: Package and qualify distribution
+    needs: [lint, frontend, agent]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: agent
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
         with:
-          name: python-distribution
-          path: agent/dist
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.10.12"
+          enable-cache: true
+          cache-dependency-glob: "agent/uv.lock"
       - uses: actions/download-artifact@v8
         with:
           name: frontend
           path: agent/backend/deck3ds/api/static
       - run: uv sync --locked
-      - run: uv run --locked ruff check backend/deck3ds deck3ds tests tools
-      - run: uv run --locked mypy
-      - name: Contracts, services and real transports
-        run: uv run --locked pytest --cov --cov-report=term-missing --cov-report=xml
-      - name: Installed package smoke test (no Node or source imports)
+      - name: Build Python wheel and source archive
+        run: uv build
+      - name: Audit and install wheel outside checkout
         run: uv run --locked python tools/qualify_wheel.py
+      - name: Validate release launchers
+        shell: bash
+        run: |
+          version="$(uv run --locked deck3ds --version | awk '{print $2}')"
+          wheel="$(find dist -maxdepth 1 -name 'deck3ds-*.whl' -print -quit)"
+          uv run --locked python tools/release_assets.py \
+            --wheel "$wheel" \
+            --output build/release-smoke \
+            --repository RomualdYT/3Decks \
+            --tag "v$version"
+          bash -n build/release-smoke/install-3decks-macos.sh
+      - uses: actions/upload-artifact@v7
+        with:
+          name: python-distribution
+          path: agent/dist/*
+          if-no-files-found: error
+
+  windows-smoke:
+    name: Windows MSIX smoke package
+    needs: package
+    runs-on: windows-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: agent
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.10.12"
+          enable-cache: true
+          cache-dependency-glob: "agent/uv.lock"
+      - uses: actions/download-artifact@v8
+        with:
+          name: python-distribution
+          path: agent/dist
       - name: Parse the Windows launcher template
-        if: runner.os == 'Windows'
         shell: pwsh
         run: |
           foreach ($file in @(
@@ -129,7 +198,6 @@ jobs:
             if ($errors.Count) { throw ($errors | Out-String) }
           }
       - name: Build an unsigned MSIX smoke package
-        if: runner.os == 'Windows' && matrix.python == '3.12'
         shell: pwsh
         run: |
           $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
@@ -172,8 +240,20 @@ jobs:
   console:
     name: Nintendo 3DS build
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Build and cache 3DS packaging container
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: packaging/3ds/Dockerfile
+          tags: 3decks-console-packaging:local
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
       - name: Build with devkitPro
         run: ./build.sh all
       - name: Verify HOME artwork and packaging regression tests
