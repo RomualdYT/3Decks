@@ -62,11 +62,13 @@ export function EditorView({ config, schema, status, locale, scenes, apps, t, up
     setPickerOpen(false);
   };
 
-  const addPage = () => update((draft) => {
-    if (draft.pages.length >= schema.limits.pages) return;
-    draft.pages.push(newPage(draft));
-    setPageIndex(draft.pages.length - 1); setSelectedSlot(null);
-  });
+  const addPage = () => {
+    if (config.pages.length >= schema.limits.pages) return;
+    const nextIndex = config.pages.length;
+    update((draft) => { draft.pages.push(newPage(draft)); });
+    setPageIndex(nextIndex);
+    setSelectedSlot(null);
+  };
 
   const deletePageAt = (index: number) => {
     update((draft) => { draft.pages.splice(index, 1); });

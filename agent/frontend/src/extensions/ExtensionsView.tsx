@@ -21,6 +21,7 @@ export function ExtensionsView({
   const [confirmation, setConfirmation] =
     useState<ExtensionConfirmation | null>(null);
   const fr = locale === "fr";
+  const nativeDesktop = Boolean(window.decksDesktopControls);
   const refresh = useCallback(async () => {
     try {
       setCatalog(await agentApi.extensions());
@@ -147,20 +148,27 @@ export function ExtensionsView({
             {fr ? "Créez quelque chose d’unique" : "Build something unique"}
           </h2>
           <p>
-            {fr
-              ? "Un manifeste, un programme et le protocole JSON. Python dispose d’un SDK ; les autres langages peuvent parler directement au protocole stdio."
-              : "A manifest, a program and JSON. Python has a SDK; other languages can implement the stdio protocol directly."}
+            {nativeDesktop
+              ? fr
+                ? "Créez un exécutable natif avec le SDK Rust. Chaque système et architecture possède son binaire ; l’application lance uniquement celui du paquet approuvé."
+                : "Build a native executable with the Rust SDK. Each OS and architecture has its own binary; the app only launches the approved package binary."
+              : fr
+                ? "Un manifeste, un programme et le protocole JSON. Python dispose d’un SDK ; les autres langages peuvent parler directement au protocole stdio."
+                : "A manifest, a program and JSON. Python has a SDK; other languages can implement the stdio protocol directly."}
           </p>
         </div>
         <div>
-          <code>
-            python -m deck3ds.extensions init my-extension --id
-            com.example.custom
-          </code>
+          <code>{nativeDesktop
+            ? "cargo build --release --manifest-path desktop-poc/extension-sdk/Cargo.toml --example counter"
+            : "python -m deck3ds.extensions init my-extension --id com.example.custom"}</code>
           <small>
-            {fr
-              ? "Depuis le dossier agent. Guide complet : docs/EXTENSIONS.md · Exemple : examples/extensions/focus-timer"
-              : "From the agent directory. Full guide: docs/EXTENSIONS.md · Example: examples/extensions/focus-timer"}
+            {nativeDesktop
+              ? fr
+                ? "Guide et exemple : desktop-poc/extension-sdk/README.md"
+                : "Guide and example: desktop-poc/extension-sdk/README.md"
+              : fr
+                ? "Depuis le dossier agent. Guide complet : docs/EXTENSIONS.md · Exemple : examples/extensions/focus-timer"
+                : "From the agent directory. Full guide: docs/EXTENSIONS.md · Example: examples/extensions/focus-timer"}
           </small>
         </div>
       </section>

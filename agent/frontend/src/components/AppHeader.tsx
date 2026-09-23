@@ -15,7 +15,7 @@ interface Props {
 
 export function AppHeader({ view, locale, status, t, onView, onLocale }: Props) {
   return (
-    <header className="app-header">
+    <header className="app-header" data-tauri-drag-region>
       <button className="brand" type="button" onClick={() => onView("editor")} aria-label="3Decks">
         <DeckyLogo />
         <span>3Decks</span>

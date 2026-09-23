@@ -1,10 +1,12 @@
 import { Button, Card, Disclosure, DisclosureGroup, Switch, toast } from "@heroui/react";
 import { useEffect, useState } from "react";
+import type { DesktopControls } from "../app/desktopControls";
 import { agentApi } from "../api/client";
 import type { AgentState, DeckConfig, FeatureSpec, Locale, Schema } from "../app/types";
 import type { CopyKey } from "../i18n/copy";
 import { DeckIcon } from "../components/DeckIcon";
 import { DeckySettings } from "../components/DeckySettings";
+import { Decky } from "../components/Decky";
 import { AppleMusicIcon, ConsoleConnectionIcon, SpotifyIcon } from "../components/BrandIcons";
 import { NumberControl, TextControl } from "../components/FormControls";
 import { formatDeviceName } from "../utils/devices";
@@ -33,12 +35,51 @@ interface Props {
 }
 
 export function SettingsView({ config, schema, status, locale, t, update, onLocale, scenes, onScenes }: Props) {
+  const native = import.meta.env.VITE_DECKS_DESKTOP === "1";
   const [section, setSection] = useState<Section>("connection");
   const [copied, setCopied] = useState(false);
   const [testing, setTesting] = useState(false);
   const [obsResult, setObsResult] = useState("");
   const [pairing, setPairing] = useState(status?.pairing ?? null);
   const [rotatingPairing, setRotatingPairing] = useState(false);
+  const [autostart, setAutostart] = useState<boolean | null>(null);
+  const [changingAutostart, setChangingAutostart] = useState(false);
+  const [updateCapability, setUpdateCapability] = useState<{ configured: boolean; version: string } | null>(null);
+  const [availableUpdate, setAvailableUpdate] = useState("");
+  const [checkingUpdates, setCheckingUpdates] = useState(false);
+  const [installingUpdate, setInstallingUpdate] = useState(false);
+  useEffect(() => {
+    if (!native) return;
+    void window.decksDesktopControls?.getAutostart()
+      .then(setAutostart)
+      .catch((reason: Error) => toast.danger(reason.message));
+    void window.decksDesktopControls?.getUpdateCapability().then(setUpdateCapability).catch(() => {});
+  }, [native]);
+  const changeAutostart = (enabled: boolean) => {
+    const controls: DesktopControls | undefined = window.decksDesktopControls;
+    if (!controls) return;
+    setChangingAutostart(true);
+    void controls.setAutostart(enabled)
+      .then(setAutostart)
+      .catch((reason: Error) => toast.danger(reason.message))
+      .finally(() => setChangingAutostart(false));
+  };
+  const checkUpdates = () => {
+    setCheckingUpdates(true);
+    void window.decksDesktopControls?.checkForUpdates()
+      .then((result) => {
+        setAvailableUpdate(result.available ? result.version : "");
+        if (!result.available) toast.success(locale === "fr" ? "3Decks est à jour" : "3Decks is up to date");
+      })
+      .catch((reason: Error) => toast.danger(reason.message))
+      .finally(() => setCheckingUpdates(false));
+  };
+  const installAvailableUpdate = () => {
+    setInstallingUpdate(true);
+    void window.decksDesktopControls?.installUpdate()
+      .catch((reason: Error) => toast.danger(reason.message))
+      .finally(() => setInstallingUpdate(false));
+  };
   useEffect(() => { setPairing(status?.pairing ?? null); }, [status?.pairing]);
   const address = status?.hints[0] ?? `127.0.0.1:${config.server.port}`;
   const portRange = schema.limits.port as number[];
@@ -60,7 +101,7 @@ export function SettingsView({ config, schema, status, locale, t, update, onLoca
           </section>
           <PairedDevices devices={status?.paired_devices ?? []} locale={locale} />
           <Card className="address-card manual-address-card" variant="secondary"><Card.Content><div><span className="field-label">{locale === "fr" ? "Configuration manuelle" : "Manual setup"}</span><code>{address}</code><small>{locale === "fr" ? "Adresse de secours si la découverte locale est bloquée par le réseau." : "Fallback address if local discovery is blocked by the network."}</small></div><Button variant="outline" onPress={() => { void navigator.clipboard.writeText(address); setCopied(true); toast.success(locale === "fr" ? "Adresse copiée" : "Address copied"); window.setTimeout(() => setCopied(false), 1600); }}><DeckIcon name="copy" size={16} />{copied ? t("copied") : t("copy")}</Button></Card.Content></Card>
-          <section className="settings-card"><div className="setting-row"><div className="setting-icon"><DeckIcon name="lock" /></div><div><h3>{t("security")}</h3><p>{t("tokenHelp")}</p></div><Switch aria-label={t("security")} isSelected={Boolean(config.server.token)} onChange={(enabled) => update((draft) => { draft.server.token = enabled ? tokenValue() : ""; })}><Switch.Content><Switch.Control><Switch.Thumb /></Switch.Control></Switch.Content></Switch></div><div className={`token-panel ${config.server.token ? "" : "token-empty"}`}><div><small>{locale === "fr" ? "Secret d’appairage" : "Pairing bootstrap secret"}</small>{config.server.token ? <code aria-label={locale === "fr" ? "Secret masqué" : "Secret hidden"}>••••••••••••</code> : <p>{locale === "fr" ? "Appairage ouvert. Activez la protection pour exiger le code affiché ci-dessus." : "Pairing is open. Enable protection to require the code shown above."}</p>}</div><div>{config.server.token ? <Button size="sm" variant="ghost" onPress={() => update((draft) => { draft.server.token = tokenValue(); })}>{locale === "fr" ? "Régénérer" : "Regenerate"}</Button> : <Button size="sm" variant="outline" onPress={() => update((draft) => { draft.server.token = tokenValue(); })}><DeckIcon name="lock" size={15} />{locale === "fr" ? "Activer et générer" : "Enable and generate"}</Button>}</div></div></section>
+          <section className="settings-card"><div className="setting-row"><div className="setting-icon"><DeckIcon name="lock" /></div><div><h3>{t("security")}</h3><p>{native ? (locale === "fr" ? "Chaque console utilise un jeton individuel après l’appairage par code." : "Each console receives an individual token after code pairing.") : t("tokenHelp")}</p></div>{native ? <span className="pairing-live">{locale === "fr" ? "ACTIF" : "ACTIVE"}</span> : <Switch aria-label={t("security")} isSelected={Boolean(config.server.token)} onChange={(enabled) => update((draft) => { draft.server.token = enabled ? tokenValue() : ""; })}><Switch.Content><Switch.Control><Switch.Thumb /></Switch.Control></Switch.Content></Switch>}</div>{native ? <div className="token-panel"><div><small>{locale === "fr" ? "Protection" : "Protection"}</small><p>{locale === "fr" ? "Le code est obligatoire pour une nouvelle console ; révoquez chaque accès séparément ci-dessus." : "A code is required for a new console; revoke each access separately above."}</p></div></div> : <div className={`token-panel ${config.server.token ? "" : "token-empty"}`}><div><small>{locale === "fr" ? "Secret d’appairage" : "Pairing bootstrap secret"}</small>{config.server.token ? <code aria-label={locale === "fr" ? "Secret masqué" : "Secret hidden"}>••••••••••••</code> : <p>{locale === "fr" ? "Appairage ouvert. Activez la protection pour exiger le code affiché ci-dessus." : "Pairing is open. Enable protection to require the code shown above."}</p>}</div><div>{config.server.token ? <Button size="sm" variant="ghost" onPress={() => update((draft) => { draft.server.token = tokenValue(); })}>{locale === "fr" ? "Régénérer" : "Regenerate"}</Button> : <Button size="sm" variant="outline" onPress={() => update((draft) => { draft.server.token = tokenValue(); })}><DeckIcon name="lock" size={15} />{locale === "fr" ? "Activer et générer" : "Enable and generate"}</Button>}</div></div>}</section>
         </div>}
         {section === "appearance" && <div className="settings-content"><SettingsHeading icon="language" title={t("appearance")} help={t("detailsHelp")} />
           <DeckySettings locale={locale} />
@@ -75,9 +116,12 @@ export function SettingsView({ config, schema, status, locale, t, update, onLoca
         </div>}
         {section === "advanced" && <div className="settings-content"><SettingsHeading icon="gear" title={t("advanced")} help={locale === "fr" ? "Ces réglages influencent la communication entre votre ordinateur et la console." : "These settings affect communication between your computer and console."} />
           <DisclosureGroup className="advanced-settings-group" allowsMultipleExpanded defaultExpandedKeys={["network"]}><Disclosure id="network"><Disclosure.Heading><Disclosure.Trigger><span><DeckIcon name="wifi" />{locale === "fr" ? "Réseau de l’agent" : "Agent network"}</span><Disclosure.Indicator /></Disclosure.Trigger></Disclosure.Heading><Disclosure.Content><Disclosure.Body><p>{locale === "fr" ? "L’adresse d’écoute et le port utilisés par la 3DS. Les valeurs par défaut conviennent à la majorité des installations." : "The listen address and port used by the 3DS. Defaults suit most setups."}</p><div className="two-fields"><TextControl label={t("host")} value={config.server.host} onChange={(value) => update((draft) => { draft.server.host = value; })} /><NumberControl label={t("port")} value={config.server.port} min={portRange[0]} max={portRange[1]} onChange={(value) => update((draft) => { draft.server.port = value; })} /></div></Disclosure.Body></Disclosure.Content></Disclosure><Disclosure id="timing"><Disclosure.Heading><Disclosure.Trigger><span><DeckIcon name="status" />{locale === "fr" ? "Fréquence et volume" : "Timing and volume"}</span><Disclosure.Indicator /></Disclosure.Trigger></Disclosure.Heading><Disclosure.Content><Disclosure.Body><p>{locale === "fr" ? "À modifier uniquement pour ajuster la réactivité ou l’incrément des actions de volume." : "Only change these to tune responsiveness or volume action increments."}</p><div className="two-fields"><NumberControl label={locale === "fr" ? "Intervalle de mise à jour" : "Update interval"} value={config.server.poll_interval} min={pollRange[0]} max={pollRange[1]} step={0.1} description={locale === "fr" ? "En secondes. Une valeur basse actualise plus souvent." : "In seconds. Lower values refresh more often."} onChange={(value) => update((draft) => { draft.server.poll_interval = value; })} /><NumberControl label={locale === "fr" ? "Pas de volume" : "Volume step"} value={config.server.volume_step} min={volumeRange[0]} max={volumeRange[1]} description={locale === "fr" ? "Variation appliquée par les boutons + et −." : "Change applied by + and − buttons."} onChange={(value) => update((draft) => { draft.server.volume_step = value; })} /></div></Disclosure.Body></Disclosure.Content></Disclosure></DisclosureGroup>
+          {native && <section className="settings-card"><div className="setting-row"><div className="setting-icon"><DeckIcon name="sparkle" /></div><div><h3>{locale === "fr" ? "Assistant de configuration" : "Setup assistant"}</h3><p>{locale === "fr" ? "Revoir les fonctions, les autorisations et la connexion de votre console." : "Review features, permissions and console pairing."}</p></div><Button variant="outline" onPress={() => window.dispatchEvent(new Event("decks-open-onboarding"))}>{locale === "fr" ? "Revoir les étapes" : "Review steps"}<DeckIcon name="next" size={16} /></Button></div></section>}
+          {native && <section className="settings-card"><div className="setting-row"><div className="setting-icon"><DeckIcon name="power" /></div><div><h3>{locale === "fr" ? "Démarrage avec la session" : "Launch at login"}</h3><p>{locale === "fr" ? "Lance le serveur en arrière-plan, dans la barre des menus, sans ouvrir l’éditeur." : "Start the server in the tray without opening the editor."}</p></div><Switch aria-label={locale === "fr" ? "Démarrage avec la session" : "Launch at login"} isSelected={autostart === true} isDisabled={autostart === null || changingAutostart} onChange={changeAutostart}><Switch.Content><Switch.Control><Switch.Thumb /></Switch.Control></Switch.Content></Switch></div></section>}
+          {native && <section className="settings-card"><div className="setting-row"><div className="setting-icon"><DeckIcon name="refresh" /></div><div><h3>{locale === "fr" ? "Mises à jour" : "Updates"}</h3><p>{updateCapability?.configured ? (locale === "fr" ? `Version ${updateCapability.version} · mises à jour signées via GitHub Releases.` : `Version ${updateCapability.version} · signed updates via GitHub Releases.`) : (locale === "fr" ? "La signature des mises à jour sera activée dans la distribution publique." : "Signed updates will be enabled in the public release.")}</p></div>{availableUpdate ? <Button variant="primary" isDisabled={installingUpdate} onPress={installAvailableUpdate}>{installingUpdate ? (locale === "fr" ? "Installation…" : "Installing…") : (locale === "fr" ? `Installer ${availableUpdate}` : `Install ${availableUpdate}`)}</Button> : <Button variant="outline" isDisabled={!updateCapability?.configured || checkingUpdates} onPress={checkUpdates}>{checkingUpdates ? (locale === "fr" ? "Recherche…" : "Checking…") : (locale === "fr" ? "Vérifier" : "Check")}</Button>}</div></section>}
         </div>}
       </main>
-      <aside className="settings-context"><div className="context-illustration"><img src="/3decks-logo.png" alt="" /><i /><i /><i /></div><h3>{section === "features" ? t("featureTitle") : t("settings")}</h3><p>{section === "features" ? t("setupPermission") : t("detailsHelp")}</p><div className="context-tip"><DeckIcon name="info" /><span>{locale === "fr" ? "Les changements prennent effet après enregistrement, sans relancer l’agent." : "Changes take effect after saving, without restarting the agent."}</span></div></aside>
+      <aside className="settings-context"><div className="context-illustration"><Decky mood="wave" size={92} /><i /><i /><i /></div><h3>{section === "features" ? t("featureTitle") : t("settings")}</h3><p>{section === "features" ? t("setupPermission") : t("detailsHelp")}</p><div className="context-tip"><DeckIcon name="info" /><span>{locale === "fr" ? "Les changements prennent effet après enregistrement, sans relancer l’agent." : "Changes take effect after saving, without restarting the agent."}</span></div></aside>
     </div>
   );
 }
@@ -97,7 +141,7 @@ function PairedDevices({ devices, locale }: { devices: AgentState["paired_device
       .finally(() => setRevoking(null));
   };
   return <section className="settings-card"><div className="setting-row"><div className="setting-icon"><DeckIcon name="lock" /></div><div><h3>{locale === "fr" ? "Consoles autorisées" : "Authorized consoles"}</h3><p>{locale === "fr" ? "Chaque console utilise désormais un secret distinct, révocable sans déconnecter les autres." : "Each console now uses a separate credential that can be revoked independently."}</p></div></div>
-    {visible.length === 0 ? <p className="paired-device-empty">{locale === "fr" ? "Aucune console appairée individuellement." : "No individually paired console yet."}</p> : <div className="paired-device-list">{visible.map((device) => <div className="paired-device-row" key={device.id}><div style={{ display: "flex", alignItems: "center", gap: "12px" }}><ConsoleConnectionIcon connected size={24} /><div><strong>{formatDeviceName(device.name)}</strong><small>{locale === "fr" ? `Dernière connexion : ${new Date(device.last_seen).toLocaleString("fr-FR")}` : `Last seen: ${new Date(device.last_seen).toLocaleString("en-US")}`}</small></div></div><Button size="sm" variant="outline" isDisabled={revoking === device.id} onPress={() => revoke(device)}>{revoking === device.id ? (locale === "fr" ? "Révocation…" : "Revoking…") : (locale === "fr" ? "Révoquer" : "Revoke")}</Button></div>)}</div>}
+    {visible.length === 0 ? <p className="paired-device-empty">{locale === "fr" ? "Aucune console appairée individuellement." : "No individually paired console yet."}</p> : <div className="paired-device-list">{visible.map((device) => <div className="paired-device-row" key={device.id}><div style={{ display: "flex", alignItems: "center", gap: "12px" }}><ConsoleConnectionIcon connected size={24} /><div><strong>{formatDeviceName(device.name)}</strong>{device.last_seen && <small>{locale === "fr" ? `Dernière connexion : ${new Date(device.last_seen).toLocaleString("fr-FR")}` : `Last seen: ${new Date(device.last_seen).toLocaleString("en-US")}`}</small>}</div></div><Button size="sm" variant="outline" isDisabled={revoking === device.id} onPress={() => revoke(device)}>{revoking === device.id ? (locale === "fr" ? "Révocation…" : "Revoking…") : (locale === "fr" ? "Révoquer" : "Revoke")}</Button></div>)}</div>}
   </section>;
 }
 
