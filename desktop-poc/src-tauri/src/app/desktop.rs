@@ -85,6 +85,7 @@ fn supported_action(kind: &str) -> bool {
         matches!(
             kind,
             "app.launch"
+                | "app.quit"
                 | "hotkey"
                 | "media.next"
                 | "media.play_pause"

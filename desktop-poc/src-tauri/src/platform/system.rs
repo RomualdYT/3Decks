@@ -176,7 +176,12 @@ async fn quit_app(target: &str) -> Result<&'static str, String> {
         super::macos::workspace::quit_app(target).await?;
         Ok("Application quit")
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "windows")]
+    {
+        super::win32::process::quit_app(target).await?;
+        Ok("Application close requested")
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     {
         Err("Application quit is not implemented on this platform yet".into())
     }
@@ -185,7 +190,7 @@ async fn quit_app(target: &str) -> Result<&'static str, String> {
 async fn lock_session() -> Result<&'static str, String> {
     #[cfg(target_os = "macos")]
     {
-        run_osascript("tell application \"System Events\" to keystroke \"q\" using {control down, command down}").await?;
+        super::macos::keyboard::send('q', vec!["control down", "command down"]).await?;
         Ok("Session locked")
     }
     #[cfg(target_os = "windows")]
@@ -366,26 +371,13 @@ async fn script_output(script: &str) -> Result<String, String> {
 
 #[cfg(target_os = "macos")]
 async fn active_player() -> Option<&'static str> {
-    for player in ["Spotify", "Music"] {
-        if script_output(&format!("application \"{player}\" is running"))
-            .await
-            .ok()
-            .as_deref()
-            == Some("true")
-        {
-            return Some(player);
-        }
-    }
-    None
+    super::macos::media::active_player().await
 }
 
 async fn media_command(command: &str) -> Result<&'static str, String> {
     #[cfg(target_os = "macos")]
     {
-        let player = active_player()
-            .await
-            .ok_or("No supported media player is running")?;
-        run_osascript(&format!("tell application \"{player}\" to {command}")).await?;
+        super::macos::media::command(command).await?;
         Ok("Media command sent")
     }
     #[cfg(target_os = "windows")]
@@ -404,16 +396,7 @@ async fn hotkey(keys: &str) -> Result<&'static str, String> {
     #[cfg(target_os = "macos")]
     {
         let (key, modifiers) = parse_hotkey(keys)?;
-        let quoted = format!("\"{}\"", key);
-        let script = if modifiers.is_empty() {
-            format!("tell application \"System Events\" to keystroke {quoted}")
-        } else {
-            format!(
-                "tell application \"System Events\" to keystroke {quoted} using {{{}}}",
-                modifiers.join(", ")
-            )
-        };
-        run_osascript(&script).await?;
+        super::macos::keyboard::send(key, modifiers).await?;
         Ok("Shortcut sent")
     }
     #[cfg(target_os = "windows")]

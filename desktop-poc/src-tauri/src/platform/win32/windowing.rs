@@ -10,7 +10,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
     IsIconic, IsWindowVisible, SetForegroundWindow, ShowWindow, GW_OWNER, SW_RESTORE,
 };
 
-fn process_name(pid: u32) -> Option<String> {
+pub(crate) fn process_name(pid: u32) -> Option<String> {
     let handle = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid) }.ok()?;
     let mut path = [0_u16; 1024];
     let mut length = path.len() as u32;

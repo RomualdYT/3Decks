@@ -3,4 +3,6 @@
 <plist version="1.0"><dict>
   <key>NSLocalNetworkUsageDescription</key>
   <string>3Decks communique avec votre console Nintendo 3DS sur le réseau local.</string>
+  <key>NSAppleEventsUsageDescription</key>
+  <string>3Decks contrôle la lecture et lit le morceau en cours dans Spotify et Musique lorsque vous activez les fonctions multimédia.</string>
 </dict></plist>
