@@ -44,14 +44,16 @@ backend Python ni l'application 3DS.
 - Première couche Windows native : volume et micro WASAPI, touches multimédia
   et raccourcis via `SendInput`, ouverture via `ShellExecuteW`, fenêtres via
   `EnumWindows`/`SetForegroundWindow` et verrouillage via `LockWorkStation`.
-  Les contrôles Windows demandent encore un essai réel.
+  et fermeture gracieuse des fenêtres par `WM_CLOSE`. Les contrôles Windows
+  demandent encore un essai réel : [plan de validation](docs/WINDOWS_TEST_PLAN.md).
 - `ping`/`pong`, `config.request`, validation des trames, limites de connexions.
 
 Ce n'est pas encore un remplacement de l'agent Python. CoreAudio pilote
 désormais l'audio système macOS et `NSWorkspace` ouvre les liens/fichiers et
-gère les applications. Les commandes Spotify/Music, les raccourcis et le
-verrouillage macOS utilisent encore AppleScript et peuvent demander une
-autorisation Automatisation ou Accessibilité. Windows annonce seulement les
+gère les applications. Les commandes Spotify/Music utilisent les Apple Events
+natifs ; les raccourcis et le verrouillage passent par Quartz. Métadonnées,
+volume de lecteur et pochettes utilisent encore AppleScript. Ces fonctions
+peuvent demander les autorisations Automatisation ou Accessibilité. Windows annonce seulement les
 actions intégrées dans son adaptateur ; Linux répond explicitement lorsque
 l'action est indisponible. Voir la [matrice des plateformes](PLATFORM_STATUS.md)
 avant d'évaluer la parité fonctionnelle.
