@@ -71,6 +71,7 @@ typedef struct {
 	float start_scroll;
 	/** Vrai dès que le doigt a suffisamment bougé pour être un glissement. */
 	bool dragging;
+	float seek_x;
 } TouchTracker;
 
 static TouchTracker s_touch;
@@ -136,6 +137,18 @@ static bool begin_touch(App *app)
 	hidTouchRead(&touch);
 
 	const Page *page = app_current_page(app);
+	if (page != NULL && page->dashboard == DASH_LYRICS &&
+	    app->state.media_seekable && app->state.media_duration > 0 &&
+	    touch.py >= 28 && touch.py < (u16)GRID_TOP &&
+	    touch.px >= (u16)GRID_MARGIN_X &&
+	    touch.px < (u16)(SCREEN_BOTTOM_W - GRID_MARGIN_X)) {
+		s_touch.active = true;
+		s_touch.slot = -2; /* curseur de lecture */
+		s_touch.entry = -1;
+		s_touch.dragging = true;
+		s_touch.seek_x = (float)touch.px;
+		return true;
+	}
 	const bool is_list = (page != NULL) && page->layout == LAYOUT_LIST;
 	const int entry =
 	    is_list ? ui_list_at(app, (float)touch.px, (float)touch.py) : -1;
@@ -249,6 +262,10 @@ static void update_grid_touch(App *app, u32 held)
 
 	touchPosition touch;
 	hidTouchRead(&touch);
+	if (s_touch.slot == -2) {
+		s_touch.seek_x = (float)touch.px;
+		return;
+	}
 
 	const int slot = ui_slot_at((float)touch.px, (float)touch.py);
 	if (slot != s_touch.slot) {
@@ -262,6 +279,22 @@ static void finish_touch(App *app, u32 up)
 {
 	if (!(up & KEY_TOUCH)) {
 		return;
+	}
+	if (s_touch.active && s_touch.slot == -2 && app->link == LINK_ONLINE) {
+		float ratio = (s_touch.seek_x - GRID_MARGIN_X) /
+		              (SCREEN_BOTTOM_W - GRID_MARGIN_X * 2.0f);
+		if (ratio < 0.0f) ratio = 0.0f;
+		if (ratio > 1.0f) ratio = 1.0f;
+		const int seconds = (int)(ratio * (float)app->state.media_duration);
+		char payload[128];
+		const int length = protocol_encode_value(payload, sizeof(payload),
+		                                         app->next_request_id,
+		                                         "media_position", seconds);
+		if (length > 0 && net_send(payload, (size_t)length)) {
+			app->next_request_id++;
+			app->state.media_position = seconds;
+			app->top_visual.media_position_display = (float)seconds;
+		}
 	}
 
 	if (s_touch.active && !app->hold_fired && !s_touch.dragging) {

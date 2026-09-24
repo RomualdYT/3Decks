@@ -33,10 +33,13 @@ void model_state_clear(PcState *state)
 	state->temperature = -1;
 	state->mic_known = false;
 	state->media_present = false;
+	state->media_seekable = false;
 	state->media_art = 0;
 	state->media_accent_known = false;
 	state->media_position = -1;
 	state->media_duration = -1;
+	state->lyrics_count = 0;
+	strcpy(state->lyrics_status, "idle");
 }
 
 /* Table nom -> icône, alignée sur la liste documentée dans PROTOCOL.md. */
@@ -90,6 +93,9 @@ DashboardMode model_dashboard_from_name(const char *name)
 	}
 	if (strcmp(name, "media") == 0) {
 		return DASH_MEDIA;
+	}
+	if (strcmp(name, "lyrics") == 0) {
+		return DASH_LYRICS;
 	}
 	if (strcmp(name, "system") == 0) {
 		return DASH_SYSTEM;

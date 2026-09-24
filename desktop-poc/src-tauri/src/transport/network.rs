@@ -1,3 +1,4 @@
+use crate::features::lyrics;
 use crate::platform::windowing;
 use crate::{artwork, audio, obs, protocol, state::Shared, system, telemetry};
 use serde_json::{json, Value};
@@ -43,6 +44,8 @@ pub async fn run(shared: Arc<Shared>) -> Result<(), String> {
     });
 
     let mut stop = shared.stop.subscribe();
+    let lyrics_shared = shared.clone();
+    let lyrics_task = tokio::spawn(async move { lyrics::run(lyrics_shared).await });
     let udp_shared = shared.clone();
     let udp_stop = shared.stop.subscribe();
     let udp_task = tokio::spawn(async move { discovery_loop(udp, udp_shared, udp_stop).await });
@@ -133,6 +136,7 @@ pub async fn run(shared: Arc<Shared>) -> Result<(), String> {
     let _ = udp_task.await;
     let _ = state_task.await;
     let _ = extension_task.await;
+    let _ = lyrics_task.await;
     let _ = window_task.await;
     shared.update(|s| {
         s.running = false;
@@ -236,12 +240,15 @@ async fn serve(
     protocol::write(&mut stream, &shared.config_snapshot(locale)).await?;
     let initial = collect_state(&shared).await;
     protocol::write(&mut stream, &initial).await?;
+    let lyrics = shared.latest_lyrics.read().unwrap().clone();
+    protocol::write(&mut stream, &lyrics).await?;
     let mut last_art_token = 0;
     write_art_if_changed(&mut stream, &shared, &initial, &mut last_art_token).await?;
     let client_id = shared.client_connected(device, &address.to_string());
     let mut last_mutation: Option<u64> = None;
     let mut config_updates = shared.config_updates.subscribe();
     let mut state_updates = shared.state_updates.subscribe();
+    let mut lyrics_updates = shared.lyrics_updates.subscribe();
     let mut revoked = shared.revoked.subscribe();
     let result = loop {
         let message = tokio::select! {
@@ -265,6 +272,12 @@ async fn serve(
                 if let Ok(update) = update {
                     if let Err(error) = protocol::write(&mut stream, &update).await { break Err(error); }
                     if let Err(error) = write_art_if_changed(&mut stream, &shared, &update, &mut last_art_token).await { break Err(error); }
+                }
+                continue;
+            }
+            update = lyrics_updates.recv() => {
+                if let Ok(update) = update {
+                    if let Err(error) = protocol::write(&mut stream, &update).await { break Err(error); }
                 }
                 continue;
             }
@@ -577,16 +590,26 @@ async fn perform_value(shared: &Shared, message: &Value) -> Result<&'static str,
     let value = message
         .get("value")
         .and_then(Value::as_u64)
-        .ok_or("Invalid volume value")?;
-    if value > 100 {
-        return Err("Volume must be between 0 and 100".into());
-    }
+        .ok_or("Invalid value")?;
     match message.get("target").and_then(Value::as_str) {
-        Some("volume") => system::set_volume(value as u8).await,
-        Some("app_volume") if shared.config.feature_enabled("media") => {
+        Some("media_position") if shared.config.feature_enabled("media") => {
+            let state = shared.latest_state.read().unwrap().clone();
+            let duration = state["media"]["duration"]
+                .as_u64()
+                .ok_or("Unknown track duration")?;
+            if value > duration || duration > 3600 || state["media"]["seekable"] != true {
+                return Err("Playback position is unavailable".into());
+            }
+            system::seek_media(value).await
+        }
+        Some("volume") if value <= 100 => system::set_volume(value as u8).await,
+        Some("app_volume") if value <= 100 && shared.config.feature_enabled("media") => {
             system::set_app_volume(value as u8).await
         }
-        Some("app_volume") => Err("Media feature is disabled".into()),
+        Some("volume" | "app_volume") if value > 100 => {
+            Err("Volume must be between 0 and 100".into())
+        }
+        Some("app_volume") => Err("Media controls are disabled".into()),
         _ => Err("Unknown value target".into()),
     }
 }

@@ -15,6 +15,8 @@ venv/
 python-*-embed-amd64.zip
 agent/agent-windows*.log
 agent/node_modules/
+agent/node_modules
+agent/node_modules.dataless/
 agent/frontend/node_modules/
 agent/frontend/coverage/
 .pytest_cache/

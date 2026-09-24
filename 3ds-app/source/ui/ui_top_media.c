@@ -343,6 +343,88 @@ void ui_top_media_draw(const App *app)
 	}
 }
 
+static void draw_active_lyric(const char *line, float y)
+{
+	if (text_width(line, TEXT_TITLE) <= 352.0f) {
+		text_draw_clipped(200.0f, y, Z_CONTENT, TEXT_TITLE, COL_TEXT,
+		                  ALIGN_CENTER, 352.0f, line);
+		return;
+	}
+	const size_t length = strlen(line);
+	const char *split = NULL;
+	for (const char *p = line; *p != '\0'; p++) {
+		if (*p == ' ' && (size_t)(p - line) < length * 2 / 3) split = p;
+	}
+	if (split == NULL) {
+		text_draw_clipped(200.0f, y, Z_CONTENT, TEXT_TITLE, COL_TEXT,
+		                  ALIGN_CENTER, 352.0f, line);
+		return;
+	}
+	char first[LEN_LYRIC_LINE];
+	const size_t first_len = (size_t)(split - line);
+	memcpy(first, line, first_len);
+	first[first_len] = '\0';
+	text_draw_clipped(200.0f, y - 10.0f, Z_CONTENT, TEXT_TITLE, COL_TEXT,
+	                  ALIGN_CENTER, 352.0f, first);
+	text_draw_clipped(200.0f, y + 12.0f, Z_CONTENT, TEXT_TITLE, COL_TEXT,
+	                  ALIGN_CENTER, 352.0f, split + 1);
+}
+
+void ui_top_lyrics_draw(const App *app)
+{
+	const Page *page = app_current_page(app);
+	const u32 accent = page != NULL && page->accent_custom ? page->accent : media_accent(app);
+	draw_rect_vgrad(0.0f, 0.0f, SCREEN_TOP_W, SCREEN_H, Z_BG,
+	                theme_mix(COL_BG, accent, 0.23f),
+	                theme_mix(COL_BG, accent, 0.035f));
+	if (!app->state.media_present) {
+		draw_empty_media(128.0f);
+		return;
+	}
+	text_draw_clipped(20.0f, 38.0f, Z_CONTENT, TEXT_SMALL, COL_TEXT_DIM,
+	                  ALIGN_LEFT, 350.0f, app->state.media_artist);
+	text_draw_clipped(20.0f, 57.0f, Z_CONTENT, TEXT_BODY, COL_TEXT,
+	                  ALIGN_LEFT, 350.0f, app->state.media_title);
+	if (app->state.lyrics_count <= 0) {
+		const char *label = tr(STR_LYRICS_UNAVAILABLE);
+		if (strcmp(app->state.lyrics_status, "loading") == 0) label = tr(STR_LYRICS_LOADING);
+		else if (strcmp(app->state.lyrics_status, "disabled") == 0) label = tr(STR_LYRICS_DISABLED);
+		else if (strcmp(app->state.lyrics_status, "instrumental") == 0) label = tr(STR_LYRICS_INSTRUMENTAL);
+		text_draw_clipped(200.0f, 121.0f, Z_CONTENT, TEXT_BODY,
+		                  COL_TEXT_DIM, ALIGN_CENTER, 350.0f, label);
+		return;
+	}
+	const float position_ms = app->top_visual.media_position_display * 1000.0f;
+	int active = -1;
+	for (int i = 0; i < app->state.lyrics_count; i++) {
+		if ((float)app->state.lyrics[i].time_ms <= position_ms) active = i;
+		else break;
+	}
+	float shift = 0.0f;
+	if (active >= 0 && active + 1 < app->state.lyrics_count) {
+		const float until = (float)app->state.lyrics[active + 1].time_ms - position_ms;
+		if (until >= 0.0f && until < 220.0f) shift = (1.0f - until / 220.0f) * 42.0f;
+	}
+	const int visible = page != NULL ? page->lyrics_lines : 3;
+	const int before = visible == 5 ? 2 : visible == 2 ? 0 : 1;
+	const int after = visible - before - 1;
+	for (int offset = -before; offset <= after; offset++) {
+		const int index = active + offset;
+		if (index < 0 || index >= app->state.lyrics_count) continue;
+		const float y = 117.0f + (float)offset * 42.0f - shift;
+		if (y < 72.0f || y > 220.0f) continue;
+		const char *line = app->state.lyrics[index].text;
+		if (offset == 0) {
+			draw_active_lyric(line, y);
+		} else {
+			const u32 color = offset < 0 ? theme_mix(COL_TEXT_FAINT, accent, 0.20f)
+			                             : theme_mix(COL_TEXT_DIM, accent, 0.14f);
+			text_draw_clipped(200.0f, y, Z_CONTENT, TEXT_BODY, color,
+				                  ALIGN_CENTER, 350.0f, line);
+		}
+	}
+}
+
 static void draw_audio_module(float x, float y, float w, IconId icon,
 	                              const char *label, int value, bool known,
 	                              u32 color, float emphasis)

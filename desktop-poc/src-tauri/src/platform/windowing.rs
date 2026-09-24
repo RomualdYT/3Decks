@@ -32,11 +32,8 @@ fn truncate(text: &str, maximum: usize) -> String {
 #[cfg(target_os = "macos")]
 mod macos {
     use super::Window;
+    use objc2_app_kit::{NSApplicationActivationOptions, NSRunningApplication};
     use std::ffi::{c_char, c_void, CString};
-    use tokio::{
-        process::Command,
-        time::{timeout, Duration},
-    };
 
     type Ref = *const c_void;
 
@@ -53,6 +50,12 @@ mod macos {
         fn CFStringGetCString(value: Ref, buffer: *mut c_char, size: isize, encoding: u32) -> bool;
         fn CFNumberGetValue(value: Ref, number_type: i32, output: *mut c_void) -> bool;
         fn CFRelease(value: Ref);
+    }
+    #[link(name = "ApplicationServices", kind = "framework")]
+    unsafe extern "C" {
+        fn AXUIElementCreateApplication(pid: i32) -> Ref;
+        fn AXUIElementCopyAttributeValue(element: Ref, attribute: Ref, value: *mut Ref) -> i32;
+        fn AXUIElementPerformAction(element: Ref, action: Ref) -> i32;
     }
 
     const UTF8: u32 = 0x08000100;
@@ -152,26 +155,68 @@ mod macos {
             .unwrap_or_default()
     }
 
-    pub async fn focus(window: &Window) -> Result<&'static str, String> {
-        const SCRIPT: &str = "on run argv\nset appName to item 1 of argv\nset windowName to item 2 of argv\ntell application \"System Events\"\n tell process appName\n  set frontmost to true\n  if windowName is not \"\" then\n   try\n    perform action \"AXRaise\" of first window whose name is windowName\n   end try\n  end if\n end tell\nend tell\nend run";
-        let output = timeout(
-            Duration::from_secs(4),
-            Command::new("/usr/bin/osascript")
-                .kill_on_drop(true)
-                .arg("-e")
-                .arg(SCRIPT)
-                .arg(&window.app)
-                .arg(&window.title)
-                .output(),
-        )
-        .await
-        .map_err(|_| "Window focus timed out".to_string())?
-        .map_err(|e| e.to_string())?;
-        if output.status.success() {
-            Ok("Window focused")
-        } else {
-            Err(String::from_utf8_lossy(&output.stderr).trim().to_string())
+    fn focus_sync(window: Window) -> Result<&'static str, String> {
+        let pid = i32::try_from(window.pid).map_err(|_| "Invalid window process ID")?;
+        let app = NSRunningApplication::runningApplicationWithProcessIdentifier(pid)
+            .ok_or("Application is no longer running")?;
+        if !app.activateWithOptions(NSApplicationActivationOptions::empty()) {
+            return Err("Could not activate application".into());
         }
+        if window.title.is_empty() {
+            return Ok("Application focused");
+        }
+        unsafe {
+            let element = AXUIElementCreateApplication(pid);
+            if element.is_null() {
+                return Err("Accessibility element unavailable".into());
+            }
+            let windows_key = key("AXWindows");
+            let title_key = key("AXTitle");
+            let raise_key = key("AXRaise");
+            let mut windows: Ref = std::ptr::null();
+            let result = AXUIElementCopyAttributeValue(element, windows_key, &mut windows);
+            if result != 0 || windows.is_null() {
+                CFRelease(element);
+                CFRelease(windows_key);
+                CFRelease(title_key);
+                CFRelease(raise_key);
+                return Err(format!(
+                    "Accessibility permission or window access unavailable ({result})"
+                ));
+            }
+            let mut raised = false;
+            for index in 0..CFArrayGetCount(windows) {
+                let candidate = CFArrayGetValueAtIndex(windows, index);
+                let mut title: Ref = std::ptr::null();
+                if AXUIElementCopyAttributeValue(candidate, title_key, &mut title) == 0
+                    && !title.is_null()
+                {
+                    let matches = string(title) == window.title;
+                    CFRelease(title);
+                    if matches {
+                        raised = AXUIElementPerformAction(candidate, raise_key) == 0;
+                        break;
+                    }
+                }
+            }
+            CFRelease(windows);
+            CFRelease(element);
+            CFRelease(windows_key);
+            CFRelease(title_key);
+            CFRelease(raise_key);
+            if raised {
+                Ok("Window focused")
+            } else {
+                Err("Window not found or could not be raised".into())
+            }
+        }
+    }
+
+    pub async fn focus(window: &Window) -> Result<&'static str, String> {
+        let window = window.clone();
+        tokio::task::spawn_blocking(move || focus_sync(window))
+            .await
+            .map_err(|error| error.to_string())?
     }
 }
 

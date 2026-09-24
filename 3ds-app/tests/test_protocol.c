@@ -32,6 +32,15 @@ int main(void)
     assert(!memcmp(&previous, &config, sizeof(config)));
     assert(decode("{\"type\":\"state.update\",\"extension_panels\":[{\"page\":\"main\",\"title\":\"Custom\",\"cards\":[{\"label\":\"CPU\",\"value\":\"42%\",\"progress\":42}]}]}"));
     assert(state.extension_panel_count == 1 && state.extension_panels[0].cards[0].progress == 42);
+    assert(decode("{\"type\":\"state.update\",\"media\":{\"title\":\"Titre\",\"artist\":\"Artiste\",\"position\":12,\"duration\":180,\"seekable\":true}}"));
+    assert(state.media_seekable && state.media_position == 12);
+    assert(decode("{\"type\":\"media.lyrics\",\"track\":\"Titre\",\"artist\":\"Artiste\",\"status\":\"ready\",\"lines\":[{\"t\":12000,\"text\":\"Première ligne\"},{\"t\":16000,\"text\":\"Deuxième ligne\"}]}"));
+    assert(message.kind == MSG_MEDIA_LYRICS && state.lyrics_count == 2);
+    assert(state.lyrics[0].time_ms == 12000 && !strcmp(state.lyrics[0].text, "Première ligne"));
+    assert(decode("{\"type\":\"media.lyrics\",\"track\":\"Ancien titre\",\"artist\":\"Artiste\",\"status\":\"ready\",\"lines\":[]}"));
+    assert(state.lyrics_count == 2);
+    assert(decode("{\"type\":\"state.update\",\"media\":{\"title\":\"Autre titre\",\"artist\":\"Artiste\",\"duration\":180}}"));
+    assert(state.lyrics_count == 0 && !strcmp(state.lyrics_status, "loading"));
     assert(decode("{\"type\":\"hello.ok\",\"host\":\"Test computer\"}"));
     assert(message.kind == MSG_HELLO_OK);
     assert(decode("{\"type\":\"pong\",\"id\":123}")); assert(message.ping_id == 123);

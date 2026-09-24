@@ -1,0 +1,21 @@
+.page-gallery { max-width: 780px; }
+.page-gallery-intro { color: var(--text-secondary, #a2a2aa); margin: 0 0 18px; }
+.page-gallery-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.page-gallery-card { display: flex; flex-direction: column; text-align: left; min-height: 190px; padding: 12px; gap: 5px; border: 1px solid #36363d; border-radius: 15px; background: #1b1b21; color: #f6f6f7; cursor: pointer; transition: border-color .18s, transform .18s, background .18s; }
+.page-gallery-card:hover, .page-gallery-card:focus-visible { border-color: #66cb10; background: #22252a; transform: translateY(-2px); outline: none; }
+.page-gallery-card strong { font-size: 14px; }
+.page-gallery-card small { color: #a6a6b0; line-height: 1.35; }
+.page-gallery-preview { display: grid; grid-template-columns: 1.65fr 1fr; gap: 7px; height: 88px; margin-bottom: 5px; }
+.page-gallery-top, .page-gallery-bottom { border: 2px solid #41414a; border-radius: 7px; background: linear-gradient(145deg, #25302a, #111217); }
+.page-gallery-top { display: flex; flex-direction: column; align-items: center; justify-content: center; color: #66cb10; gap: 6px; }
+.page-gallery-preview[data-template="lyrics"] .page-gallery-top { background: linear-gradient(145deg, #4a2738, #121117); color: #f098b7; }
+.page-gallery-preview[data-template="notifications"] .page-gallery-top { background: linear-gradient(145deg, #41301c, #121117); color: #ffbd68; }
+.page-gallery-preview[data-template="obs"] .page-gallery-top { background: linear-gradient(145deg, #30233a, #121117); color: #c39be3; }
+.page-gallery-visual-lines { display: flex; flex-direction: column; gap: 3px; align-items: center; width: 60%; }
+.page-gallery-visual-lines i { width: 80%; height: 3px; border-radius: 3px; background: currentColor; opacity: .3; }
+.page-gallery-visual-lines i:nth-child(2) { width: 100%; opacity: .75; }
+.page-gallery-bottom { display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(2, 1fr); gap: 4px; padding: 10px 7px; }
+.page-gallery-bottom i { border-radius: 4px; background: #2b2c31; }
+.page-gallery-bottom i.filled { background: #637d49; }
+.page-gallery-note { color: #888891; font-size: 12px; margin: 14px 0 0; }
+@media (max-width: 700px) { .page-gallery-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

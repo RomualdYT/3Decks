@@ -736,6 +736,11 @@
       "supported": false
     },
     {
+      "name": "lyrics",
+      "capability": "lyrics_online",
+      "supported": false
+    },
+    {
       "name": "media",
       "capability": "media",
       "supported": false
@@ -1058,6 +1063,16 @@
         "win32"
       ],
       "enabled": true,
+      "available": false
+    },
+    {
+      "key": "lyrics_online",
+      "capability": "lyrics_online",
+      "title": { "fr": "Paroles synchronisées", "en": "Synced lyrics" },
+      "description": { "fr": "Recherche les paroles sur LRCLIB. Le titre, l’artiste, l’album et la durée sont envoyés au service.", "en": "Looks up lyrics on LRCLIB. Track title, artist, album and duration are sent to the service." },
+      "parent": "media",
+      "platforms": ["darwin"],
+      "enabled": false,
       "available": false
     },
     {

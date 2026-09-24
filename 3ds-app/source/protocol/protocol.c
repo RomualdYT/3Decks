@@ -199,6 +199,12 @@ static bool parse_config(const JsonDoc *doc, const JsonToken *root,
 		char dash[LEN_ICON];
 		json_get_string(doc, item, "dashboard", dash, sizeof(dash));
 		page->dashboard = model_dashboard_from_name(dash);
+		page->lyrics_lines = json_get_int(doc, item, "lyrics_lines", 3);
+		if (page->lyrics_lines < 2 || page->lyrics_lines > 5) page->lyrics_lines = 3;
+		char custom_accent[16];
+		page->accent_custom = json_get_string(doc, item, "accent", custom_accent, sizeof(custom_accent)) &&
+		                      custom_accent[0] == '#' && strlen(custom_accent) == 7;
+		if (page->accent_custom) page->accent = theme_parse_hex(custom_accent, COL_ACCENT);
 
 		char page_icon[LEN_ICON];
 		json_get_string(doc, item, "icon", page_icon, sizeof(page_icon));
@@ -426,15 +432,25 @@ static void parse_state(const JsonDoc *doc, const JsonToken *root,
 
 	token = json_get(doc, root, "media");
 	if (token != NULL && token->type == JSON_OBJECT) {
+		char previous_title[LEN_TEXT];
+		char previous_artist[LEN_TEXT];
+		memcpy(previous_title, state->media_title, sizeof(previous_title));
+		memcpy(previous_artist, state->media_artist, sizeof(previous_artist));
 		json_get_string(doc, token, "title", state->media_title,
 		                sizeof(state->media_title));
 		json_get_string(doc, token, "artist", state->media_artist,
 		                sizeof(state->media_artist));
+		if (strcmp(previous_title, state->media_title) != 0 ||
+		    strcmp(previous_artist, state->media_artist) != 0) {
+			state->lyrics_count = 0;
+			strcpy(state->lyrics_status, "loading");
+		}
 		json_get_string(doc, token, "album", state->media_album,
 		                sizeof(state->media_album));
 		json_get_string(doc, token, "app", state->media_app,
 		                sizeof(state->media_app));
 		state->media_playing = json_get_bool(doc, token, "playing", false);
+		state->media_seekable = json_get_bool(doc, token, "seekable", false);
 		state->media_present = state->media_title[0] != '\0';
 
 		state->media_art = (u32)json_get_int(doc, token, "art", 0);
@@ -473,11 +489,14 @@ static void parse_state(const JsonDoc *doc, const JsonToken *root,
 		state->media_album[0] = '\0';
 		state->media_app[0] = '\0';
 		state->media_playing = false;
+		state->media_seekable = false;
 		state->media_present = false;
 		state->media_art = 0;
 		state->media_accent_known = false;
 		state->media_position = -1;
 		state->media_duration = -1;
+		state->lyrics_count = 0;
+		strcpy(state->lyrics_status, "idle");
 	}
 }
 
@@ -549,6 +568,38 @@ bool protocol_decode(const char *json, size_t length, IncomingMessage *out,
 			out->has_notification = out->notification_title[0] != '\0';
 		}
 
+		return true;
+	}
+
+	if (strcmp(type, "media.lyrics") == 0) {
+		out->kind = MSG_MEDIA_LYRICS;
+		char track[LEN_TEXT];
+		char artist[LEN_TEXT];
+		json_get_string(&s_doc, root, "track", track, sizeof(track));
+		json_get_string(&s_doc, root, "artist", artist, sizeof(artist));
+		if (track[0] != '\0' &&
+		    (strcmp(track, state->media_title) != 0 ||
+		     strcmp(artist, state->media_artist) != 0)) {
+			return true; /* réponse d'une piste précédente */
+		}
+		json_get_string(&s_doc, root, "status", state->lyrics_status,
+		                sizeof(state->lyrics_status));
+		state->lyrics_count = 0;
+		const JsonToken *lines = json_get(&s_doc, root, "lines");
+		if (lines != NULL && lines->type == JSON_ARRAY) {
+			const int count = json_size(lines);
+			for (int i = 0; i < count && state->lyrics_count < MAX_LYRIC_LINES; i++) {
+				const JsonToken *line = json_at(&s_doc, lines, i);
+				if (line == NULL || line->type != JSON_OBJECT) continue;
+				const int time_ms = json_get_int(&s_doc, line, "t", -1);
+				if (time_ms < 0) continue;
+				LyricLine *dest = &state->lyrics[state->lyrics_count];
+				if (!json_get_string(&s_doc, line, "text", dest->text,
+				                     sizeof(dest->text)) || dest->text[0] == '\0') continue;
+				dest->time_ms = (u32)time_ms;
+				state->lyrics_count++;
+			}
+		}
 		return true;
 	}
 

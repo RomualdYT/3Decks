@@ -64,6 +64,18 @@ static void draw_title_bar(const App *app)
 	                  middle, edge, middle);
 	C2D_DrawRectangle(SCREEN_BOTTOM_W * 0.5f, y, Z_CONTENT,
 	                  SCREEN_BOTTOM_W * 0.5f, 1.0f, middle, edge, middle, edge);
+	if (page != NULL && page->dashboard == DASH_LYRICS &&
+	    app->state.media_seekable && app->state.media_duration > 0) {
+		const float width = SCREEN_BOTTOM_W - GRID_MARGIN_X * 2.0f;
+		float progress = app->top_visual.media_position_display /
+		                 (float)app->state.media_duration;
+		if (progress < 0.0f) progress = 0.0f;
+		if (progress > 1.0f) progress = 1.0f;
+		draw_round_rect(GRID_MARGIN_X, 32.0f, width, 4.0f, 2.0f,
+		                Z_CONTENT, COL_BORDER);
+		draw_round_rect(GRID_MARGIN_X, 32.0f, width * progress, 4.0f, 2.0f,
+		                Z_OVERLAY, page->accent_custom ? page->accent : COL_ACCENT);
+	}
 }
 
 static void draw_tabs(const App *app)

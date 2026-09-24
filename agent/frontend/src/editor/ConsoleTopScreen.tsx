@@ -85,6 +85,26 @@ function Media({ media, frame, fr }: { media: Data; frame: boolean; fr: boolean 
       <Label x={x + width / 2} y={208} width={width / 2} size={13.8} align="right">{mediaTime(duration)}</Label></g>}
   </g>;
 }
+function Lyrics({ media, lyrics, page, fr }: { media: Data; lyrics: Data; page: PageConfig; fr: boolean }) {
+  const lines = list(lyrics.lines).map(record);
+  const position = (number(media.position) ?? 0) * 1000;
+  let active = -1;
+  for (const [index, line] of lines.entries()) if ((number(line.t) ?? Number.MAX_VALUE) <= position) active = index;
+  const visible = typeof page.lyrics_lines === "number" ? Math.min(5, Math.max(2, page.lyrics_lines)) : 3;
+  const before = visible === 5 ? 2 : visible === 2 ? 0 : 1;
+  const after = visible - before - 1;
+  const state = string(lyrics.status);
+  const fallback = state === "loading" ? (fr ? "Recherche des paroles…" : "Finding lyrics…") : state === "disabled" ? (fr ? "Activez les paroles dans Réglages" : "Enable lyrics in Settings") : state === "instrumental" ? (fr ? "Morceau instrumental" : "Instrumental track") : (fr ? "Paroles indisponibles" : "No synced lyrics found");
+  return <g>
+    <Label x={20} y={38} width={360} size={13.8}>{string(media.artist, fr ? "Artiste" : "Artist")}</Label>
+    <Label x={20} y={57} width={360} size={16.5} bold color="#f6f6f7">{string(media.title, fr ? "Aucune lecture en cours" : "Nothing playing")}</Label>
+    {state === "ready" && lines.length ? Array.from({ length: visible }, (_, index) => index - before).map((offset) => {
+      const line = lines[active + offset];
+      const y = 117 + offset * 42;
+      return line && y >= 72 && y <= 220 ? <Label key={`${active + offset}`} x={24} y={y} width={352} size={offset === 0 ? 19 : 15.5} bold={offset === 0} align="center" color={offset === 0 ? "#fff" : offset < 0 ? "#797985" : "#b6b6c0"}>{string(line.text)}</Label> : null;
+    }) : <Label x={24} y={122} width={352} size={15} align="center">{fallback}</Label>}
+  </g>;
+}
 function Audio({ snapshot, media, fr }: { snapshot: Data; media: Data; fr: boolean }) {
   const volume = number(snapshot.volume), music = number(snapshot.app_volume);
   const output = string(snapshot.audio_output, fr ? "Sortie inconnue" : "Unknown output");
@@ -130,10 +150,10 @@ function System({ snapshot, fr }: { snapshot: Data; fr: boolean }) {
   </g>;
 }
 export function ConsoleTopScreen({ page, status, locale }: { page: PageConfig; status: AgentState | null; locale: Locale }) {
-  const fr = locale === "fr", snapshot = record(status?.snapshot), media = record(snapshot.media);
+  const fr = locale === "fr", snapshot = record(status?.snapshot), media = record(snapshot.media), lyrics = record(snapshot.lyrics);
   const mode = dashboardMode(page, media), frame = mode === "frame";
   const id = useId();
-  const accent = /^#[0-9a-f]{6}$/i.test(string(media.accent)) ? string(media.accent) : /spotify/i.test(string(media.app)) ? "#1ed760" : /music/i.test(string(media.app)) ? "#fa3d58" : "#66cb10";
+  const accent = /^#[0-9a-f]{6}$/i.test(string(page.accent)) ? string(page.accent) : /^#[0-9a-f]{6}$/i.test(string(media.accent)) ? string(media.accent) : /spotify/i.test(string(media.app)) ? "#1ed760" : /music/i.test(string(media.app)) ? "#fa3d58" : "#66cb10";
   const notifications = list(snapshot.notifications).map(record);
   const count = number(snapshot.notification_count) ?? notifications.length;
   const apps = list(snapshot.apps).map(item => string(item)).filter(Boolean);
@@ -141,9 +161,9 @@ export function ConsoleTopScreen({ page, status, locale }: { page: PageConfig; s
   const clock = string(snapshot.time, "—");
   return <section className="device-top-screen console-top-faithful" aria-label={fr ? "Aperçu de l’écran supérieur" : "Top screen preview"} data-dashboard={mode} style={{ "--media-accent": accent } as CSSProperties}>
     <svg viewBox="0 0 400 240" width="100%" height="100%" role="img" aria-label={fr ? "Écran supérieur de la console" : "Console top screen"}>
-      <defs><linearGradient id={id} x2="0" y2="1"><stop stopColor={mode === "media" || frame ? accent : "#0d0d0f"} stopOpacity={mode === "media" || frame ? .2 : 1} /><stop offset="1" stopColor="#0d0d0f" /></linearGradient></defs>
+      <defs><linearGradient id={id} x2="0" y2="1"><stop stopColor={mode === "media" || mode === "lyrics" || frame ? accent : "#0d0d0f"} stopOpacity={mode === "media" || mode === "lyrics" || frame ? .2 : 1} /><stop offset="1" stopColor="#0d0d0f" /></linearGradient></defs>
       <rect width={400} height={240} fill="#0d0d0f" /><rect width={400} height={240} fill={`url(#${id})`} />
-      {mode === "media" || frame ? <Media key={number(media.art) ?? 0} media={media} frame={frame} fr={fr} /> : mode === "audio" ? <Audio snapshot={snapshot} media={media} fr={fr} /> : mode === "system" ? <System snapshot={snapshot} fr={fr} /> : mode === "notifications" ?
+      {mode === "media" || frame ? <Media key={number(media.art) ?? 0} media={media} frame={frame} fr={fr} /> : mode === "lyrics" ? <Lyrics media={media} lyrics={lyrics} page={page} fr={fr} /> : mode === "audio" ? <Audio snapshot={snapshot} media={media} fr={fr} /> : mode === "system" ? <System snapshot={snapshot} fr={fr} /> : mode === "notifications" ?
         <g><Label x={16} y={40} width={365} size={20} bold color="#f6f6f7">Notifications</Label>
           {notifications.length ? notifications.slice(0, 3).map((item, i) => <g key={i}><rect x={12} y={72 + i * 51} width={376} height={46} rx={8} fill="#1a1a1e" /><Icon name="chat" x={23} y={85 + i * 51} color="#ffb020" /><Label x={50} y={76 + i * 51} width={325} bold>{string(item.app, "Notification")}</Label><Label x={50} y={95 + i * 51} width={325} size={12.6}>{string(item.title)}</Label></g>) :
             <Label x={20} y={124} width={360} align="center">{fr ? "Aucune notification" : "No notifications"}</Label>}</g> :

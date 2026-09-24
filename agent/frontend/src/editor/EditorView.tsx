@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import type { AgentState, ButtonConfig, DeckConfig, Locale, PageConfig, Schema } from "../app/types";
 import type { CopyKey } from "../i18n/copy";
-import { actionArgs, actionKind, defaultAction, newButton, newPage } from "../utils/config";
+import { actionArgs, actionKind, defaultAction, newButton } from "../utils/config";
 import { AppSidebar } from "../components/AppSidebar";
 import { ActionPicker } from "./ActionPicker";
 import { DeckPreview } from "./DeckPreview";
 import { Inspector } from "./Inspector";
+import { PageTemplateGallery } from "./PageTemplateGallery";
+import { pageFromTemplate, type PageTemplateId } from "./pageTemplates";
 
 interface Props {
   config: DeckConfig;
@@ -22,6 +24,7 @@ export function EditorView({ config, schema, status, locale, scenes, apps, t, up
   const [pageIndex, setPageIndex] = useState(0);
   const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [galleryOpen, setGalleryOpen] = useState(false);
   const page = config.pages[pageIndex];
   const button = page?.buttons.find((item) => item.slot === selectedSlot) ?? null;
   useEffect(() => {
@@ -62,12 +65,13 @@ export function EditorView({ config, schema, status, locale, scenes, apps, t, up
     setPickerOpen(false);
   };
 
-  const addPage = () => {
+  const addPage = (templateId: PageTemplateId) => {
     if (config.pages.length >= schema.limits.pages) return;
     const nextIndex = config.pages.length;
-    update((draft) => { draft.pages.push(newPage(draft)); });
+    update((draft) => { draft.pages.push(pageFromTemplate(draft, schema, templateId, scenes)); });
     setPageIndex(nextIndex);
     setSelectedSlot(null);
+    setGalleryOpen(false);
   };
 
   const deletePageAt = (index: number) => {
@@ -112,17 +116,18 @@ export function EditorView({ config, schema, status, locale, scenes, apps, t, up
       onSelectSlot={(slot) => { if (page.source) return; setSelectedSlot(slot); if (!page.buttons.some((item) => item.slot === slot)) setPickerOpen(true); }}
       onMoveButton={moveButton}
     />
-  ) : <div className="empty-editor"><button type="button" onClick={addPage}>+ {t("addPage")}</button></div>;
+  ) : <div className="empty-editor"><button type="button" onClick={() => setGalleryOpen(true)}>+ {t("addPage")}</button></div>;
 
   return (
     <div className="editor-layout">
-      <AppSidebar config={config} locale={locale} selectedPage={pageIndex} pageLimit={schema.limits.pages} t={t} onSelect={(index) => { setPageIndex(index); setSelectedSlot(null); }} onAdd={addPage} onMove={movePage} onRename={renamePage} onDelete={deletePageAt} />
+      <AppSidebar config={config} locale={locale} selectedPage={pageIndex} pageLimit={schema.limits.pages} t={t} onSelect={(index) => { setPageIndex(index); setSelectedSlot(null); }} onAdd={() => setGalleryOpen(true)} onMove={movePage} onRename={renamePage} onDelete={deletePageAt} />
       <main className="editor-workspace">{preview}</main>
       {page && <Inspector config={config} schema={schema} page={page} button={button} locale={locale} scenes={scenes} apps={apps} t={t} onUpdatePage={updatePage} onUpdateButton={updateButton}
         onChangeAction={() => setPickerOpen(true)} onDeletePage={() => deletePageAt(pageIndex)}
         onDeleteButton={() => { update((draft) => { const target = draft.pages[pageIndex]; if (target) target.buttons = target.buttons.filter((item) => item.slot !== selectedSlot); }); setSelectedSlot(null); }}
         onDeselect={() => setSelectedSlot(null)} />}
       <ActionPicker open={pickerOpen} locale={locale} actions={schema.actions} title={title} t={t} onPick={pickAction} onClose={() => setPickerOpen(false)} />
+      <PageTemplateGallery open={galleryOpen} locale={locale} onChoose={addPage} onClose={() => setGalleryOpen(false)} />
     </div>
   );
 }

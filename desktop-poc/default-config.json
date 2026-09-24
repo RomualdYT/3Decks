@@ -11,6 +11,7 @@
     "notifications": true,
     "media": true,
     "media_artwork": true,
+    "lyrics_online": false,
     "windows": true,
     "audio_output": true,
     "system_stats": true,

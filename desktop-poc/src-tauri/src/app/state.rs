@@ -137,6 +137,8 @@ pub struct Shared {
     pub extension_snapshots: RwLock<Value>,
     pub config_updates: watch::Sender<u64>,
     pub state_updates: broadcast::Sender<Value>,
+    pub lyrics_updates: broadcast::Sender<Value>,
+    pub latest_lyrics: RwLock<Value>,
     pub revoked: broadcast::Sender<String>,
     pub actions: Semaphore,
     controls_pause: Mutex<ControlsPause>,
@@ -148,6 +150,14 @@ fn new_code() -> String {
 }
 
 impl Shared {
+    pub fn lyrics_directory(&self) -> Result<PathBuf, String> {
+        self.app
+            .path()
+            .app_cache_dir()
+            .map(|path| path.join("lyrics"))
+            .map_err(|error| error.to_string())
+    }
+
     pub fn new(app: AppHandle, tcp_port: u16, discovery_port: u16) -> Result<Self, String> {
         let directory = app.path().app_config_dir().map_err(|e| e.to_string())?;
         fs::create_dir_all(&directory).map_err(|e| e.to_string())?;
@@ -179,6 +189,7 @@ impl Shared {
         let (stop, _) = watch::channel(false);
         let (config_updates, _) = watch::channel(config_revision);
         let (state_updates, _) = broadcast::channel(32);
+        let (lyrics_updates, _) = broadcast::channel(8);
         let (revoked, _) = broadcast::channel(32);
         let extension_host = ExtensionHost::new(directory.join("extensions"))?;
         let extension_catalog = extension_host.catalog();
@@ -220,6 +231,10 @@ impl Shared {
             onboarding: OnboardingStore::new(directory.join("onboarding.json")),
             config_updates,
             state_updates,
+            lyrics_updates,
+            latest_lyrics: RwLock::new(
+                serde_json::json!({"type":"media.lyrics","status":"idle","lines":[]}),
+            ),
             revoked,
             actions: Semaphore::new(1),
             controls_pause: Mutex::new(ControlsPause::Off),

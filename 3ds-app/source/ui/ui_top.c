@@ -506,11 +506,18 @@ void ui_draw_top(const App *app)
 		draw_toast(app);
 		return;
 	}
+	if (mode == DASH_LYRICS) {
+		ui_top_lyrics_draw(app);
+		draw_header(app);
+		draw_toast(app);
+		return;
+	}
 
 	draw_header(app);
 
 	switch (mode) {
 	case DASH_MEDIA:
+	case DASH_LYRICS:
 		break; /* traite plus haut pour respecter l'ordre des plans */
 	case DASH_SYSTEM:
 		ui_top_system_draw(app);

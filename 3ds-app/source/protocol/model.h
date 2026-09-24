@@ -67,6 +67,7 @@ typedef enum {
 typedef enum {
 	DASH_AUTO = 0, /**< Média si de la musique joue, sinon applications. */
 	DASH_MEDIA,
+	DASH_LYRICS, /**< Paroles synchronisees sur la lecture du PC. */
 	DASH_SYSTEM,
 	DASH_APPS,
 	DASH_AUDIO, /**< Volumes, sortie active et égaliseur animé. */
@@ -74,6 +75,13 @@ typedef enum {
 	DASH_NOTIFICATIONS, /**< Notifications récentes du système. */
 	DASH_EXTENSION, /**< Cartes déclaratives fournies par une extension. */
 } DashboardMode;
+
+#define MAX_LYRIC_LINES 256
+#define LEN_LYRIC_LINE 121
+typedef struct {
+	u32 time_ms;
+	char text[LEN_LYRIC_LINE];
+} LyricLine;
 
 typedef struct {
 	char id[LEN_ID];
@@ -117,6 +125,9 @@ typedef struct {
 	/** Icône de l'onglet, plus lisible qu'un numéro sur une barre étroite. */
 	IconId icon;
 	DashboardMode dashboard;
+	u32 accent;
+	bool accent_custom;
+	int lyrics_lines;
 	PageLayout layout;
 	Button buttons[MAX_BUTTONS];
 	ListEntry entries[MAX_ENTRIES];
@@ -175,12 +186,16 @@ typedef struct {
 	bool media_accent_known;
 	char media_app[LEN_APP_NAME];
 	bool media_playing;
+	bool media_seekable;
 	bool media_present;
 	/** Jeton de la pochette annoncée par le PC, 0 si aucune. */
 	u32 media_art;
 	/** Position de lecture et durée, en secondes. -1 si inconnues. */
 	int media_position;
 	int media_duration;
+	char lyrics_status[16];
+	int lyrics_count;
+	LyricLine lyrics[MAX_LYRIC_LINES];
 
 	char active_app[LEN_APP_NAME];
 	char apps[MAX_APPS][LEN_APP_NAME];

@@ -35,7 +35,7 @@ impl ConfigStore {
     pub fn feature_enabled(&self, name: &str) -> bool {
         self.current.read().unwrap()["features"][name]
             .as_bool()
-            .unwrap_or(true)
+            .unwrap_or(name != "lyrics_online")
     }
 
     pub fn poll_interval(&self) -> std::time::Duration {
@@ -157,6 +157,8 @@ pub fn snapshot(config: &Value, locale: &str) -> Value {
             "title": localized(&page["title"], locale, page["id"].as_str().unwrap_or("")),
             "icon": page.get("icon").unwrap_or(&Value::Null),
             "dashboard": page.get("dashboard").and_then(Value::as_str).unwrap_or("auto"),
+            "accent": page.get("accent").and_then(Value::as_str).unwrap_or(""),
+            "lyrics_lines": page.get("lyrics_lines").and_then(Value::as_u64).unwrap_or(3),
             "layout": page.get("layout").and_then(Value::as_str).unwrap_or("grid"),
             "buttons": []
         });
@@ -217,6 +219,20 @@ pub fn validate(raw: &Value) -> Result<(), String> {
         }
         valid_label(&page["title"], "page title")?;
         let layout = page["layout"].as_str().unwrap_or("grid");
+        if let Some(lines) = page.get("lyrics_lines") {
+            if !lines.is_null() && !lines.as_u64().is_some_and(|value| (2..=5).contains(&value)) {
+                return Err(format!("lyrics_lines must be 2–5 on page {id}"));
+            }
+        }
+        if let Some(accent) = page.get("accent").and_then(Value::as_str) {
+            if !accent.is_empty()
+                && !(accent.len() == 7
+                    && accent.starts_with('#')
+                    && accent[1..].bytes().all(|byte| byte.is_ascii_hexdigit()))
+            {
+                return Err(format!("invalid accent on page {id}"));
+            }
+        }
         if !matches!(layout, "grid" | "list") {
             return Err(format!("invalid layout on page {id}"));
         }

@@ -34,6 +34,7 @@ function updateLocalized(value: PageConfig["title"], locale: Locale, text: strin
 const DASHBOARD_COPY: Record<string, { fr: string; en: string; icon: string; descriptionFr: string; descriptionEn: string }> = {
   auto: { fr: "Automatique", en: "Automatic", icon: "sparkle", descriptionFr: "Choisit le contenu le plus utile selon l’activité.", descriptionEn: "Chooses the most useful content for the current activity." },
   media: { fr: "Musique en cours", en: "Now playing", icon: "music", descriptionFr: "Titre, artiste et progression de lecture.", descriptionEn: "Track, artist and playback progress." },
+  lyrics: { fr: "Paroles synchronisées", en: "Synced lyrics", icon: "music", descriptionFr: "Paroles sur l’écran supérieur, avec repli si elles sont indisponibles.", descriptionEn: "Lyrics on the top screen, with a fallback when unavailable." },
   system: { fr: "État de l’ordinateur", en: "Computer status", icon: "monitor", descriptionFr: "Utilisation du processeur, mémoire et application active.", descriptionEn: "CPU, memory and active application." },
   apps: { fr: "Applications ouvertes", en: "Open applications", icon: "app", descriptionFr: "Applications actuellement disponibles sur l’ordinateur.", descriptionEn: "Applications currently available on the computer." },
   audio: { fr: "Sorties audio", en: "Audio outputs", icon: "volume-up", descriptionFr: "Sortie audio active et volume.", descriptionEn: "Current audio output and volume." },
@@ -107,6 +108,13 @@ export function Inspector({ config, schema, page, button, locale, scenes, apps, 
         <div className="form-divider" />
         <SectionTitle icon="monitor" title={fr ? "Écran supérieur" : "Top screen"} />
         <SelectControl label={fr ? "Informations affichées en haut" : "Information shown on top"} value={page.dashboard || "auto"} choices={dashboardChoices} description={fr ? "L’aperçu de la console se met à jour immédiatement." : "The console preview updates immediately."} onChange={(value) => onUpdatePage((item) => { item.dashboard = value; })} />
+        {page.dashboard === "lyrics" && <>
+          <SectionTitle icon="music" title={fr ? "Affichage des paroles" : "Lyrics display"} description={fr ? "Personnalisez cette page sans modifier les autres pages musicales." : "Customize this page without changing your other music pages."} />
+          <NumberControl label={fr ? "Lignes visibles" : "Visible lines"} value={typeof page.lyrics_lines === "number" ? page.lyrics_lines : 3} min={2} max={5} step={1} onChange={(value) => onUpdatePage((item) => { item.lyrics_lines = value; })} />
+          <SelectControl label={fr ? "Couleur d’ambiance" : "Accent colour"} value={typeof page.accent === "string" && page.accent ? "custom" : "artwork"} choices={[{ id: "artwork", label: fr ? "Selon la pochette" : "From artwork" }, { id: "custom", label: fr ? "Personnalisée" : "Custom" }]} onChange={(value) => onUpdatePage((item) => { item.accent = value === "custom" ? "#66CB10" : ""; })} />
+          {typeof page.accent === "string" && page.accent && <ColorControl label={fr ? "Couleur" : "Colour"} value={page.accent} onChange={(value) => onUpdatePage((item) => { item.accent = value; })} />}
+          <p className="inspector-hint">{fr ? "L’accès à LRCLIB s’active dans Réglages → Fonctionnalités. Le titre et l’artiste quittent alors le PC." : "Enable LRCLIB in Settings → Features. Track title and artist are then sent to the service."}</p>
+        </>}
         <Disclosure className="advanced-disclosure">
           <Disclosure.Heading><Disclosure.Trigger><span><DeckIcon name="gear" size={16} />{t("advanced")}</span><Disclosure.Indicator /></Disclosure.Trigger></Disclosure.Heading>
           <Disclosure.Content><Disclosure.Body><Card variant="secondary" className="technical-help"><Card.Content><DeckIcon name="info" size={16} /><p>{fr ? "L’identifiant relie cette page aux actions de navigation. Ne le changez que si vous savez qu’une intégration externe l’utilise." : "The identifier links this page to navigation actions. Only change it when an external integration relies on it."}</p></Card.Content></Card><TextControl label={t("technicalId")} value={page.id} maxLength={schema.limits.id} onChange={(value) => onUpdatePage((item) => { item.id = value; })} /></Disclosure.Body></Disclosure.Content>

@@ -10,6 +10,7 @@
 
 /** Vue pochette sous le bandeau heure/date. Elle dessine son propre fond. */
 void ui_top_media_draw(const App *app);
+void ui_top_lyrics_draw(const App *app);
 
 /** Vue des sorties audio, egaliseur et dock de volumes. */
 void ui_top_audio_draw(const App *app);

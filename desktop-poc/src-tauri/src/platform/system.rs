@@ -83,15 +83,7 @@ fn action_value(action: &Value, field: &str) -> Result<u8, String> {
 async fn change_app_volume(direction: i8, step: u8) -> Result<&'static str, String> {
     #[cfg(target_os = "macos")]
     {
-        let player = active_player()
-            .await
-            .ok_or("No supported media player is running")?;
-        let current = script_output(&format!(
-            "tell application \"{player}\" to get sound volume"
-        ))
-        .await?
-        .parse::<i16>()
-        .map_err(|_| "Unable to read player volume")?;
+        let current = i16::from(super::macos::media::volume().await?);
         let next = (current + i16::from(direction) * i16::from(step)).clamp(0, 100);
         set_app_volume(next as u8).await
     }
@@ -226,19 +218,26 @@ pub async fn set_app_volume(value: u8) -> Result<&'static str, String> {
     }
     #[cfg(target_os = "macos")]
     {
-        let player = active_player()
-            .await
-            .ok_or("No supported media player is running")?;
-        run_osascript(&format!(
-            "tell application \"{player}\" to set sound volume to {value}"
-        ))
-        .await?;
+        super::macos::media::set_volume(value).await?;
         Ok("Player volume changed")
     }
     #[cfg(not(target_os = "macos"))]
     {
         let _ = value;
         Err("Player volume is not implemented on this platform yet".into())
+    }
+}
+
+pub async fn seek_media(seconds: u64) -> Result<&'static str, String> {
+    #[cfg(target_os = "macos")]
+    {
+        super::macos::media::seek(seconds as f64).await?;
+        Ok("Playback position changed")
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = seconds;
+        Err("Seeking is not available for this media player".into())
     }
 }
 
@@ -253,72 +252,33 @@ pub async fn state_snapshot(include_media: bool, include_artwork: bool) -> Value
         if let Ok(input) = super::audio::input_volume().await {
             state["mic_muted"] = json!(input == 0);
         }
-        if let Some(player) = if include_media {
-            active_player().await
-        } else {
-            None
-        } {
-            let art_script = if !include_artwork {
-                ""
-            } else if player == "Spotify" {
-                "try\nset deckArt to artwork url of deckTrack\nend try"
-            } else {
-                "try\nset deckArtwork to artwork 1 of deckTrack\nset deckArtworkId to persistent ID of deckTrack\nset deckArtPath to (POSIX path of (path to temporary items)) & \"3decks-music-\" & deckArtworkId & \".art\"\nset deckArtFile to open for access POSIX file deckArtPath with write permission\nset eof deckArtFile to 0\nwrite (raw data of deckArtwork) to deckArtFile starting at 0\nclose access deckArtFile\nset deckArt to \"file://\" & deckArtPath\non error\ntry\nclose access deckArtFile\nend try\nend try"
-            };
-            let script = format!(
-                r#"tell application "{player}"
-set deckState to player state as text
-set deckTitle to ""
-set deckArtist to ""
-set deckAlbum to ""
-set deckArt to ""
-set deckPos to ""
-set deckDur to ""
+        if include_media {
+            if let Ok(Some(snapshot)) = super::macos::media::snapshot(include_artwork).await {
+                state["app_volume"] = json!(snapshot.app_volume);
+                state["media"] = snapshot.media;
+                if include_artwork && state["media"]["app"] == "Apple Music" {
+                    // Music's artwork property is binary. Keep this isolated adapter
+                    // until a tested Apple Event extraction path replaces it.
+                    const MUSIC_ARTWORK: &str = r#"tell application "Music"
 try
 set deckTrack to current track
-set deckTitle to name of deckTrack
-set deckArtist to artist of deckTrack
-set deckAlbum to album of deckTrack
-set deckDur to duration of deckTrack as text
-{art_script}
-end try
+set deckArtwork to artwork 1 of deckTrack
+set deckArtworkId to persistent ID of deckTrack
+set deckArtPath to (POSIX path of (path to temporary items)) & "3decks-music-" & deckArtworkId & ".art"
+set deckArtFile to open for access POSIX file deckArtPath with write permission
+set eof deckArtFile to 0
+write (raw data of deckArtwork) to deckArtFile starting at 0
+close access deckArtFile
+return "file://" & deckArtPath
+on error
 try
-set deckPos to player position as text
+close access deckArtFile
 end try
-return deckState & "\n" & deckTitle & "\n" & deckArtist & "\n" & deckAlbum & "\n" & deckArt & "\n" & deckPos & "\n" & deckDur & "\n" & (sound volume as text)
-end tell"#
-            );
-            if let Ok(text) = script_output(&script).await {
-                let fields: Vec<_> = text.splitn(8, '\n').collect();
-                if fields.len() == 8 {
-                    if let Ok(volume) = fields[7].parse::<u8>() {
-                        state["app_volume"] = json!(volume.min(100));
+end try
+end tell"#;
+                    if let Ok(url) = script_output(MUSIC_ARTWORK).await {
+                        state["media"]["art_url"] = json!(url);
                     }
-                }
-                if fields.len() == 8 && !fields[1].is_empty() {
-                    let mut media = json!({"app":if player == "Music" {"Apple Music"} else {player}, "playing":fields[0] == "playing", "title":fields[1], "artist":fields[2], "album":fields[3], "art_url":fields[4]});
-                    let duration = fields[6]
-                        .replace(',', ".")
-                        .parse::<f64>()
-                        .ok()
-                        .map(|value| {
-                            if value > 10_000.0 {
-                                value / 1000.0
-                            } else {
-                                value
-                            }
-                        });
-                    if let Some(duration) =
-                        duration.filter(|value| value.is_finite() && *value > 0.0)
-                    {
-                        media["duration"] = json!(duration as u64);
-                        if let Ok(position) = fields[5].replace(',', ".").parse::<f64>() {
-                            if position.is_finite() {
-                                media["position"] = json!(position.clamp(0.0, duration) as u64);
-                            }
-                        }
-                    }
-                    state["media"] = media;
                 }
             }
         }
@@ -345,11 +305,6 @@ end tell"#
 }
 
 #[cfg(target_os = "macos")]
-async fn run_osascript(script: &str) -> Result<(), String> {
-    script_output(script).await.map(|_| ())
-}
-
-#[cfg(target_os = "macos")]
 async fn script_output(script: &str) -> Result<String, String> {
     let output = tokio::time::timeout(
         Duration::from_secs(3),
@@ -367,11 +322,6 @@ async fn script_output(script: &str) -> Result<String, String> {
     } else {
         Err(String::from_utf8_lossy(&output.stderr).trim().to_string())
     }
-}
-
-#[cfg(target_os = "macos")]
-async fn active_player() -> Option<&'static str> {
-    super::macos::media::active_player().await
 }
 
 async fn media_command(command: &str) -> Result<&'static str, String> {

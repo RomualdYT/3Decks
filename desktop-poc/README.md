@@ -1,7 +1,8 @@
 # 3Decks Desktop PoC
 
-Prototype Tauri 2 autonome, développé à côté de `agent/`. Il ne modifie ni le
-backend Python ni l'application 3DS.
+Prototype Tauri 2 autonome, développé à côté du backend Python dans `agent/`.
+Les écrans et messages ajoutés à l'application 3DS restent utilisables avec
+les pages existantes.
 
 ## Périmètre
 
@@ -11,6 +12,10 @@ backend Python ni l'application 3DS.
 - Même frontend React que l’agent Python : éditeur visuel, réglages, état et
   vue Extensions chargés directement depuis `agent/frontend`. Le client API
   Tauri redirige ces vues vers les commandes Rust sans lancer Python.
+- Galerie de pages prédéfinies entièrement éditables. La page musique propose
+  les paroles LRC synchronisées sur l'écran supérieur et la navigation
+  temporelle sur l'écran tactile. La recherche LRCLIB est facultative et
+  désactivée par défaut : [fonctionnement et essais](docs/LYRICS_AND_PAGE_TEMPLATES.md).
 - Icône native, icône de zone de notification et illustrations Decky issues du
   SVG de marque existant.
 - Menu natif complet : état des consoles, ouverture et connexion, pause/reprise
@@ -56,7 +61,9 @@ Ce n'est pas encore un remplacement de l'agent Python. CoreAudio pilote
 désormais l'audio système macOS et `NSWorkspace` ouvre les liens/fichiers et
 gère les applications. Les commandes Spotify/Music utilisent les Apple Events
 natifs ; les raccourcis et le verrouillage passent par Quartz. Métadonnées,
-volume de lecteur et pochettes utilisent encore AppleScript. Ces fonctions
+position et volume du lecteur utilisent aussi les Apple Events natifs ; seule
+l'extraction de la pochette Music conserve un petit adaptateur AppleScript.
+Ces fonctions
 peuvent demander les autorisations Automatisation ou Accessibilité. Windows annonce seulement les
 actions intégrées dans son adaptateur ; Linux répond explicitement lorsque
 l'action est indisponible. Voir la [matrice des plateformes](PLATFORM_STATUS.md)
@@ -80,8 +87,9 @@ menus, définir `DECKS_POC_START_TRAY_ONLY=1`.
 ## Organisation du code Rust
 
 Le backend est découpé entre `app/`, `transport/`, `features/` et `platform/`.
-Voir [src-tauri/src/README.md](src-tauri/src/README.md) pour les responsabilités
-et la façon d’ajouter un fournisseur Windows ou Linux.
+Le dossier `platform/` isole les fournisseurs macOS, Windows et Linux ;
+`features/` porte les services transversaux (paroles, OBS, extensions,
+notifications) et `transport/` contient le protocole 3DS.
 
 La fenêtre de l’éditeur s’adapte à l’écran (jusqu’à 1440 × 900, minimum
 980 × 700), puis retrouve sa taille et sa position après fermeture, y compris lorsqu’elle reste active

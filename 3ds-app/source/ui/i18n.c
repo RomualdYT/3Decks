@@ -39,6 +39,10 @@ static const char *const kEnglish[STR_COUNT] = {
 
     /* Média */
     [STR_NOTHING_PLAYING] = "Nothing playing",
+    [STR_LYRICS_LOADING] = "Finding lyrics...",
+    [STR_LYRICS_UNAVAILABLE] = "No synced lyrics found",
+    [STR_LYRICS_DISABLED] = "Enable lyrics in 3Decks",
+    [STR_LYRICS_INSTRUMENTAL] = "Instrumental track",
     [STR_PLAYING] = "Playing",
     [STR_PAUSED] = "Paused",
 
@@ -174,6 +178,10 @@ static const char *const kFrench[STR_COUNT] = {
 
     /* Média */
     [STR_NOTHING_PLAYING] = "Aucune lecture",
+    [STR_LYRICS_LOADING] = "Recherche des paroles...",
+    [STR_LYRICS_UNAVAILABLE] = "Paroles indisponibles",
+    [STR_LYRICS_DISABLED] = "Activer les paroles dans 3Decks",
+    [STR_LYRICS_INSTRUMENTAL] = "Morceau instrumental",
     [STR_PLAYING] = "Lecture",
     [STR_PAUSED] = "Pause",
 

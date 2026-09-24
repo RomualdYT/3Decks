@@ -130,6 +130,7 @@ pub fn catalog(shared: &Shared) -> Result<Value, String> {
         "hotkey":cfg!(any(target_os = "macos", target_os = "windows")), "open_url":cfg!(any(target_os = "macos", target_os = "windows")),
         "open_path":cfg!(any(target_os = "macos", target_os = "windows")), "lock":cfg!(any(target_os = "macos", target_os = "windows")),
         "notifications":notifications_available, "media_artwork":cfg!(target_os = "macos"),
+        "lyrics_online":cfg!(target_os = "macos"),
         "system_stats":true, "obs":obs
     });
     for (feature, capability) in [
@@ -173,6 +174,7 @@ pub fn catalog(shared: &Shared) -> Result<Value, String> {
             let available_capability = match name.as_str() {
                 "notifications" => notifications_available,
                 "media_artwork" => cfg!(target_os = "macos"),
+                "lyrics_online" => cfg!(target_os = "macos"),
                 "system_stats" => true,
                 "media" | "windows" => cfg!(any(target_os = "macos", target_os = "windows")),
                 _ => cfg!(target_os = "macos"),
@@ -210,6 +212,7 @@ pub fn state(shared: &Shared) -> Result<Value, String> {
     let config = shared.config.document();
     let catalog = catalog(shared)?;
     let mut snapshot = shared.latest_state.read().unwrap().clone();
+    snapshot["lyrics"] = shared.latest_lyrics.read().unwrap().clone();
     let extension_snapshots = shared.extension_snapshots.read().unwrap();
     let mut extension_previews = serde_json::Map::new();
     let mut extension_sources = serde_json::Map::new();
