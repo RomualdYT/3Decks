@@ -13,13 +13,17 @@ backend Python ni l'application 3DS.
   Tauri redirige ces vues vers les commandes Rust sans lancer Python.
 - Icône native, icône de zone de notification et illustrations Decky issues du
   SVG de marque existant.
+- Menu natif complet : état des consoles, ouverture et connexion, pause/reprise
+  des commandes, réglages rapides, démarrage automatique, diagnostic, journal,
+  mises à jour et redémarrage.
 - Découverte UDP sur 38122 (broadcast et multicast `239.255.77.83`).
 - TCP sur 38123, trames big-endian, appairage par code puis jeton persistant.
 - Édition visuelle de la configuration existante, avec validation, révision et
   diffusion des pages modifiées aux consoles connectées.
 - Actions macOS : volume système et lecteur (plus, moins et valeur), muet sortie
   et micro, sorties audio, Spotify et Apple Music, ouverture et fermeture
-  d'applications, liens et chemins, focalisation de fenêtres, raccourcis clavier.
+  d'applications, liens et chemins, focalisation de fenêtres, raccourcis clavier
+  incluant les touches spéciales du catalogue Python (navigation, édition et F1–F12).
 - Panneaux 3DS : volume, réglages et cadre via les indicateurs `action.result`.
 - État `state.update` : volume, mode muet, micro et lecteur actif.
 - Notifications macOS : lecture SQLite en lecture seule, liste dédupliquée,

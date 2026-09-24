@@ -18,7 +18,7 @@ fn platform() -> &'static str {
     }
 }
 
-fn address_hints(port: u16) -> Vec<String> {
+pub(crate) fn address_hints(port: u16) -> Vec<String> {
     let mut interfaces = if_addrs::get_if_addrs().unwrap_or_default();
     interfaces.retain(|interface| match &interface.addr {
         if_addrs::IfAddr::V4(address) => !address.ip.is_loopback() && !address.ip.is_link_local(),

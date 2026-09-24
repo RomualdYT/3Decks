@@ -100,6 +100,23 @@ struct Pairing {
     all: Vec<Instant>,
 }
 
+#[derive(Clone, Copy)]
+enum ControlsPause {
+    Off,
+    Until(Instant),
+    Indefinite,
+}
+
+impl ControlsPause {
+    fn active(self, now: Instant) -> bool {
+        match self {
+            Self::Off => false,
+            Self::Until(until) => now < until,
+            Self::Indefinite => true,
+        }
+    }
+}
+
 pub struct Shared {
     app: AppHandle,
     status: Mutex<Status>,
@@ -122,6 +139,7 @@ pub struct Shared {
     pub state_updates: broadcast::Sender<Value>,
     pub revoked: broadcast::Sender<String>,
     pub actions: Semaphore,
+    controls_pause: Mutex<ControlsPause>,
     pub stop: watch::Sender<bool>,
 }
 
@@ -204,6 +222,7 @@ impl Shared {
             state_updates,
             revoked,
             actions: Semaphore::new(1),
+            controls_pause: Mutex::new(ControlsPause::Off),
             stop,
         })
     }
@@ -212,12 +231,36 @@ impl Shared {
         self.status.lock().unwrap().clone()
     }
 
-    pub fn update(&self, f: impl FnOnce(&mut Status)) {
-        let copy = {
-            let mut status = self.status.lock().unwrap();
-            f(&mut status);
-            status.clone()
+    pub fn pause_controls(&self, duration: Option<Duration>) {
+        *self.controls_pause.lock().unwrap() = match duration {
+            Some(value) => ControlsPause::Until(Instant::now() + value),
+            None => ControlsPause::Indefinite,
         };
+    }
+
+    pub fn resume_controls(&self) {
+        *self.controls_pause.lock().unwrap() = ControlsPause::Off;
+    }
+
+    pub fn controls_paused(&self) -> bool {
+        let mut pause = self.controls_pause.lock().unwrap();
+        if !pause.active(Instant::now()) {
+            *pause = ControlsPause::Off;
+        }
+        pause.active(Instant::now())
+    }
+
+    pub fn update(&self, f: impl FnOnce(&mut Status)) {
+        let (copy, event) = {
+            let mut status = self.status.lock().unwrap();
+            let previous = status.last_event.clone();
+            f(&mut status);
+            let event = (status.last_event != previous).then(|| status.last_event.clone());
+            (status.clone(), event)
+        };
+        if let Some(event) = event {
+            crate::app::logging::append(&event);
+        }
         let _ = self.app.emit("backend-status", copy);
     }
 
@@ -439,5 +482,20 @@ impl Shared {
             status.last_event = format!("Console {device} paired");
         });
         Ok(Some(issued))
+    }
+}
+
+#[cfg(test)]
+mod pause_tests {
+    use super::ControlsPause;
+    use std::time::{Duration, Instant};
+
+    #[test]
+    fn timed_pause_expires_but_indefinite_pause_does_not() {
+        let now = Instant::now();
+        assert!(!ControlsPause::Off.active(now));
+        assert!(ControlsPause::Until(now + Duration::from_secs(10)).active(now));
+        assert!(!ControlsPause::Until(now - Duration::from_secs(1)).active(now));
+        assert!(ControlsPause::Indefinite.active(now));
     }
 }

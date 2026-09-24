@@ -286,7 +286,9 @@ async fn serve(
                         last_mutation = Some(id);
                         let _action_slot =
                             shared.actions.acquire().await.map_err(|e| e.to_string())?;
-                        let outcome = if kind == Some("value.set") {
+                        let outcome = if shared.controls_paused() {
+                            Err("Controls are paused from the desktop menu".into())
+                        } else if kind == Some("value.set") {
                             perform_value(&shared, &message)
                                 .await
                                 .map(|note| (note, None))

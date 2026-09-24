@@ -5,14 +5,14 @@ Cette matrice décrit le **code actuel**, pas une promesse de parité. Elle doit
 
 | Fonction | macOS | Windows | Linux |
 | --- | --- | --- | --- |
-| Fenêtre Tauri, éditeur React, barre de menus/tray, onboarding | Implémenté, testé sur macOS | Code multiplateforme, essai requis | Code multiplateforme, essai requis |
+| Fenêtre Tauri, éditeur React, barre de menus/tray, onboarding | Menu complet avec pause et réglages rapides ; essai visuel du nouveau menu requis | Menu multiplateforme, essai requis | Menu multiplateforme, essai requis |
 | TCP 3DS, découverte UDP, appairage, configuration, OBS WebSocket, télémétrie | Implémenté | Code multiplateforme, essai requis | Code multiplateforme, essai requis |
 | Extensions natives | Hôte Rust + SDK, binaire par architecture | Code multiplateforme, essai requis | Code multiplateforme, essai requis |
 | Audio système et micro | CoreAudio natif ; validation sur périphériques variés requise | WASAPI/COM natif ; essai Windows requis | Non porté |
 | Lecture multimédia | Commandes Spotify/Music par Apple Events natifs ; métadonnées et pochettes encore via AppleScript | Touches multimédia `SendInput`, sans métadonnées | Non porté |
 | Sorties audio | CoreAudio natif | Non porté | Non porté |
 | Lancer/quitter une app | `NSWorkspace`/`NSRunningApplication` natifs | Lancement via `ShellExecuteW` ; fermeture gracieuse demandée par `WM_CLOSE` | Non porté |
-| Raccourcis, URL/chemins, verrouiller la session | Raccourcis et verrouillage via Quartz avec disposition clavier active ; URL/chemins via `NSWorkspace` | Raccourcis et touches média via `SendInput`, URL/chemins/app via `ShellExecuteW`, verrouillage via `LockWorkStation` ; essai Windows requis | Non porté |
+| Raccourcis, URL/chemins, verrouiller la session | Quartz couvre lettres, chiffres et touches spéciales de l’ancien catalogue ; disposition active pour les caractères, codes physiques pour les autres ; URL/chemins via `NSWorkspace` | `SendInput` couvre encore seulement lettres/chiffres ; URL/chemins/app via `ShellExecuteW`, verrouillage via `LockWorkStation` ; essai Windows requis | Non porté |
 | Liste et activation des fenêtres | CoreGraphics + Accessibilité/AppleScript | `EnumWindows` + `SetForegroundWindow` ; refus de premier plan possible, essai Windows requis | Non porté |
 | Lecture des notifications d'autres applications | SQLite `usernoted` en lecture seule, format non documenté | Non porté ; nécessite une étude WinRT/package identity | Non porté ; D-Bus standard ne donne pas d'historique global |
 | Pochettes média | Spotify/Apple Music via adaptateur macOS | Non porté | Non porté |

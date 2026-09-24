@@ -307,6 +307,11 @@ fn valid_action(value: &Value) -> Result<(), String> {
         .as_str()
         .or_else(|| value.get("type").and_then(Value::as_str));
     if kind.is_some_and(|kind| !kind.is_empty() && kind.len() <= 64) {
+        #[cfg(target_os = "macos")]
+        if kind == Some("hotkey") {
+            let keys = value["keys"].as_str().ok_or("Hotkey missing keys")?;
+            crate::platform::macos::keyboard::validate(keys)?;
+        }
         Ok(())
     } else {
         Err("action must have a type of 1–64 bytes".into())
@@ -332,6 +337,15 @@ mod tests {
         let mut source: Value = serde_json::from_str(DEFAULT_CONFIG).unwrap();
         source["pages"][0]["buttons"][1]["slot"] = json!(0);
         assert!(validate(&source).unwrap_err().contains("duplicate slot"));
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn rejects_unsupported_hotkey_before_saving() {
+        let mut source: Value = serde_json::from_str(DEFAULT_CONFIG).unwrap();
+        source["pages"][0]["buttons"][0]["action"] =
+            json!({ "type": "hotkey", "keys": "cmd+banana" });
+        assert!(validate(&source).is_err());
     }
 
     #[test]

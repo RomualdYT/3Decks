@@ -3,7 +3,7 @@ mod features;
 mod platform;
 mod transport;
 
-use app::{config, desktop, onboarding, state};
+use app::{config, desktop, logging, onboarding, state, tray};
 use features::{artwork, obs, telemetry};
 use platform::{audio, system};
 use transport::{network, protocol};
@@ -11,11 +11,7 @@ use transport::{network, protocol};
 use serde_json::Value;
 use state::{Shared, Status};
 use std::{sync::Arc, time::Duration};
-use tauri::{
-    menu::{Menu, MenuItem},
-    tray::TrayIconBuilder,
-    AppHandle, Manager, RunEvent, WebviewUrl, WebviewWindowBuilder, WindowEvent,
-};
+use tauri::{AppHandle, Manager, RunEvent, WebviewUrl, WebviewWindowBuilder, WindowEvent};
 use tauri_plugin_autostart::{MacosLauncher, ManagerExt as AutostartManagerExt};
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_updater::UpdaterExt;
@@ -294,6 +290,7 @@ pub fn run() {
             Some(vec!["--tray-only"]),
         ))
         .setup(|app| {
+            logging::init(app.handle()).map_err(std::io::Error::other)?;
             if let Some(key) = option_env!("DECKS_UPDATER_PUBKEY") {
                 app.handle()
                     .plugin(tauri_plugin_updater::Builder::new().pubkey(key).build())?;
@@ -305,33 +302,9 @@ pub fn run() {
                     .map_err(std::io::Error::other)?,
             );
             app.manage(shared.clone());
-            let open = MenuItem::with_id(app, "open", "Ouvrir 3Decks", true, None::<&str>)?;
-            let quit = MenuItem::with_id(app, "quit", "Quitter", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&open, &quit])?;
-            let icon = app
-                .default_window_icon()
-                .expect("Tauri icon missing")
-                .clone();
-            TrayIconBuilder::new()
-                .icon(icon)
-                .menu(&menu)
-                .on_menu_event(|app, event| match event.id.as_ref() {
-                    "open" => {
-                        let _ = open_editor(app);
-                    }
-                    "quit" => {
-                        if let Some(shared) = app.try_state::<Arc<Shared>>() {
-                            let _ = shared.stop.send(true);
-                        }
-                        let app = app.clone();
-                        tauri::async_runtime::spawn(async move {
-                            tokio::time::sleep(Duration::from_millis(100)).await;
-                            app.exit(0);
-                        });
-                    }
-                    _ => {}
-                })
-                .build(app)?;
+            let tray_menu = tray::TrayMenu::install(app.handle())?;
+            tray_menu.refresh(app.handle(), &shared);
+            app.manage(tray_menu);
             if std::env::var("DECKS_POC_START_TRAY_ONLY").as_deref() != Ok("1")
                 && !std::env::args().any(|arg| arg == "--tray-only")
             {
@@ -344,6 +317,19 @@ pub fn run() {
                         s.error = Some(error);
                         s.last_event = "Server unavailable".into();
                     });
+                }
+            });
+            let menu_app = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                loop {
+                    tokio::time::sleep(Duration::from_secs(1)).await;
+                    let Some(shared) = menu_app.try_state::<Arc<Shared>>() else {
+                        break;
+                    };
+                    let Some(menu) = menu_app.try_state::<tray::TrayMenu>() else {
+                        break;
+                    };
+                    menu.refresh(&menu_app, &shared);
                 }
             });
             #[cfg(debug_assertions)]
@@ -408,6 +394,11 @@ pub fn run() {
 }
 
 fn open_editor(app: &AppHandle) -> tauri::Result<()> {
+    open_editor_at(app, "")
+}
+
+pub(crate) fn open_editor_at(app: &AppHandle, route: &str) -> tauri::Result<()> {
+    let existing = app.get_webview_window("main").is_some();
     let window = if let Some(window) = app.get_webview_window("main") {
         window
     } else {
@@ -421,13 +412,17 @@ fn open_editor(app: &AppHandle) -> tauri::Result<()> {
                 )
             })
             .unwrap_or((1360.0, 820.0));
-        let mut builder =
-            WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
-                .title("3Decks")
-                .inner_size(width, height)
-                .min_inner_size(980.0, 700.0)
-                .center()
-                .visible(false);
+        let page = if route.is_empty() {
+            "index.html".to_owned()
+        } else {
+            format!("index.html#{route}")
+        };
+        let mut builder = WebviewWindowBuilder::new(app, "main", WebviewUrl::App(page.into()))
+            .title("3Decks")
+            .inner_size(width, height)
+            .min_inner_size(980.0, 700.0)
+            .center()
+            .visible(false);
         #[cfg(target_os = "macos")]
         {
             builder = builder
@@ -439,6 +434,9 @@ fn open_editor(app: &AppHandle) -> tauri::Result<()> {
         let _ = window.restore_state(StateFlags::all());
         window
     };
+    if existing && !route.is_empty() {
+        window.eval(format!("window.location.hash = '#{route}'"))?;
+    }
     window.show()?;
     window.set_focus()?;
     Ok(())

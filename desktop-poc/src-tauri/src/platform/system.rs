@@ -190,7 +190,7 @@ async fn quit_app(target: &str) -> Result<&'static str, String> {
 async fn lock_session() -> Result<&'static str, String> {
     #[cfg(target_os = "macos")]
     {
-        super::macos::keyboard::send('q', vec!["control down", "command down"]).await?;
+        super::macos::keyboard::send("ctrl+cmd+q").await?;
         Ok("Session locked")
     }
     #[cfg(target_os = "windows")]
@@ -395,8 +395,7 @@ async fn media_command(command: &str) -> Result<&'static str, String> {
 async fn hotkey(keys: &str) -> Result<&'static str, String> {
     #[cfg(target_os = "macos")]
     {
-        let (key, modifiers) = parse_hotkey(keys)?;
-        super::macos::keyboard::send(key, modifiers).await?;
+        super::macos::keyboard::send(keys).await?;
         Ok("Shortcut sent")
     }
     #[cfg(target_os = "windows")]
@@ -409,32 +408,6 @@ async fn hotkey(keys: &str) -> Result<&'static str, String> {
         let _ = keys;
         Err("Hotkeys are not implemented on this platform yet".into())
     }
-}
-
-#[cfg(target_os = "macos")]
-fn parse_hotkey(keys: &str) -> Result<(char, Vec<&'static str>), String> {
-    let parts: Vec<_> = keys.split('+').map(str::trim).collect();
-    let last = parts.last().ok_or("Empty shortcut")?;
-    let mut chars = last.chars();
-    let key = chars.next().ok_or("Empty shortcut")?;
-    if chars.next().is_some() || !key.is_ascii_alphanumeric() {
-        return Err("Only a single letter or digit is supported as shortcut key".into());
-    }
-    let mut modifiers = Vec::new();
-    for part in &parts[..parts.len() - 1] {
-        let modifier = match part.to_ascii_lowercase().as_str() {
-            "cmd" | "command" | "meta" => "command down",
-            "shift" => "shift down",
-            "ctrl" | "control" => "control down",
-            "alt" | "option" => "option down",
-            _ => return Err(format!("Unknown shortcut modifier: {part}")),
-        };
-        if modifiers.contains(&modifier) {
-            return Err("Duplicate shortcut modifier".into());
-        }
-        modifiers.push(modifier);
-    }
-    Ok((key, modifiers))
 }
 
 async fn toggle_mute() -> Result<&'static str, String> {
@@ -533,17 +506,8 @@ async fn open_path(path: &str) -> Result<&'static str, String> {
 
 #[cfg(all(test, target_os = "macos"))]
 mod tests {
-    use super::{action_step, normalized_url, parse_hotkey};
+    use super::{action_step, normalized_url};
     use serde_json::json;
-
-    #[test]
-    fn parses_shortcut_without_script_injection() {
-        let (key, modifiers) = parse_hotkey("cmd+shift+4").unwrap();
-        assert_eq!(key, '4');
-        assert_eq!(modifiers, ["command down", "shift down"]);
-        assert!(parse_hotkey("cmd+x\"; display dialog \"bad").is_err());
-        assert!(parse_hotkey("cmd+cmd+x").is_err());
-    }
 
     #[test]
     fn rejects_unsafe_urls_and_volume_steps() {

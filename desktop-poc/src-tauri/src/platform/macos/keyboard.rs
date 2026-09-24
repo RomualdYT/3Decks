@@ -8,6 +8,113 @@ const OPTION: u64 = 1 << 19;
 const COMMAND: u64 = 1 << 20;
 const SESSION_EVENT_TAP: u32 = 1;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Key {
+    Character(char),
+    Virtual(u16),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Modifier {
+    Command,
+    Control,
+    Option,
+    Shift,
+}
+
+impl Modifier {
+    fn event(self) -> (u16, u64) {
+        match self {
+            Self::Command => (55, COMMAND),
+            Self::Control => (59, CONTROL),
+            Self::Option => (58, OPTION),
+            Self::Shift => (56, SHIFT),
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct Shortcut {
+    key: Key,
+    modifiers: Vec<Modifier>,
+}
+
+fn named_key(name: &str) -> Option<u16> {
+    Some(match name {
+        "escape" | "esc" | "echap" | "echappement" => 53,
+        "return" | "enter" | "entree" | "retour" => 36,
+        "tab" | "tabulation" => 48,
+        "space" | "espace" => 49,
+        "backspace" | "delete" => 51,
+        "forward_delete" | "suppr" | "supprimer" => 117,
+        "left" | "gauche" => 123,
+        "right" | "droite" => 124,
+        "up" | "haut" => 126,
+        "down" | "bas" => 125,
+        "home" | "debut" => 115,
+        "end" | "fin" => 119,
+        "pageup" => 116,
+        "pagedown" => 121,
+        // A Windows Print Screen key is normally presented as F13 on macOS.
+        "printscreen" => 105,
+        "f1" => 122,
+        "f2" => 120,
+        "f3" => 99,
+        "f4" => 118,
+        "f5" => 96,
+        "f6" => 97,
+        "f7" => 98,
+        "f8" => 100,
+        "f9" => 101,
+        "f10" => 109,
+        "f11" => 103,
+        "f12" => 111,
+        _ => return None,
+    })
+}
+
+fn parse_shortcut(text: &str) -> Result<Shortcut, String> {
+    let mut modifiers = Vec::new();
+    let mut target = None;
+    for part in text
+        .split('+')
+        .map(str::trim)
+        .filter(|part| !part.is_empty())
+    {
+        let name = part.to_ascii_lowercase();
+        let modifier = match name.as_str() {
+            "cmd" | "command" | "win" | "super" | "meta" => Some(Modifier::Command),
+            "ctrl" | "control" => Some(Modifier::Control),
+            "alt" | "opt" | "option" => Some(Modifier::Option),
+            "shift" => Some(Modifier::Shift),
+            _ => None,
+        };
+        if let Some(modifier) = modifier {
+            if !modifiers.contains(&modifier) {
+                modifiers.push(modifier);
+            }
+            continue;
+        }
+        if target.is_some() {
+            return Err("A shortcut must contain exactly one key".into());
+        }
+        let key = if let Some(code) = named_key(&name) {
+            Key::Virtual(code)
+        } else if name.len() == 1 && name.as_bytes()[0].is_ascii_alphanumeric() {
+            Key::Character(name.chars().next().unwrap())
+        } else {
+            return Err(format!("Unknown shortcut key: {part}"));
+        };
+        target = Some(key);
+    }
+    let key = target.ok_or("Shortcut key missing")?;
+    Ok(Shortcut { key, modifiers })
+}
+
+pub(crate) fn validate(keys: &str) -> Result<(), String> {
+    parse_shortcut(keys).map(|_| ())
+}
+
 #[link(name = "Carbon", kind = "framework")]
 unsafe extern "C" {
     static kTISPropertyUnicodeKeyLayoutData: *const c_void;
@@ -117,20 +224,18 @@ fn post(code: u16, down: bool, flags: u64) -> Result<(), String> {
     Ok(())
 }
 
-fn send_sync(character: char, modifiers: Vec<&'static str>) -> Result<(), String> {
+fn send_sync(text: &str) -> Result<(), String> {
+    let shortcut = parse_shortcut(text)?;
     if !unsafe { AXIsProcessTrusted() } {
         return Err("Allow 3Decks in macOS Accessibility settings to send shortcuts".into());
     }
-    let (key, implicit_shift) = key_code(character)?;
+    let (key, implicit_shift) = match shortcut.key {
+        Key::Character(character) => key_code(character)?,
+        Key::Virtual(code) => (code, false),
+    };
     let mut chord = Vec::new();
-    for modifier in modifiers {
-        let item = match modifier {
-            "command down" => (55, COMMAND),
-            "shift down" => (56, SHIFT),
-            "control down" => (59, CONTROL),
-            "option down" => (58, OPTION),
-            _ => return Err("Unsupported shortcut modifier".into()),
-        };
+    for modifier in shortcut.modifiers {
+        let item = modifier.event();
         if !chord.contains(&item) {
             chord.push(item);
         }
@@ -156,14 +261,67 @@ fn send_sync(character: char, modifiers: Vec<&'static str>) -> Result<(), String
     result
 }
 
-pub async fn send(character: char, modifiers: Vec<&'static str>) -> Result<(), String> {
-    tokio::task::spawn_blocking(move || send_sync(character, modifiers))
+pub async fn send(keys: &str) -> Result<(), String> {
+    let keys = keys.to_owned();
+    tokio::task::spawn_blocking(move || send_sync(&keys))
         .await
         .map_err(|error| error.to_string())?
 }
 
 #[cfg(test)]
 mod tests {
+    use super::{parse_shortcut, Key, Modifier};
+
+    #[test]
+    fn parses_every_named_key_from_the_python_catalog() {
+        for (name, code) in [
+            ("escape", 53),
+            ("return", 36),
+            ("tab", 48),
+            ("space", 49),
+            ("backspace", 51),
+            ("forward_delete", 117),
+            ("left", 123),
+            ("right", 124),
+            ("up", 126),
+            ("down", 125),
+            ("home", 115),
+            ("end", 119),
+            ("pageup", 116),
+            ("pagedown", 121),
+            ("printscreen", 105),
+            ("f1", 122),
+            ("f2", 120),
+            ("f3", 99),
+            ("f4", 118),
+            ("f5", 96),
+            ("f6", 97),
+            ("f7", 98),
+            ("f8", 100),
+            ("f9", 101),
+            ("f10", 109),
+            ("f11", 103),
+            ("f12", 111),
+        ] {
+            assert_eq!(
+                parse_shortcut(name).unwrap().key,
+                Key::Virtual(code),
+                "{name}"
+            );
+        }
+    }
+
+    #[test]
+    fn accepts_legacy_aliases_and_rejects_extra_keys() {
+        let shortcut = parse_shortcut("shift+cmd+shift+EcHaP").unwrap();
+        assert_eq!(shortcut.key, Key::Virtual(53));
+        assert_eq!(shortcut.modifiers, [Modifier::Shift, Modifier::Command]);
+        assert_eq!(parse_shortcut("cmd+f12").unwrap().key, Key::Virtual(111));
+        assert!(parse_shortcut("cmd+left+right").is_err());
+        assert!(parse_shortcut("cmd+x\"; display dialog \"bad").is_err());
+        assert!(parse_shortcut("cmd+unknown").is_err());
+    }
+
     #[test]
     #[ignore = "requires an active macOS keyboard layout"]
     fn resolves_shortcuts_on_current_layout() {
