@@ -160,7 +160,7 @@ function FeatureSettings({ config, schema, status, locale, t, update }: Pick<Pro
   };
   const groups: Array<{ title: string; icon: string; items: FeatureSpec[] }> = [
     { title: locale === "fr" ? "Informations système" : "System information", icon: "monitor", items: schema.features.filter((item) => ["notifications", "windows", "system_stats", "audio_output"].includes(item.key)) },
-    { title: locale === "fr" ? "Média et lecteurs" : "Media and players", icon: "music", items: schema.features.filter((item) => ["media", "media_artwork", "apple_music", "spotify"].includes(item.key)) },
+    { title: locale === "fr" ? "Média et lecteurs" : "Media and players", icon: "music", items: schema.features.filter((item) => ["media", "lyrics_online", "media_artwork", "apple_music", "spotify"].includes(item.key)) },
   ];
   return <div className="settings-content"><SettingsHeading icon="sliders" title={t("featureTitle")} help={t("featureHelp")} />
     {groups.map((group) => <section className="feature-group" key={group.title}><div className="feature-group-title"><DeckIcon name={group.icon} /><h2>{group.title}</h2></div>{group.items.map((feature) => {
