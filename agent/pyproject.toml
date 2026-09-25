@@ -37,7 +37,7 @@ test = [
   "hypothesis>=6,<7",
   "pillow>=12,<13",
 ]
-quality = ["ruff>=0.14,<1", "mypy>=1.15,<2"]
+quality = ["ruff>=0.14,<1", "mypy>=1.15,<3"]
 dev = [{include-group = "test"}, {include-group = "quality"}]
 
 [tool.hatch.build.targets.wheel]
