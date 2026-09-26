@@ -86,6 +86,9 @@ fn supported_action(kind: &str) -> bool {
             kind,
             "app.launch"
                 | "app.quit"
+                | "app_volume.up"
+                | "app_volume.down"
+                | "app_volume.set"
                 | "hotkey"
                 | "media.next"
                 | "media.play_pause"
@@ -124,13 +127,13 @@ pub fn catalog(shared: &Shared) -> Result<Value, String> {
     let notifications_available = shared.notifications.lock().unwrap().available();
     let mut capabilities = json!({
         "volume":cfg!(any(target_os = "macos", target_os = "windows")), "mute":cfg!(any(target_os = "macos", target_os = "windows")),
-        "mic":cfg!(any(target_os = "macos", target_os = "windows")), "audio_output":cfg!(target_os = "macos"),
-        "media":cfg!(any(target_os = "macos", target_os = "windows")), "app_volume":cfg!(target_os = "macos"),
+        "mic":cfg!(any(target_os = "macos", target_os = "windows")), "audio_output":cfg!(any(target_os = "macos", target_os = "windows")),
+        "media":cfg!(any(target_os = "macos", target_os = "windows")), "app_volume":cfg!(any(target_os = "macos", target_os = "windows")),
         "apps":cfg!(any(target_os = "macos", target_os = "windows")), "windows":cfg!(any(target_os = "macos", target_os = "windows")),
         "hotkey":cfg!(any(target_os = "macos", target_os = "windows")), "open_url":cfg!(any(target_os = "macos", target_os = "windows")),
         "open_path":cfg!(any(target_os = "macos", target_os = "windows")), "lock":cfg!(any(target_os = "macos", target_os = "windows")),
-        "notifications":notifications_available, "media_artwork":cfg!(target_os = "macos"),
-        "lyrics_online":cfg!(target_os = "macos"),
+        "notifications":notifications_available, "media_artwork":cfg!(any(target_os = "macos", target_os = "windows")),
+        "lyrics_online":cfg!(any(target_os = "macos", target_os = "windows")),
         "system_stats":true, "obs":obs
     });
     for (feature, capability) in [
@@ -162,10 +165,20 @@ pub fn catalog(shared: &Shared) -> Result<Value, String> {
         for feature in features {
             let name = feature["key"].as_str().unwrap_or("").to_owned();
             if name == "media" && cfg!(target_os = "windows") {
-                feature["description"]["fr"] = json!("Contrôle lecture, pause et pistes suivantes/précédentes. Les métadonnées du morceau ne sont pas encore disponibles.");
+                feature["description"]["fr"] = json!("Lit et contrôle la session multimédia Windows active ; les informations disponibles dépendent du lecteur.");
+                feature["description"]["en"] = json!("Reads and controls the active Windows media session; available details depend on the player.");
+            }
+            if name == "audio_output" && cfg!(target_os = "windows") {
+                feature["description"]["fr"] = json!("Consultez les sorties audio et choisissez la sortie par défaut dans les paramètres Son de Windows.");
                 feature["description"]["en"] = json!(
-                    "Controls playback and track skipping. Track metadata is not available yet."
+                    "View audio outputs and choose the default output in Windows Sound settings."
                 );
+            }
+            if name == "app_volume" && cfg!(target_os = "windows") {
+                feature["description"]["fr"] =
+                    json!("Ajuste les sessions audio WASAPI du lecteur multimédia actif.");
+                feature["description"]["en"] =
+                    json!("Adjusts WASAPI audio sessions for the active media player.");
             }
             let available_os = name == "system_stats"
                 || feature["platforms"].as_array().is_some_and(|platforms| {
@@ -173,8 +186,11 @@ pub fn catalog(shared: &Shared) -> Result<Value, String> {
                 });
             let available_capability = match name.as_str() {
                 "notifications" => notifications_available,
-                "media_artwork" => cfg!(target_os = "macos"),
-                "lyrics_online" => cfg!(target_os = "macos"),
+                "audio_output" | "app_volume" => {
+                    cfg!(any(target_os = "macos", target_os = "windows"))
+                }
+                "media_artwork" => cfg!(any(target_os = "macos", target_os = "windows")),
+                "lyrics_online" => cfg!(any(target_os = "macos", target_os = "windows")),
                 "system_stats" => true,
                 "media" | "windows" => cfg!(any(target_os = "macos", target_os = "windows")),
                 _ => cfg!(target_os = "macos"),

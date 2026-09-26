@@ -1,11 +1,43 @@
 use serde::Serialize;
+use sha2::{Digest, Sha256};
 
 #[derive(Clone, Debug, Serialize)]
 pub struct Output {
+    pub id: String,
     pub name: String,
     pub is_default: bool,
-    #[serde(skip)]
-    pub(crate) id: u32,
+}
+
+/// Identifiant court transmis à la console. Le véritable identifiant système
+/// reste sur l'ordinateur et est retrouvé lors de la sélection.
+pub fn output_token(id: &str) -> String {
+    let digest = Sha256::digest(id.as_bytes());
+    hex::encode(&digest[..16])
+}
+
+pub async fn select_token(token: &str) -> Result<String, String> {
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = token;
+        return Err("Audio output selection is not available on this platform".into());
+    }
+    #[cfg(target_os = "macos")]
+    {
+        if token.len() != 32 || !token.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+            return Err("Invalid audio output identifier".into());
+        }
+        let token = token.to_owned();
+        tokio::task::spawn_blocking(move || {
+            let device = enumerate()?
+                .into_iter()
+                .find(|device| output_token(&device.id) == token)
+                .ok_or("Audio output is no longer available")?;
+            set_default(&device.id)?;
+            Ok(device.name)
+        })
+        .await
+        .map_err(|error| error.to_string())?
+    }
 }
 
 pub async fn outputs() -> Result<Vec<Output>, String> {
@@ -24,7 +56,7 @@ pub async fn cycle() -> Result<String, String> {
         let next = devices
             .get(current.map_or(0, |index| (index + 1) % devices.len()))
             .unwrap();
-        set_default(next.id)?;
+        set_default(&next.id)?;
         Ok(next.name.clone())
     })
     .await
@@ -39,13 +71,28 @@ pub async fn select(name: &str) -> Result<String, String> {
     tokio::task::spawn_blocking(move || {
         let device = enumerate()?
             .into_iter()
-            .find(|device| device.name.to_lowercase().contains(&wanted.to_lowercase()))
+            .find(|device| device.id == wanted || device.name.eq_ignore_ascii_case(&wanted))
             .ok_or_else(|| format!("Audio output not found: {wanted}"))?;
-        set_default(device.id)?;
+        set_default(&device.id)?;
         Ok(device.name)
     })
     .await
     .map_err(|error| error.to_string())?
+}
+
+pub async fn open_settings() -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        return super::windows::shell::open("ms-settings:sound").await;
+    }
+    #[cfg(target_os = "macos")]
+    {
+        Err("Open Sound settings from System Settings on macOS".into())
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        Err("Audio output settings are not available on this platform".into())
+    }
 }
 
 #[cfg(any(target_os = "macos", target_os = "windows"))]
@@ -86,15 +133,25 @@ pub async fn set_input_volume(value: u8) -> Result<(), String> {
 #[cfg(target_os = "macos")]
 use super::macos::audio as native_audio;
 #[cfg(target_os = "windows")]
-use super::win32::audio as native_audio;
+use super::windows::audio as native_audio;
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(target_os = "windows")]
+fn enumerate() -> Result<Vec<Output>, String> {
+    super::windows::audio::enumerate()
+}
+
+#[cfg(target_os = "linux")]
 fn enumerate() -> Result<Vec<Output>, String> {
     Err("Audio output selection is not implemented on this platform yet".into())
 }
 
-#[cfg(not(target_os = "macos"))]
-fn set_default(_id: u32) -> Result<(), String> {
+#[cfg(target_os = "windows")]
+fn set_default(_id: &str) -> Result<(), String> {
+    Err("Windows requires choosing the default output in Sound settings".into())
+}
+
+#[cfg(target_os = "linux")]
+fn set_default(_id: &str) -> Result<(), String> {
     Err("Audio output selection is not implemented on this platform yet".into())
 }
 
@@ -113,6 +170,6 @@ mod tests {
             return;
         };
         assert!(!current.name.is_empty());
-        set_default(current.id).expect("Current output should remain selectable");
+        set_default(&current.id).expect("Current output should remain selectable");
     }
 }

@@ -138,8 +138,38 @@ async fn get_audio_outputs() -> Result<Vec<audio::Output>, String> {
 }
 
 #[tauri::command]
-async fn select_audio_output(name: String) -> Result<String, String> {
-    audio::select(&name).await
+async fn select_audio_output(id: String) -> Result<String, String> {
+    audio::select(&id).await
+}
+
+#[tauri::command]
+async fn open_audio_settings() -> Result<(), String> {
+    audio::open_settings().await
+}
+
+#[tauri::command]
+async fn request_notification_access(
+    app: AppHandle,
+    shared: tauri::State<'_, Arc<Shared>>,
+) -> Result<Value, String> {
+    #[cfg(target_os = "windows")]
+    {
+        let result = platform::windows::notifications::request_access_on_ui(&app).await?;
+        let status = tokio::task::spawn_blocking(platform::windows::notifications::status)
+            .await
+            .map_err(|error| error.to_string())?;
+        shared
+            .notifications
+            .lock()
+            .unwrap()
+            .set_status(status.clone());
+        return Ok(serde_json::json!({"access":result,"status":status}));
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = (app, shared);
+        Err("Notification access prompts are only implemented on Windows".into())
+    }
 }
 
 #[tauri::command]
@@ -275,6 +305,17 @@ async fn open_permission_settings(permission: String) -> Result<Value, String> {
     }
     #[cfg(not(target_os = "macos"))]
     {
+        #[cfg(target_os = "windows")]
+        {
+            if permission != "notifications" {
+                return Err(format!(
+                    "Permission settings are not implemented for {permission}"
+                ));
+            }
+            platform::windows::shell::open("ms-settings:notifications").await?;
+            Ok(serde_json::json!({"opened":true,"permission":permission}))
+        }
+        #[cfg(not(target_os = "windows"))]
         Err(format!(
             "Permission settings are not implemented for {permission} on this platform"
         ))
@@ -370,6 +411,8 @@ pub fn run() {
             test_obs,
             get_audio_outputs,
             select_audio_output,
+            open_audio_settings,
+            request_notification_access,
             get_artwork,
             get_onboarding,
             save_onboarding,

@@ -226,7 +226,7 @@ impl Shared {
             clients: RwLock::new(Vec::new()),
             next_client: AtomicU64::new(1),
             telemetry: Arc::new(Mutex::new(Telemetry::new())),
-            notifications: Arc::new(Mutex::new(NotificationReader::new())),
+            notifications: Arc::new(Mutex::new(NotificationReader::new(&directory))),
             artwork: Arc::new(Mutex::new(ArtworkCache::default())),
             onboarding: OnboardingStore::new(directory.join("onboarding.json")),
             config_updates,

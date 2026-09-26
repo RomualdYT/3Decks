@@ -50,24 +50,35 @@ les pages existantes.
 - Démarrage avec la session, restauration de la fenêtre et vérification des
   mises à jour signées lorsque la clé publique est fournie au build.
 - Verrouillage de session macOS via le raccourci système.
-- Première couche Windows native : volume et micro WASAPI, touches multimédia
-  et raccourcis via `SendInput`, ouverture via `ShellExecuteW`, fenêtres via
-  `EnumWindows`/`SetForegroundWindow` et verrouillage via `LockWorkStation`.
-  et fermeture gracieuse des fenêtres par `WM_CLOSE`. Les contrôles Windows
-  demandent encore un essai réel : [plan de validation](docs/WINDOWS_TEST_PLAN.md).
+- Adaptateurs Windows natifs séparés sous `src-tauri/src/platform/windows/` :
+  WASAPI pour volume/micro et volume des sessions du lecteur actif, MMDevice
+  pour lister les sorties avec ouverture des réglages Son Windows, GSMTC pour métadonnées, commandes, position et
+  miniatures média, `SendInput` pour les raccourcis, `ShellExecuteW` pour ouvrir,
+  `EnumWindows`/`SetForegroundWindow` pour les fenêtres et `WM_CLOSE` pour
+  demander une fermeture gracieuse. WinRT lit les notifications du centre après
+  consentement et conserve localement, six heures au plus, les notifications
+  déjà observées (8 entrées maximum). Ces contrôles demandent un essai réel :
+  [plan de validation](docs/WINDOWS_TEST_PLAN.md).
 - `ping`/`pong`, `config.request`, validation des trames, limites de connexions.
 
 Ce n'est pas encore un remplacement de l'agent Python. CoreAudio pilote
 désormais l'audio système macOS et `NSWorkspace` ouvre les liens/fichiers et
-gère les applications. Les commandes Spotify/Music utilisent les Apple Events
-natifs ; les raccourcis et le verrouillage passent par Quartz. Métadonnées,
-position et volume du lecteur utilisent aussi les Apple Events natifs ; seule
-l'extraction de la pochette Music conserve un petit adaptateur AppleScript.
-Ces fonctions
-peuvent demander les autorisations Automatisation ou Accessibilité. Windows annonce seulement les
-actions intégrées dans son adaptateur ; Linux répond explicitement lorsque
-l'action est indisponible. Voir la [matrice des plateformes](PLATFORM_STATUS.md)
-avant d'évaluer la parité fonctionnelle.
+gère les applications. Les commandes Spotify/Music, leurs métadonnées et les
+pochettes s'appuient sur les adaptateurs Apple Events du lecteur et une
+conversion d'image commune en Rust ; les raccourcis et le verrouillage passent
+par Quartz. Ces fonctions peuvent demander les autorisations Automatisation ou
+Accessibilité. Windows annonce les fonctions codées dans ses adaptateurs, mais
+elles ne sont pas encore validées sur une machine Windows ; Linux répond
+explicitement lorsque l'action est indisponible. Voir la
+[matrice des plateformes](PLATFORM_STATUS.md) avant d'évaluer la parité.
+
+Windows ne documente pas d'API publique pour imposer la sortie audio globale,
+donc 3Decks ouvre les paramètres Son pour ce choix. L'écoute des notifications
+nécessite MSIX ou un paquetage avec identité et manifeste `userNotificationListener` ;
+les installateurs MSI/NSIS actuels ne fournissent pas cette identité. Son
+historique local est borné à huit entrées et six heures, et effacé si la
+fonction ou son autorisation est désactivée ; les alertes émises pendant que
+3Decks est fermé ne peuvent pas être récupérées après coup.
 
 OBS est désactivé dans la configuration initiale. Pour l'utiliser, activez
 `integrations.obs.enabled`, renseignez l'hôte, le port et le mot de passe,
@@ -90,6 +101,8 @@ Le backend est découpé entre `app/`, `transport/`, `features/` et `platform/`.
 Le dossier `platform/` isole les fournisseurs macOS, Windows et Linux ;
 `features/` porte les services transversaux (paroles, OBS, extensions,
 notifications) et `transport/` contient le protocole 3DS.
+Les notifications séparent la lecture macOS, l'accès WinRT et l'historique
+SQLite Windows dans `features/notifications/` et `platform/windows/`.
 
 La fenêtre de l’éditeur s’adapte à l’écran (jusqu’à 1440 × 900, minimum
 980 × 700), puis retrouve sa taille et sa position après fermeture, y compris lorsqu’elle reste active

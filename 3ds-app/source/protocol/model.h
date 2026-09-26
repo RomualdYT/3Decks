@@ -145,6 +145,18 @@ typedef struct {
 #define MAX_OUTPUTS 6
 #define LEN_APP_NAME 25
 
+typedef struct {
+	char id[LEN_ID]; /**< Jeton opaque, jamais un identifiant système brut. */
+	char name[LEN_TEXT];
+	bool active;
+} AudioOutput;
+
+typedef enum {
+	AUDIO_OUTPUT_UNAVAILABLE = 0,
+	AUDIO_OUTPUT_DIRECT,
+	AUDIO_OUTPUT_HOST_ONLY,
+} AudioOutputMode;
+
 #define MAX_EXTENSION_CARDS 4
 #define MAX_EXTENSION_BUTTONS (MAX_PAGES * MAX_BUTTONS)
 typedef struct {
@@ -234,8 +246,10 @@ typedef struct {
 
 	/** Sortie audio active et sorties disponibles. */
 	char audio_output[LEN_APP_NAME];
-	char audio_outputs[MAX_OUTPUTS][LEN_APP_NAME];
+	AudioOutput audio_outputs[MAX_OUTPUTS];
 	int audio_output_count;
+	int audio_output_total;
+	AudioOutputMode audio_output_mode;
 
 	ExtensionPanel extension_panels[MAX_PAGES];
 	int extension_panel_count;

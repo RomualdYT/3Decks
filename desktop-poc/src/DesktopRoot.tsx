@@ -15,6 +15,10 @@ window.decksDesktopControls = {
   getUpdateCapability: () => invoke<{ configured: boolean; version: string }>("get_update_capability"),
   checkForUpdates: () => invoke<{ available: boolean; version: string; notes?: string }>("check_for_updates"),
   installUpdate: () => invoke<void>("install_update"),
+  getAudioOutputs: () => invoke("get_audio_outputs"),
+  selectAudioOutput: (id) => invoke<string>("select_audio_output", { id }),
+  openAudioSettings: () => invoke<void>("open_audio_settings"),
+  requestNotificationAccess: () => invoke("request_notification_access"),
 };
 
 export type OnboardingProgress = { step: number; completed: boolean };

@@ -41,10 +41,16 @@ et une compilation dédiés.
 
 | Fonction | Essais requis | Résultat attendu / limites actuelles |
 | --- | --- | --- |
-| Volume de sortie | 0, 1, 50, 100 ; +/- ; mute ; périphérique USB/Bluetooth branché puis retiré | WASAPI agit sur la sortie multimédia par défaut et l'état 3DS suit le changement. La sélection de sortie n'est pas portée. |
+| Volume de sortie | 0, 1, 50, 100 ; +/- ; mute ; périphérique USB/Bluetooth branché puis retiré | WASAPI agit sur la sortie multimédia par défaut et l'état 3DS suit le changement. |
+| Sorties audio | Plusieurs sorties actives ; changer la sortie dans Paramètres Son puis revenir dans 3Decks ; débrancher/rebrancher USB/Bluetooth | La liste MMDevice indique la sortie par défaut. Le bouton ouvre `ms-settings:sound` ; Windows applique le changement, 3Decks ne force pas l'endpoint global. |
+| Volume par application | Spotify, Apple Music, VLC et navigateur GSMTC ; deux sessions audio pour un même processus ; lecteur suspendu/fermé ; sortie changée | Les contrôles de volume affectent seulement les sessions actives qui correspondent à la source GSMTC. Vérifier le volume dans le mélangeur Windows et qu'il ne modifie pas les autres apps. |
+| Notifications | Tester paquet MSIX avec capacité `userNotificationListener` ; consentement accordé/refusé ; notifications conservées, supprimées puis nouvelles ; fermer et relancer 3Decks ; désactiver la fonction et révoquer l'accès | L'accès est demandé depuis l'interface. Les items encore présents dans le centre sont lus ; alertes observées conservées dans le dossier de configuration pendant 6 h (8 entrées max), y compris après relance. Désactivation ou révocation : cache local vidé, rien envoyé à la 3DS. L'installateur MSI/NSIS actuel est sans identité de paquet et doit afficher « nécessite MSIX ». |
 | Micro | mute/unmute, micro intégré et USB, changement de périphérique pendant le mute | Le mute de l'entrée multimédia par défaut est restauré ; les applications avec entrée dédiée peuvent différer. |
-| Touches média | lecture/pause, piste suivante/précédente avec Spotify, navigateur et Musique Windows | `SendInput` atteint le lecteur choisi par Windows. Métadonnées et pochette Windows ne sont pas portées. |
-| Raccourcis | lettre et chiffre, Ctrl/Alt/Shift/Win, disposition AZERTY/QWERTY, app normale puis élevée | Le raccourci atteint l'app au premier plan ; UIPI peut bloquer l'app élevée. Aucun modificateur ne reste enfoncé après une erreur. |
+| Session multimédia | Spotify, navigateur avec lecture, Apple Music si installé, lecteur Windows ; deux lecteurs actifs ; pause, lecture, titre suivant | GSMTC utilise la session que Windows considère prioritaire. Vérifier le nom d'app, titre, artiste, album et état lecture ; les champs manquants du lecteur restent vides. |
+| Touches média | lecture/pause, piste suivante/précédente sur plusieurs lecteurs ; lecteur suspendu ou fermé | Les commandes GSMTC ciblent la session active. Si aucun lecteur n'expose de session, la commande doit retourner une erreur compréhensible. |
+| Position et pochettes | démarrer, pause, avancer/reculer avec le stylet ; piste sans pochette et grande pochette | La position dépend des contrôles GSMTC publiés par le lecteur. La pochette est lue depuis sa miniature si disponible ; vérifier mise à jour à chaque changement de piste et absence de blocage réseau/UI. |
+| Paroles en ligne | activer les paroles, rechercher des titres avec accents, titre/artiste ambigus, piste sans résultat | Les paroles utilisent les métadonnées GSMTC et LRCLIB. Vérifier l'état de chargement, absence de paroles et changement de piste ; cette fonctionnalité est optionnelle. |
+| Raccourcis | lettres, chiffres, Échap, Entrée, Tab, Espace, Retour arrière, Suppr, flèches, Home/End, Page Up/Down, Print Screen, F1–F12 ; Ctrl/Alt/Shift/Win ; AZERTY/QWERTY ; app normale puis élevée | Les caractères sont traduits avec la disposition clavier active de la fenêtre au premier plan. UIPI peut bloquer une app élevée ; aucun modificateur ne doit rester enfoncé après une erreur. |
 | Ouvrir | `.exe`, nom d'application, URL HTTP(S), fichier, dossier, chemin avec espaces et caractères non ASCII, cible inexistante | `ShellExecuteW` utilise l'association Windows. Une cible introuvable produit une erreur visible. |
 | Fermer l'app | app simple, plusieurs fenêtres, document non enregistré, app réduite, app en tray, processus élevé, deux apps de même nom | `WM_CLOSE` demande une fermeture normale aux fenêtres du processus correspondant ; l'app peut confirmer, refuser ou rester active. Aucun processus n'est tué de force. |
 | Fenêtres | fenêtres multiples, minimisées, deux moniteurs, UWP, app élevée, fenêtre disparue avant clic | La liste contient les fenêtres visibles de bureau ; `SetForegroundWindow` peut être refusé par Windows. Erreur explicite si l'activation échoue. |
@@ -65,18 +71,25 @@ et une compilation dédiés.
   ouvert ; mesurer CPU au repos et lors du polling. Le seuil de 35 Mo reste un
   objectif à mesurer, pas une propriété démontrée.
 
-## Fonctions à concevoir avant la parité Windows
+## Contraintes et distribution
 
-- Choix de la sortie audio par défaut : l'API publique MMDevice énumère les
-  périphériques mais ne fournit pas de commande documentée pour changer le
-  périphérique système par défaut. Éviter `IPolicyConfig` non documenté.
-- Volume d'application, état du lecteur, métadonnées et pochettes : étudier
-  WASAPI sessions et `GlobalSystemMediaTransportControlsSessionManager`, puis
-  valider les capacités/permissions et l'identité du paquet installé.
-- Historique des notifications d'autres applications : étudier WinRT
-  `UserNotificationListener` et les exigences de manifeste avant d'annoncer la
-  fonctionnalité. Aucun historique global n'est livré actuellement.
+- L'API publique MMDevice ne change pas la sortie par défaut. Éviter
+  `IPolicyConfig` non documenté ; ouvrir plutôt les paramètres Son Windows.
+- `UserNotificationListener` requiert une identité de paquet, la capacité
+  `userNotificationListener` et l'accord explicite de l'utilisateur. Il donne
+  les notifications conservées par Windows, pas l'historique supprimé avant que
+  3Decks ait pu les observer. Ces entrées observées sont archivées localement
+  pendant six heures (huit au maximum). Le MSI/NSIS Tauri actuel ne satisfait pas cette identité : intégrer MSIX ou un
+  sparse package avec manifeste avant d'activer cette fonction en distribution.
 - Signature Authenticode, publication et format final de l'installateur.
 
 Tout échec lié aux droits, au pare-feu, à UIPI ou aux règles de premier plan
 doit être distingué d'un crash ou d'une action silencieusement ignorée.
+
+## Points Windows non disponibles
+
+- Les fonctions audio et notifications doivent encore être testées sur une
+  machine Windows réelle. Sans paquet MSIX doté du manifeste requis, les
+  notifications sont indisponibles et l'interface doit expliquer pourquoi.
+- Avant toute release, exécuter le build complet et ces essais sur Windows 10
+  et 11. Le cross-build de modules Rust ne remplace pas un build Tauri natif.

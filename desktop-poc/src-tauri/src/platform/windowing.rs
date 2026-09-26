@@ -224,7 +224,7 @@ mod macos {
 pub use macos::{focus, list};
 
 #[cfg(target_os = "windows")]
-pub use super::win32::windowing::{focus, list};
+pub use super::windows::windowing::{focus, list};
 
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
 pub async fn list() -> Vec<Window> {

@@ -288,7 +288,7 @@ async fn serve(
                 json!({"type":"pong","id":message.get("id").and_then(Value::as_u64).unwrap_or(0)}),
             ),
             Some("config.request") => Some(shared.config_snapshot(locale)),
-            Some("button.press") | Some("value.set") => {
+            Some("button.press") | Some("value.set") | Some("audio.output.select") => {
                 let id = message.get("id").and_then(Value::as_u64);
                 match id {
                     None => Some(action_result(0, false, "Invalid request ID")),
@@ -305,6 +305,17 @@ async fn serve(
                             perform_value(&shared, &message)
                                 .await
                                 .map(|note| (note, None))
+                        } else if kind == Some("audio.output.select") {
+                            if !shared.config.feature_enabled("audio_output") {
+                                Err("Audio output feature is disabled".into())
+                            } else {
+                                match message.get("output").and_then(Value::as_str) {
+                                    Some(token) => audio::select_token(token)
+                                        .await
+                                        .map(|_| ("Audio output changed", None)),
+                                    None => Err("Audio output identifier missing".into()),
+                                }
+                            }
                         } else {
                             perform_button(&shared, &message).await
                         };
@@ -473,17 +484,24 @@ async fn perform_button(
 
 async fn collect_state(shared: &Shared) -> Value {
     let art_enabled = shared.config.feature_enabled("media_artwork");
-    let mut state =
+    let snapshot =
         system::state_snapshot(shared.config.feature_enabled("media"), art_enabled).await;
+    let mut state = snapshot.state;
+    let artwork_bytes = snapshot.artwork_bytes;
+    let artwork_key = snapshot.artwork_key;
     let art_url = state["media"]["art_url"].as_str().unwrap_or("").to_owned();
     if let Some(media) = state["media"].as_object_mut() {
         media.remove("art_url");
     }
-    artwork::refresh(
-        shared.artwork.clone(),
-        if art_enabled { &art_url } else { "" },
-    )
-    .await;
+    if let (Some(key), Some(bytes)) = (artwork_key.filter(|_| art_enabled), artwork_bytes) {
+        artwork::refresh_bytes(shared.artwork.clone(), &key, &bytes).await;
+    } else {
+        artwork::refresh(
+            shared.artwork.clone(),
+            if art_enabled { &art_url } else { "" },
+        )
+        .await;
+    }
     if state["media"].is_object() {
         shared.artwork.lock().unwrap().decorate(&mut state["media"]);
     }
@@ -503,13 +521,23 @@ async fn collect_state(shared: &Shared) -> Value {
             if let Some(current) = outputs.iter().find(|output| output.is_default) {
                 state["audio_output"] = json!(current.name);
             }
-            if !outputs.is_empty() {
-                state["audio_outputs"] = json!(outputs
-                    .iter()
-                    .take(6)
-                    .map(|output| &output.name)
-                    .collect::<Vec<_>>());
+            let mut visible = outputs.iter().take(6).collect::<Vec<_>>();
+            if !visible.iter().any(|output| output.is_default) {
+                if let Some(current) = outputs.iter().find(|output| output.is_default) {
+                    if visible.len() == 6 { visible.pop(); }
+                    visible.push(current);
+                }
             }
+            state["audio_output_mode"] = json!(if cfg!(target_os = "macos") { "direct" } else { "host_only" });
+            state["audio_output_count"] = json!(outputs.len());
+            state["audio_output_options"] = json!(visible
+                .iter()
+                .map(|output| json!({
+                    "id": audio::output_token(&output.id),
+                    "name": output.name,
+                    "active": output.is_default,
+                }))
+                .collect::<Vec<_>>());
         }
     }
     if shared.config.feature_enabled("system_stats") {

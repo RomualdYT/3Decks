@@ -317,7 +317,7 @@ pub(crate) fn enumerate() -> Result<Vec<Output>, String> {
         if let Ok(name) = name(id) {
             if !name.is_empty() {
                 outputs.push(Output {
-                    id,
+                    id: id.to_string(),
                     name,
                     is_default: id == current,
                 });
@@ -327,7 +327,10 @@ pub(crate) fn enumerate() -> Result<Vec<Output>, String> {
     Ok(outputs)
 }
 
-pub(crate) fn set_default(id: u32) -> Result<(), String> {
+pub(crate) fn set_default(id: &str) -> Result<(), String> {
+    let id = id
+        .parse::<u32>()
+        .map_err(|_| "Invalid CoreAudio device identifier")?;
     let status = unsafe {
         AudioObjectSetPropertyData(
             SYSTEM,

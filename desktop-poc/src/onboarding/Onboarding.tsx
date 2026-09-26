@@ -4,6 +4,7 @@ import type { AgentState, DeckConfig, Locale, Schema } from "../../../agent/fron
 import { DeckIcon } from "../../../agent/frontend/src/components/DeckIcon";
 import { Decky, DeckyLogo } from "../../../agent/frontend/src/components/Decky";
 import { initialLocale } from "../../../agent/frontend/src/i18n/copy";
+import { notificationPermissionError } from "../../../agent/frontend/src/utils/notificationPermission";
 import { agentApi } from "../tauri-api";
 import type { OnboardingProgress } from "../DesktopRoot";
 
@@ -12,7 +13,7 @@ type PermissionStatus = {
   platform: string;
   local_network: boolean;
   accessibility: boolean;
-  notifications: { available?: boolean; enabled?: boolean; error?: string };
+  notifications: { access?: string; available?: boolean; enabled?: boolean; error?: string };
   automation: string;
 };
 
@@ -102,6 +103,13 @@ export function Onboarding({ initialStep, onComplete }: { initialStep: number; o
     try { await agentApi.openPermissionSettings(permission); }
     catch (reason) { setError(String(reason)); }
   };
+  const requestWindowsNotifications = async () => {
+    setError("");
+    try {
+      await invoke("request_notification_access");
+      refresh();
+    } catch (reason) { setError(String(reason)); }
+  };
   const rotateCode = async () => {
     setError("");
     try {
@@ -114,7 +122,7 @@ export function Onboarding({ initialStep, onComplete }: { initialStep: number; o
   const available = (key: FeatureKey) => {
     const feature = schema?.features.find((item) => item.key === key);
     if (!feature) return false;
-    if (key === "notifications") return platform === "darwin";
+    if (key === "notifications") return platform === "darwin" || (platform === "win32" && permissions?.notifications.access !== "Unavailable");
     return feature.available && (key !== "media_artwork" || features.media === true);
   };
   const code = agent?.pairing.code || "······";
@@ -169,6 +177,7 @@ export function Onboarding({ initialStep, onComplete }: { initialStep: number; o
               <PermissionRow icon="gear" title={copy("Automatisation", "Automation")} description={copy("Contrôle de Spotify et Apple Music.", "Control Spotify and Apple Music.")} status={copy("Au premier usage", "On first use")} tone="quiet" />
               {features.notifications && <PermissionRow icon="lock" title={copy("Accès complet au disque", "Full Disk Access")} description={copy("Lecture des notifications macOS.", "Read macOS notifications.")} status={permissions?.notifications.available ? copy("Disponible", "Available") : copy("À vérifier", "Check access")} tone={permissions?.notifications.available ? "good" : "warning"} action={copy("Ouvrir les réglages", "Open settings")} onAction={() => void openPermission("notifications")} />}
             </>}
+            {!isMac && platform === "win32" && features.notifications && <PermissionRow icon="bell" title={copy("Accès aux notifications", "Notification access")} description={notificationPermissionError(permissions?.notifications.access, permissions?.notifications.error, locale) || copy("Autorisez 3Decks à lire les notifications conservées dans le centre Windows.", "Allow 3Decks to read notifications retained in Windows Notification Center.")} status={permissions?.notifications.access === "Allowed" ? copy("Autorisé", "Allowed") : permissions?.notifications.access === "Denied" ? copy("Refusé", "Denied") : permissions?.notifications.access === "Unavailable" ? copy("Nécessite MSIX", "Requires MSIX") : copy("À autoriser", "Needs access")} tone={permissions?.notifications.access === "Allowed" ? "good" : permissions?.notifications.access === "Unavailable" ? "quiet" : "warning"} action={permissions?.notifications.access === "Unspecified" ? copy("Autoriser", "Allow") : permissions?.notifications.access === "Denied" ? copy("Ouvrir les réglages", "Open settings") : undefined} onAction={permissions?.notifications.access === "Denied" ? () => void openPermission("notifications") : () => void requestWindowsNotifications()} />}
             {!isMac && <PermissionRow icon="info" title={copy("Intégrations natives", "Native integrations")} description={copy("Les autorisations détaillées seront disponibles avec les connecteurs de cette plateforme.", "Detailed permissions will arrive with this platform's native connectors.")} status={copy("À venir", "Coming soon")} tone="quiet" />}
           </div>
         </div>

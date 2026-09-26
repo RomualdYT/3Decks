@@ -2,10 +2,6 @@ use serde_json::json;
 use serde_json::Value;
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 use std::sync::Mutex;
-#[cfg(target_os = "macos")]
-use std::time::Duration;
-#[cfg(target_os = "macos")]
-use tokio::process::Command;
 
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 static PREVIOUS_INPUT_VOLUME: Mutex<Option<u8>> = Mutex::new(None);
@@ -87,7 +83,12 @@ async fn change_app_volume(direction: i8, step: u8) -> Result<&'static str, Stri
         let next = (current + i16::from(direction) * i16::from(step)).clamp(0, 100);
         set_app_volume(next as u8).await
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "windows")]
+    {
+        super::windows::audio_sessions::change_active_media_volume(direction, step).await?;
+        Ok("Player volume changed")
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     {
         let _ = (direction, step);
         Err("Player volume is not implemented on this platform yet".into())
@@ -128,7 +129,7 @@ async fn open_url(input: &str) -> Result<&'static str, String> {
     }
     #[cfg(target_os = "windows")]
     {
-        super::win32::shell::open(parsed.as_str()).await?;
+        super::windows::shell::open(parsed.as_str()).await?;
         Ok("URL opened")
     }
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
@@ -170,7 +171,7 @@ async fn quit_app(target: &str) -> Result<&'static str, String> {
     }
     #[cfg(target_os = "windows")]
     {
-        super::win32::process::quit_app(target).await?;
+        super::windows::process::quit_app(target).await?;
         Ok("Application close requested")
     }
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
@@ -187,7 +188,7 @@ async fn lock_session() -> Result<&'static str, String> {
     }
     #[cfg(target_os = "windows")]
     {
-        super::win32::shell::lock_session().await?;
+        super::windows::shell::lock_session().await?;
         Ok("Session locked")
     }
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
@@ -221,7 +222,12 @@ pub async fn set_app_volume(value: u8) -> Result<&'static str, String> {
         super::macos::media::set_volume(value).await?;
         Ok("Player volume changed")
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "windows")]
+    {
+        super::windows::audio_sessions::set_active_media_volume(value).await?;
+        Ok("Player volume changed")
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     {
         let _ = value;
         Err("Player volume is not implemented on this platform yet".into())
@@ -234,93 +240,73 @@ pub async fn seek_media(seconds: u64) -> Result<&'static str, String> {
         super::macos::media::seek(seconds as f64).await?;
         Ok("Playback position changed")
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "windows")]
+    {
+        super::windows::media::seek(seconds).await?;
+        Ok("Playback position changed")
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     {
         let _ = seconds;
         Err("Seeking is not available for this media player".into())
     }
 }
 
-pub async fn state_snapshot(include_media: bool, include_artwork: bool) -> Value {
-    #[cfg(target_os = "macos")]
+pub struct SystemSnapshot {
+    pub state: Value,
+    pub artwork_key: Option<String>,
+    pub artwork_bytes: Option<std::sync::Arc<[u8]>>,
+}
+
+pub async fn state_snapshot(include_media: bool, include_artwork: bool) -> SystemSnapshot {
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
     {
-        let mut state = json!({"type":"state.update","volume":null,"muted":null,"mic_muted":null,"media":null,"app_volume":null});
-        if let Ok((volume, muted)) = super::audio::output_state().await {
-            state["volume"] = json!(volume);
-            state["muted"] = json!(muted);
-        }
-        if let Ok(input) = super::audio::input_volume().await {
-            state["mic_muted"] = json!(input == 0);
-        }
-        if include_media {
-            if let Ok(Some(snapshot)) = super::macos::media::snapshot(include_artwork).await {
-                state["app_volume"] = json!(snapshot.app_volume);
-                state["media"] = snapshot.media;
-                if include_artwork && state["media"]["app"] == "Apple Music" {
-                    // Music's artwork property is binary. Keep this isolated adapter
-                    // until a tested Apple Event extraction path replaces it.
-                    const MUSIC_ARTWORK: &str = r#"tell application "Music"
-try
-set deckTrack to current track
-set deckArtwork to artwork 1 of deckTrack
-set deckArtworkId to persistent ID of deckTrack
-set deckArtPath to (POSIX path of (path to temporary items)) & "3decks-music-" & deckArtworkId & ".art"
-set deckArtFile to open for access POSIX file deckArtPath with write permission
-set eof deckArtFile to 0
-write (raw data of deckArtwork) to deckArtFile starting at 0
-close access deckArtFile
-return "file://" & deckArtPath
-on error
-try
-close access deckArtFile
-end try
-end try
-end tell"#;
-                    if let Ok(url) = script_output(MUSIC_ARTWORK).await {
-                        state["media"]["art_url"] = json!(url);
-                    }
+        #[cfg(target_os = "macos")]
+        use super::macos::media as native_media;
+        #[cfg(target_os = "windows")]
+        use super::windows::media as native_media;
+
+        let (output, input, media) = tokio::join!(
+            super::audio::output_state(),
+            super::audio::input_volume(),
+            async {
+                if include_media {
+                    native_media::snapshot(include_artwork).await
+                } else {
+                    Ok(None)
                 }
             }
-        }
-        return state;
-    }
-    #[cfg(target_os = "windows")]
-    {
-        let _ = (include_media, include_artwork);
+        );
         let mut state = json!({"type":"state.update","volume":null,"muted":null,"mic_muted":null,"media":null,"app_volume":null});
-        if let Ok((volume, muted)) = super::audio::output_state().await {
+        if let Ok((volume, muted)) = output {
             state["volume"] = json!(volume);
             state["muted"] = json!(muted);
         }
-        if let Ok(input) = super::audio::input_volume().await {
+        if let Ok(input) = input {
             state["mic_muted"] = json!(input == 0);
         }
-        state
+        let mut artwork_key = None;
+        let mut artwork_bytes = None;
+        if let Ok(Some(snapshot)) = media {
+            state["app_volume"] = json!(snapshot.app_volume);
+            state["media"] = snapshot.media;
+            artwork_key = snapshot.artwork_key;
+            artwork_bytes = snapshot.artwork;
+        }
+        return SystemSnapshot {
+            state,
+            artwork_key,
+            artwork_bytes,
+        };
     }
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     {
         let _ = (include_media, include_artwork);
-        json!({"type":"state.update","volume":null,"muted":null,"mic_muted":null,"media":null,"app_volume":null})
-    }
-}
-
-#[cfg(target_os = "macos")]
-async fn script_output(script: &str) -> Result<String, String> {
-    let output = tokio::time::timeout(
-        Duration::from_secs(3),
-        Command::new("/usr/bin/osascript")
-            .kill_on_drop(true)
-            .arg("-e")
-            .arg(script)
-            .output(),
-    )
-    .await
-    .map_err(|_| "AppleScript timed out".to_string())?
-    .map_err(|e| e.to_string())?;
-    if output.status.success() {
-        Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
-    } else {
-        Err(String::from_utf8_lossy(&output.stderr).trim().to_string())
+        SystemSnapshot {
+            state: json!({"type":"state.update","volume":null,"muted":null,"mic_muted":null,"media":null,"app_volume":null}),
+            artwork_key: None,
+            artwork_bytes: None,
+        }
     }
 }
 
@@ -332,7 +318,7 @@ async fn media_command(command: &str) -> Result<&'static str, String> {
     }
     #[cfg(target_os = "windows")]
     {
-        super::win32::keyboard::media(command)?;
+        super::windows::media::command(command).await?;
         Ok("Media command sent")
     }
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
@@ -350,7 +336,7 @@ async fn hotkey(keys: &str) -> Result<&'static str, String> {
     }
     #[cfg(target_os = "windows")]
     {
-        super::win32::keyboard::hotkey(keys)?;
+        super::windows::keyboard::hotkey(keys).await?;
         Ok("Shortcut sent")
     }
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
@@ -405,7 +391,7 @@ async fn launch_app(target: &str) -> Result<&'static str, String> {
     }
     #[cfg(target_os = "windows")]
     {
-        super::win32::shell::open(target).await?;
+        super::windows::shell::open(target).await?;
         Ok("Application launched")
     }
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
@@ -445,7 +431,7 @@ async fn open_path(path: &str) -> Result<&'static str, String> {
         } else {
             path.to_owned()
         };
-        super::win32::shell::open(&expanded).await?;
+        super::windows::shell::open(&expanded).await?;
         Ok("Path opened")
     }
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]

@@ -58,11 +58,17 @@ bool text_init(void)
 	}
 
 	/*
-	 * Le chargement de la police est facultatif : si le système de fichiers
-	 * embarqué est absent, l'interface reste utilisable avec la police système.
-	 * Mieux vaut un rendu moins net qu'une application qui refuse de démarrer.
+	 * On essaie d'abord depuis RomFS (fonctionne sur vraie 3DS et avec le paquet CIA).
+	 * En repli (notamment pour Citra en mode .3dsx où RomFS n'est pas monté par SelfNCCH),
+	 * on charge la police depuis la carte SD dans le répertoire de l'application.
 	 */
 	s_font = C2D_FontLoad(FONT_PATH);
+	if (s_font == NULL) {
+		s_font = C2D_FontLoad("sdmc:/3ds/deck3ds/deck.bcfnt");
+	}
+	if (s_font == NULL) {
+		s_font = C2D_FontLoad("sdmc:/3ds/deck.bcfnt");
+	}
 
 	return true;
 }

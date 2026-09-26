@@ -417,7 +417,7 @@ async fn open_path(path: &str) -> Result<(), String> {
     }
     #[cfg(target_os = "windows")]
     {
-        crate::platform::win32::shell::open(path).await
+        crate::platform::windows::shell::open(path).await
     }
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     {
@@ -433,7 +433,7 @@ async fn open_url(url: &str) -> Result<(), String> {
     }
     #[cfg(target_os = "windows")]
     {
-        crate::platform::win32::shell::open(url).await
+        crate::platform::windows::shell::open(url).await
     }
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     {

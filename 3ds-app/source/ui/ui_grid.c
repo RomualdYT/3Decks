@@ -231,10 +231,18 @@ void draw_button(const App *app, const Button *button, int slot)
 	const float label_y = y + h - text_block + 2.0f;
 	const bool showing_hold =
 	    has_hold && app->pressed_slot == slot && app->press_time > 0.08f;
+	const char *label = showing_hold ? button->hold_label : button->label;
 
-	text_draw_clipped(cx, label_y, Z_OVERLAY, TEXT_BODY,
-	                  active ? COL_WHITE : COL_TEXT, ALIGN_CENTER, w - 8.0f,
-	                  showing_hold ? button->hold_label : button->label);
+	/* Si le texte est long (ex: « Navigateur », « Volumes »), on réduit la police
+	 * d'un cran pour éviter de le tronquer avec des points de suspension. */
+	float scale = TEXT_BODY;
+	if (text_width(label, scale) > w - 8.0f) {
+		scale = TEXT_SMALL;
+	}
+
+	text_draw_clipped(cx, label_y, Z_OVERLAY, scale,
+	                  active ? COL_WHITE : COL_TEXT, ALIGN_CENTER, w - 6.0f,
+	                  label);
 
 	/* Trois points signalent sans texte qu'une action secondaire existe. */
 	if (has_hold && !showing_hold) {

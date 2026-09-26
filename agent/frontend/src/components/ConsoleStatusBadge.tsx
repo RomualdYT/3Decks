@@ -24,7 +24,6 @@ export function ConsoleStatusBadge({ status, locale, onOpenSettings }: Props) {
       <Button aria-label={fr ? "Voir l’état de la connexion" : "View connection status"} className={`console-status ${connected ? "connected" : ""}`} variant="ghost" size="sm">
         <ConsoleConnectionIcon connected={connected} />
         <span>{connected ? (fr ? `${count} console${count > 1 ? "s" : ""} connectée${count > 1 ? "s" : ""}` : `${count} console${count > 1 ? "s" : ""} connected`) : (fr ? "Aucune console" : "No console")}</span>
-        <span className="status-pulse" />
       </Button>
       <Modal.Backdrop>
         <Modal.Container size="md">

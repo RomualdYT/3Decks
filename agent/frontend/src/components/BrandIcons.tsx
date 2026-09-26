@@ -21,13 +21,13 @@ export function AppleMusicIcon({ size = 22 }: { size?: number }) {
 
 export function ConsoleConnectionIcon({ connected, size = 21 }: { connected: boolean; size?: number }) {
   return (
-    <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <rect x="3.2" y="2.7" width="17.6" height="8.2" rx="2.2" stroke="currentColor" strokeWidth="1.55" />
-      <rect x="4.6" y="13" width="14.8" height="8.2" rx="2.2" stroke="currentColor" strokeWidth="1.55" />
-      <path d="M9 16.2v2.9M7.55 17.65h2.9" stroke="currentColor" strokeWidth="1.45" strokeLinecap="round" />
-      <circle cx="15.2" cy="16.7" r=".75" fill="currentColor" /><circle cx="17.1" cy="18.4" r=".75" fill="currentColor" />
-      <path d="M9.5 6.8h5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-      <circle cx="18.7" cy="4.3" r="2.2" fill={connected ? "#66CB10" : "#718096"} stroke="#09101d" strokeWidth="1" />
+    <svg aria-hidden="true" data-connected={connected} width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <rect x="3.25" y="2.2" width="17.5" height="8.8" rx="2.5" stroke="currentColor" strokeWidth="1.6" />
+      <rect x="4.25" y="12.15" width="15.5" height="9.65" rx="2.8" stroke="currentColor" strokeWidth="1.6" />
+      <rect x="6.15" y="4.1" width="11.7" height="4.95" rx="1.15" fill="currentColor" opacity=".13" />
+      <path d="M7.65 16.95h3.9M9.6 15v3.9" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" />
+      <circle cx="15.25" cy="16.25" r=".85" fill="currentColor" />
+      <circle cx="17.45" cy="18.1" r=".85" fill="currentColor" />
     </svg>
   );
 }

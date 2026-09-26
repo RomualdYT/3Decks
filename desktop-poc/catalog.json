@@ -1071,7 +1071,7 @@
       "title": { "fr": "Paroles synchronisées", "en": "Synced lyrics" },
       "description": { "fr": "Recherche les paroles sur LRCLIB. Le titre, l’artiste, l’album et la durée sont envoyés au service.", "en": "Looks up lyrics on LRCLIB. Track title, artist, album and duration are sent to the service." },
       "parent": "media",
-      "platforms": ["darwin"],
+      "platforms": ["darwin", "win32"],
       "enabled": false,
       "available": false
     },

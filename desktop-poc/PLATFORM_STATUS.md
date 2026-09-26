@@ -1,55 +1,70 @@
 # État des plateformes du PoC Tauri
 
-Cette matrice décrit le **code actuel**, pas une promesse de parité. Elle doit
-être revue avec des builds et des essais sur chaque OS avant publication.
+Cette matrice décrit ce que le code implémente aujourd'hui. « Implémenté » ne
+signifie pas encore validé sur une machine de chaque plateforme. Les actions
+liées aux systèmes sont isolées sous `src-tauri/src/platform/macos/` et
+`src-tauri/src/platform/windows/`; `platform/system.rs` orchestre les actions
+communes sans exposer les types Cocoa, COM ou WinRT au protocole réseau.
 
 | Fonction | macOS | Windows | Linux |
 | --- | --- | --- | --- |
-| Fenêtre Tauri, éditeur React, barre de menus/tray, onboarding | Menu complet avec pause et réglages rapides ; essai visuel du nouveau menu requis | Menu multiplateforme, essai requis | Menu multiplateforme, essai requis |
-| TCP 3DS, découverte UDP, appairage, configuration, OBS WebSocket, télémétrie | Implémenté | Code multiplateforme, essai requis | Code multiplateforme, essai requis |
-| Extensions natives | Hôte Rust + SDK, binaire par architecture | Code multiplateforme, essai requis | Code multiplateforme, essai requis |
-| Audio système et micro | CoreAudio natif ; validation sur périphériques variés requise | WASAPI/COM natif ; essai Windows requis | Non porté |
-| Lecture multimédia | Commandes Spotify/Music par Apple Events natifs ; métadonnées et pochettes encore via AppleScript | Touches multimédia `SendInput`, sans métadonnées | Non porté |
-| Sorties audio | CoreAudio natif | Non porté | Non porté |
-| Lancer/quitter une app | `NSWorkspace`/`NSRunningApplication` natifs | Lancement via `ShellExecuteW` ; fermeture gracieuse demandée par `WM_CLOSE` | Non porté |
-| Raccourcis, URL/chemins, verrouiller la session | Quartz couvre lettres, chiffres et touches spéciales de l’ancien catalogue ; disposition active pour les caractères, codes physiques pour les autres ; URL/chemins via `NSWorkspace` | `SendInput` couvre encore seulement lettres/chiffres ; URL/chemins/app via `ShellExecuteW`, verrouillage via `LockWorkStation` ; essai Windows requis | Non porté |
-| Liste et activation des fenêtres | CoreGraphics + Accessibilité/AppleScript | `EnumWindows` + `SetForegroundWindow` ; refus de premier plan possible, essai Windows requis | Non porté |
-| Lecture des notifications d'autres applications | SQLite `usernoted` en lecture seule, format non documenté | Non porté ; nécessite une étude WinRT/package identity | Non porté ; D-Bus standard ne donne pas d'historique global |
-| Pochettes média | Spotify/Apple Music via adaptateur macOS | Non porté | Non porté |
-| Installateur, signature, mise à jour vérifiée | Bundle local ; chaîne de signature à finaliser | Packaging/signature non testés | Packaging/signature non testés |
+| Fenêtre Tauri, éditeur React, menu et tray | Implémenté ; validation visuelle finale requise | Code partagé, essai Windows requis | Code partagé, essai Linux requis |
+| TCP 3DS, découverte UDP, appairage, configuration, OBS WebSocket, télémétrie | Implémenté | Code partagé, essai Windows requis | Code partagé, essai Linux requis |
+| Extensions natives | Hôte Rust + SDK | Code partagé, essai Windows requis | Code partagé, essai Linux requis |
+| Audio système et micro | CoreAudio natif | WASAPI/COM natif | Non porté |
+| Contrôle multimédia, métadonnées et position | Apple Events/MediaRemote selon le lecteur ; validation sur les lecteurs requis | WinRT GSMTC : session active, métadonnées, commandes, position et pochette quand le lecteur les fournit | Non porté |
+| Volume du lecteur | Spotify/Music si disponible | WASAPI sessions du lecteur GSMTC actif ; à valider sur Windows | Non porté |
+| Pochettes média et paroles en ligne | Adaptateur média + conversion Rust commune | Miniature GSMTC + conversion Rust commune ; paroles LRCLIB activables | Non porté |
+| Sorties audio | CoreAudio : liste et sélection | MMDevice : liste/default ; ouverture des réglages Son Windows pour changer la sortie | Non porté |
+| Lancer/quitter une app | `NSWorkspace`/`NSRunningApplication` | `ShellExecuteW` / demande de fermeture `WM_CLOSE` | Non porté |
+| Raccourcis système | Quartz, touches spéciales et disposition active | `SendInput`, touches spéciales et touches caractères selon la disposition Windows | Non porté |
+| URL, chemins, verrouiller la session | `NSWorkspace` / Quartz | `ShellExecuteW` / `LockWorkStation` | Non porté |
+| Liste et activation des fenêtres | CoreGraphics + Accessibilité/Apple Events | `EnumWindows` + `SetForegroundWindow` ; refus possible par Windows | Non porté |
+| Notifications des autres applications | Lecture SQLite `usernoted`, format non documenté | WinRT UserNotificationListener ; consentement requis, historique local borné des alertes observées | Non porté ; D-Bus ne fournit pas d'historique global standard |
+| Installateur, signature et mises à jour vérifiées | Bundle local ; chaîne de signature à finaliser | Packaging/signature à bâtir et valider en CI Windows | Packaging à bâtir |
 
-Les capacités non implémentées sont marquées indisponibles dans le catalogue
-et retournent une erreur explicite. Il serait trompeur de dire que Windows et
-Linux sont « portés » aujourd'hui.
+## Architecture native
 
-## Architecture cible
+Les fichiers sous `platform/macos/` contiennent les adaptateurs Cocoa, Quartz,
+CoreAudio et Apple Events. `platform/windows/` contient les adaptateurs WASAPI,
+WinRT GSMTC, `SendInput`, fenêtres, shell et processus. Les opérations bloquantes
+passent par `tokio::task::spawn_blocking`; les objets système ne quittent pas
+leur adaptateur. `platform/system.rs` conserve le contrat commun des actions,
+et `platform/audio.rs` sélectionne l'implémentation selon la cible de compilation.
 
-`transport/`, `app/` et l'API d'extensions restent communs. Les contrôles audio
-passent par `platform/audio.rs` vers CoreAudio ou `platform/win32/audio.rs`.
-Les opérations shell Windows vivent dans `platform/win32/shell.rs`, les entrées
-dans `platform/win32/keyboard.rs`, et l'énumération des fenêtres dans
-`platform/windowing.rs`. Les capacités remontent
-à l'éditeur depuis l'adaptateur réellement disponible, puis les tests
-d'intégration couvrent chaque OS en CI et sur matériel.
+La conversion des pochettes est partagée et écrite en Rust : décodage borné,
+redimensionnement et format de transport sont identiques sur macOS et Windows.
+La source des octets reste propre à chaque système. Les notifications privées
+macOS ne deviennent pas une API portable par le seul usage de Cocoa.
 
-Sur macOS, poursuivre **AppKit/Cocoa** progressivement là où l'adaptateur actuel
-appelle `osascript` : Accessibilité pour l'activation de fenêtres et Apple Events
-pour les propriétés de lecteur et pochettes. CoreAudio, Quartz et Apple Events
-et `NSWorkspace` couvrent maintenant l'audio système, les URL/fichiers et le
-lancement/arrêt d'applications. La fenêtre et le tray restent gérés par Tauri, qui utilise déjà
-les primitives natives macOS. Cocoa est une couche d'intégration macOS, pas un
-nouveau frontend ni un remplacement de Tauri.
+## Limites de validation Windows
 
-La lecture de la base privée `usernoted` reste un risque distinct : Cocoa ne
-fournit pas automatiquement l'historique des notifications des autres apps.
-Éviter de promettre cette fonction sur Windows/Linux avant d'avoir validé les
-permissions, l'identité de package et le modèle de distribution correspondant.
+Le code Windows n'a pas encore été exécuté sur Windows. Les adaptateurs Windows
+et `platform/system.rs` passent un `cargo check --tests` croisé isolé avec la
+cible GNU. La compilation Tauri complète n'a pas été vérifiée dans cet
+environnement : elle est bloquée par l'absence du compilateur MinGW requis par
+une dépendance native. Les comportements GSMTC varient selon le
+lecteur et la session Windows active ; les essais réels listés dans
+[`docs/WINDOWS_TEST_PLAN.md`](docs/WINDOWS_TEST_PLAN.md) restent nécessaires.
 
-Le module Windows a été vérifié par `cargo check --target x86_64-pc-windows-gnu`
-dans un petit crate de contrôle qui importe les adaptateurs et `system.rs`.
-Le build Tauri complet exige un compilateur MinGW ou une CI Windows ; aucun
-essai d'exécution Windows n'a encore été fait. `SendInput` peut être refusé
-pour une application élevée (UIPI). L'appareil de sortie WASAPI est sélectionné
-avec le rôle multimédia ; la politique de changement de sortie reste à définir.
-Windows limite aussi `SetForegroundWindow` selon le processus au premier plan.
-Voir [le plan de validation Windows](docs/WINDOWS_TEST_PLAN.md) avant publication.
+Les raccourcis synthétiques peuvent être bloqués par UIPI lorsqu'une application
+cible tourne avec des privilèges plus élevés. `SetForegroundWindow` peut aussi
+être refusé par la politique de premier plan Windows. Windows ne fournit pas
+d'API publique documentée pour changer la sortie par défaut : 3Decks liste les
+sorties actives et ouvre les réglages Son pour laisser l'utilisateur choisir.
+Le volume applicatif cible les sessions WASAPI du processus correspondant au
+lecteur GSMTC actif. Les notifications nécessitent une identité de paquet et la
+capacité `userNotificationListener` ; le paquet MSI/NSIS actuel ne les rend pas
+disponibles. Les notifications observées sont conservées localement six heures,
+avec une limite de huit entrées, dans le dossier de configuration de 3Decks.
+La désactivation de la fonction ou le retrait de l'autorisation efface ce cache.
+
+## Références Windows
+
+- [Session GSMTC active](https://learn.microsoft.com/en-us/uwp/api/windows.media.control.globalsystemmediatransportcontrolssessionmanager.getcurrentsession)
+- [Métadonnées de session](https://learn.microsoft.com/en-us/uwp/api/windows.media.control.globalsystemmediatransportcontrolssessionmediaproperties)
+- [Entrée clavier et `SendInput`](https://learn.microsoft.com/en-us/windows/win32/inputdev/keyboard-input)
+- [Sessions audio WASAPI](https://learn.microsoft.com/en-us/windows/win32/coreaudio/audio-sessions)
+- [Volume des sessions audio](https://learn.microsoft.com/en-us/windows/win32/coreaudio/volume-controls)
+- [Obtenir la sortie audio par défaut](https://learn.microsoft.com/en-us/windows/win32/coreaudio/getting-the-default-device-endpoint-for-streaming)
+- [Notifications utilisateur Windows](https://learn.microsoft.com/en-us/windows/apps/develop/notifications/app-notifications/notification-listener)

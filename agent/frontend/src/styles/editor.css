@@ -29,7 +29,6 @@
 .preview-column { margin: 0 auto; max-width: 850px; }
 .workspace-heading { align-items: flex-start; display: flex; justify-content: space-between; margin-bottom: 18px; }
 .workspace-heading h1 { font-size: clamp(27px, 2vw, 36px); margin: 5px 0 8px; }
-.workspace-heading p { font-size: 12px; }
 .device-stage { align-items: center; background: radial-gradient(ellipse at center, rgba(44,54,37,.22), rgba(12,12,14,.18) 58%, transparent 74%); border: 1px solid var(--border); border-radius: 28px; display: flex; justify-content: center; min-height: 680px; overflow: hidden; padding: 14px 22px; position: relative; }
 .device-stage::before { background: linear-gradient(90deg, transparent, rgba(102,203,16,.55), transparent); content: ""; height: 1px; left: 18%; opacity: .45; position: absolute; right: 18%; top: 0; }
 .device-shell-wrap { aspect-ratio: 1196 / 1315; max-width: 650px; position: relative; width: min(100%, 650px); }

@@ -4,6 +4,12 @@ use objc2::rc::Retained;
 use objc2_app_kit::NSWorkspace;
 use objc2_foundation::{NSAppleEventDescriptor, NSAppleEventSendOptions, NSString};
 use serde_json::{json, Value};
+use std::{
+    ptr::NonNull,
+    sync::{Arc, Mutex},
+};
+
+static ARTWORK_CACHE: Mutex<Option<(String, Arc<[u8]>)>> = Mutex::new(None);
 
 fn code(bytes: &[u8; 4]) -> u32 {
     u32::from_be_bytes(*bytes)
@@ -33,6 +39,30 @@ fn property(
         .ok_or("Unable to construct Apple Event property".into())
 }
 
+fn element(
+    class_code: u32,
+    index: i32,
+    container: &NSAppleEventDescriptor,
+) -> Result<Retained<NSAppleEventDescriptor>, String> {
+    let record = NSAppleEventDescriptor::recordDescriptor();
+    record.setDescriptor_forKeyword(
+        &NSAppleEventDescriptor::descriptorWithTypeCode(class_code),
+        code(b"want"),
+    );
+    record.setDescriptor_forKeyword(
+        &NSAppleEventDescriptor::descriptorWithEnumCode(code(b"indx")),
+        code(b"form"),
+    );
+    record.setDescriptor_forKeyword(
+        &NSAppleEventDescriptor::descriptorWithInt32(index),
+        code(b"seld"),
+    );
+    record.setDescriptor_forKeyword(container, code(b"from"));
+    record
+        .coerceToDescriptorType(code(b"obj "))
+        .ok_or("Unable to construct Apple Event element".into())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -40,6 +70,14 @@ mod tests {
     #[test]
     fn property_specifier_contains_the_requested_property() {
         let descriptor = property(code(b"pTrk"), None).unwrap();
+        assert_eq!(descriptor.descriptorType(), code(b"obj "));
+        assert!(descriptor.data().length() > 0);
+    }
+
+    #[test]
+    fn artwork_element_specifier_contains_an_index_and_track_container() {
+        let track = property(code(b"pTrk"), None).unwrap();
+        let descriptor = element(code(b"cArt"), 1, &track).unwrap();
         assert_eq!(descriptor.descriptorType(), code(b"obj "));
         assert!(descriptor.data().length() > 0);
     }
@@ -120,6 +158,31 @@ fn real(value: &NSAppleEventDescriptor) -> f64 {
 pub struct MediaSnapshot {
     pub media: Value,
     pub app_volume: Option<u8>,
+    pub artwork_key: Option<String>,
+    pub artwork: Option<Arc<[u8]>>,
+}
+
+fn artwork_data(track: &NSAppleEventDescriptor, key: &str) -> Result<Arc<[u8]>, String> {
+    if let Some((cached_key, bytes)) = ARTWORK_CACHE.lock().unwrap().as_ref() {
+        if cached_key == key {
+            return Ok(bytes.clone());
+        }
+    }
+    const MAX_ARTWORK_BYTES: usize = 4 * 1024 * 1024;
+    let first_artwork = element(code(b"cArt"), 1, track)?;
+    let descriptor = get(Player::Music, b"pRaw", Some(&first_artwork))?;
+    let data = descriptor.data();
+    let length = usize::try_from(data.length()).map_err(|_| "Invalid artwork length")?;
+    if length == 0 || length > MAX_ARTWORK_BYTES {
+        return Err("Music artwork is empty or too large".into());
+    }
+    let mut bytes = vec![0; length];
+    let pointer = NonNull::new(bytes.as_mut_ptr().cast()).ok_or("Invalid artwork buffer")?;
+    // NSData copies the complete descriptor payload into this owned buffer.
+    unsafe { data.getBytes_length(pointer, length) };
+    let bytes: Arc<[u8]> = bytes.into();
+    *ARTWORK_CACHE.lock().unwrap() = Some((key.to_owned(), bytes.clone()));
+    Ok(bytes)
 }
 
 fn inspect(player: Player, include_artwork: bool) -> Result<MediaSnapshot, String> {
@@ -135,6 +198,8 @@ fn inspect(player: Player, include_artwork: bool) -> Result<MediaSnapshot, Strin
         return Ok(MediaSnapshot {
             media: Value::Null,
             app_volume: volume,
+            artwork_key: None,
+            artwork: None,
         });
     }
     let artist = get(player, b"pArt", Some(&track))
@@ -168,9 +233,17 @@ fn inspect(player: Player, include_artwork: bool) -> Result<MediaSnapshot, Strin
             .map(|value| string(&value))
             .unwrap_or_default());
     }
+    let artwork_key = format!("{}\0{}\0{}\0{}", player.name(), title, artist, album);
+    let artwork = if include_artwork && matches!(player, Player::Music) {
+        artwork_data(&track, &artwork_key).ok()
+    } else {
+        None
+    };
     Ok(MediaSnapshot {
         media,
         app_volume: volume,
+        artwork_key: artwork.as_ref().map(|_| artwork_key),
+        artwork,
     })
 }
 
