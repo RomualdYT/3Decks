@@ -35,3 +35,11 @@ stéréo. Vérifiez la réactivité tactile pendant les configurations volumineu
 rafales de pochettes et reconnexions. Sanitizers et compilation ne mesurent pas
 batterie, Wi-Fi ou fréquence d’affichage. Les budgets par frame sont décrits dans
 l’[architecture console](CONSOLE_ARCHITECTURE.fr.md).
+
+Avec la mise en veille active, testez une page connectée sans musique ni Decky :
+elle doit se redessiner environ une fois par seconde, tandis que les entrées et
+le réseau restent traités autour de 30 Hz. Un toucher, une notification, un
+changement de page ou une reconnexion doivent l’actualiser immédiatement.
+Avec musique ou Decky, vérifiez que l’animation plein écran garde sa cadence.
+Mesurez consommation et latence tactile sur Old et New 3DS avant d’affirmer
+un gain matériel.

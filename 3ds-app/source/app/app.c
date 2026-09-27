@@ -401,7 +401,12 @@ void app_update(App *app, float dt)
 {
 	app->uptime += dt;
 	app->idle_time += dt;
-	update_local_clock(app);
+	/* Les libellés affichent les minutes : inutile d'appeler localtime à 60 Hz. */
+	app->local_clock_timer -= dt;
+	if (app->local_clock_timer <= 0.0f) {
+		app->local_clock_timer = 1.0f;
+		update_local_clock(app);
+	}
 	top_visuals_update(app, dt);
 	performance_history_update(&app->performance_history, &app->state, dt);
 

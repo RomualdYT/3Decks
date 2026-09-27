@@ -10,10 +10,9 @@
  * Deck3DS transforme la console en surface de contrôle pour un ordinateur :
  * l'écran tactile agit, l'écran supérieur informe.
  *
- * Principe directeur de la boucle : le rendu passe toujours en premier et n'est
- * jamais retardé par le réseau. Toute opération réseau est non bloquante, et la
- * première tentative de connexion a lieu après la première image affichée, afin
- * que l'application ne paraisse jamais figée sur matériel réel.
+ * Principe directeur de la boucle : le réseau reste non bloquant et la première
+ * tentative de connexion suit la première image. En veille, seules les images
+ * inchangées sont omises ; les entrées et le réseau continuent d'être traités.
  */
 
 #include <3ds.h>
@@ -37,6 +36,7 @@
 #include "ui.h"
 #include "ui_intro.h"
 #include "ui_companion.h"
+#include "render_pacing.h"
 
 /** Durée d'un pas de temps nominal (60 images par seconde). */
 #define FRAME_TIME (1.0f / 60.0f)
@@ -290,7 +290,8 @@ static void finish_touch(App *app, u32 up)
 		const int length = protocol_encode_value(payload, sizeof(payload),
 		                                         app->next_request_id,
 		                                         "media_position", seconds);
-		if (length > 0 && net_send(payload, (size_t)length)) {
+		if (length > 0 && (size_t)length < sizeof(payload) &&
+		    net_send(payload, (size_t)length)) {
 			app->next_request_id++;
 			app->state.media_position = seconds;
 			app->top_visual.media_position_display = (float)seconds;
@@ -413,7 +414,8 @@ static void request_config(App *app, u32 down)
 	char payload[64];
 	const int written = protocol_encode_config_request(
 	    payload, sizeof(payload), app->next_request_id++);
-	if (written > 0 && net_send(payload, (size_t)written)) {
+	if (written > 0 && (size_t)written < sizeof(payload) &&
+	    net_send(payload, (size_t)written)) {
 		app_notify(app, tr(STR_CONFIG_REQUESTED), false);
 	}
 }
@@ -598,6 +600,7 @@ int main(int argc, char *argv[])
 	UiIntro intro;
 	ui_intro_begin(&intro, s_app.settings.companion != COMPANION_OFF);
 	bool intro_input_guard = intro.active;
+	RenderPacing render_pacing = {0};
 
 	while (aptMainLoop()) {
 		if (s_network_resume_requested) {
@@ -659,6 +662,26 @@ int main(int argc, char *argv[])
 			s_app.frame_mode = !s_app.frame_mode;
 		}
 
+		/*
+		 * En veille sans média ni compagnon, la page est presque immobile.
+		 * Les entrées, la logique et le réseau restent traités à chaque tour ;
+		 * une réception ou une animation impose aussitôt un nouveau dessin.
+		 */
+		const bool idle_render =
+		    s_app.dimmed && !s_app.frame_mode && s_app.config_received &&
+		    !intro.active && !s_setup.active && !s_modal.active &&
+		    s_app.toast.ttl <= 0.0f && s_app.toast.alpha <= 0.01f &&
+		    s_app.alert_glow <= 0.0f && s_app.enter_anim >= 1.0f &&
+		    s_app.page_fade >= 1.0f &&
+		    fabsf(s_app.list_target - s_app.list_scroll) < 0.001f;
+		if (!render_pacing_should_draw(&render_pacing, dt, idle_render,
+		                               s_app.last_rx_at)) {
+			/* Deux VBlank gardent le réseau et le réveil réactifs (~30 Hz). */
+			gspWaitForVBlank();
+			gspWaitForVBlank();
+			continue;
+		}
+
 		/* --- Rendu --- */
 		text_frame_begin();
 
@@ -710,10 +733,8 @@ int main(int argc, char *argv[])
 		C3D_FrameEnd(0);
 
 		/*
-		 * En veille (inactivité prolongée), on espace les images en attendant
-		 * une synchronisation verticale supplémentaire : cela ramène la boucle
-		 * à 30 images par seconde et réduit nettement la charge CPU/GPU
-		 * ainsi que l'échauffement et la consommation de la batterie.
+		 * En veille, un VBlank supplémentaire borne la boucle à environ 30 Hz.
+		 * Le rendu d'une page immobile est déjà espacé par render_pacing.
 		 */
 		if (s_app.dimmed) {
 			gspWaitForVBlank();

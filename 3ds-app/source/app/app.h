@@ -133,6 +133,8 @@ typedef struct {
 	char local_time[8];
 	/** Date locale, formatée dans la langue choisie sur la console. */
 	char local_date[24];
+	/** Temps avant le prochain relevé de l'horloge locale. */
+	float local_clock_timer;
 
 	float uptime;
 	/** Fraction de seconde accumulée pour vieillir l'historique localement. */

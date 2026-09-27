@@ -39,6 +39,13 @@ artwork bursts and reconnects. Host sanitizers and cross-build success do not
 measure battery life, Wi-Fi latency or frame rate. See
 [console architecture](CONSOLE_ARCHITECTURE.md) for the per-frame limits.
 
+With the idle timeout enabled, test a connected page without active media or
+Decky: it should redraw about once per second while input and network handling
+continue at roughly 30 Hz. Confirm that a touch, incoming notification, page
+change and reconnection refresh immediately. Repeat with media or Decky active;
+their full-screen animation retains its normal cadence. Compare measured battery
+drain and touch latency on an actual Old and New 3DS before claiming a gain.
+
 ### Agent measurements
 
 Record commit, OS/interpreter, workload, connection mode and whether tracing was active. Compare identical workloads and retain outliers. Per-cycle percentiles are not pooled percentiles.

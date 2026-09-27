@@ -76,14 +76,24 @@ static void draw_corner(float cx, float cy, float r, float from, float sweep,
 
 	const float start = from * TAU;
 	const float span = sweep * TAU;
+	const float delta = span / (float)steps;
+	const float step_cos = cosf(delta);
+	const float step_sin = sinf(delta);
+	float angle_cos = cosf(start);
+	float angle_sin = sinf(start);
 
-	float px = cx + cosf(start) * r;
-	float py = cy + sinf(start) * r;
+	float px = cx + angle_cos * r;
+	float py = cy + angle_sin * r;
 
 	for (int i = 1; i <= steps; i++) {
-		const float angle = start + span * ((float)i / (float)steps);
-		const float nx = cx + cosf(angle) * r;
-		const float ny = cy + sinf(angle) * r;
+		const float next_cos = (i == steps)
+		    ? cosf(start + span)
+		    : angle_cos * step_cos - angle_sin * step_sin;
+		const float next_sin = (i == steps)
+		    ? sinf(start + span)
+		    : angle_sin * step_cos + angle_cos * step_sin;
+		const float nx = cx + next_cos * r;
+		const float ny = cy + next_sin * r;
 
 		const float dx = shift(z);
 		C2D_DrawTriangle(cx + dx, cy, color, px + dx, py, color, nx + dx, ny,
@@ -91,6 +101,8 @@ static void draw_corner(float cx, float cy, float r, float from, float sweep,
 
 		px = nx;
 		py = ny;
+		angle_cos = next_cos;
+		angle_sin = next_sin;
 	}
 }
 
@@ -292,14 +304,26 @@ void draw_ellipse_ring(float cx, float cy, float rx, float ry, float thickness,
 
 	float prev_x = cx + rx_mid;
 	float prev_y = cy;
+	const float delta = TAU / (float)steps;
+	const float step_cos = cosf(delta);
+	const float step_sin = sinf(delta);
+	float angle_cos = 1.0f;
+	float angle_sin = 0.0f;
 
 	for (int i = 1; i <= steps; i++) {
-		const float a = ((float)i / (float)steps) * TAU;
-		const float px = cx + cosf(a) * rx_mid;
-		const float py = cy + sinf(a) * ry_mid;
+		const float next_cos = (i == steps)
+		    ? cosf(TAU)
+		    : angle_cos * step_cos - angle_sin * step_sin;
+		const float next_sin = (i == steps)
+		    ? sinf(TAU)
+		    : angle_sin * step_cos + angle_cos * step_sin;
+		const float px = cx + next_cos * rx_mid;
+		const float py = cy + next_sin * ry_mid;
 		draw_line(prev_x, prev_y, px, py, thickness, z, color);
 		prev_x = px;
 		prev_y = py;
+		angle_cos = next_cos;
+		angle_sin = next_sin;
 	}
 }
 
@@ -321,17 +345,29 @@ void draw_arc(float cx, float cy, float radius, float thickness, float start,
 	/* L'origine est en haut (-90°) et la progression se fait dans le sens horaire. */
 	const float base = (start - 0.25f) * TAU;
 	const float span = sweep * TAU;
+	const float delta = span / (float)steps;
+	const float step_cos = cosf(delta);
+	const float step_sin = sinf(delta);
+	float angle_cos = cosf(base);
+	float angle_sin = sinf(base);
 
-	float prev_x = cx + cosf(base) * radius;
-	float prev_y = cy + sinf(base) * radius;
+	float prev_x = cx + angle_cos * radius;
+	float prev_y = cy + angle_sin * radius;
 
 	for (int i = 1; i <= steps; i++) {
-		const float a = base + span * ((float)i / (float)steps);
-		const float px = cx + cosf(a) * radius;
-		const float py = cy + sinf(a) * radius;
+		const float next_cos = (i == steps)
+		    ? cosf(base + span)
+		    : angle_cos * step_cos - angle_sin * step_sin;
+		const float next_sin = (i == steps)
+		    ? sinf(base + span)
+		    : angle_sin * step_cos + angle_cos * step_sin;
+		const float px = cx + next_cos * radius;
+		const float py = cy + next_sin * radius;
 		draw_line(prev_x, prev_y, px, py, thickness, z, color);
 		prev_x = px;
 		prev_y = py;
+		angle_cos = next_cos;
+		angle_sin = next_sin;
 	}
 }
 
