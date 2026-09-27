@@ -1,13 +1,5 @@
-## Install
+## 3Decks desktop and console
 
-No Python, Node.js or Git setup is required. The launchers verify the exact 3Decks package before installing it.
+This draft contains native macOS and Windows desktop installers plus Nintendo 3DS homebrew packages. Download the installer for your OS and either `deck3ds.3dsx` or `deck3ds.cia` for the console. The desktop application bundles its Rust backend and React editor; Python is not required.
 
-- [English instructions](https://github.com/RomualdYT/3Decks/blob/main/docs/INSTALLATION.md)
-- [Instructions en français](https://github.com/RomualdYT/3Decks/blob/main/docs/INSTALLATION.fr.md)
-- `deck3ds.3dsx` is the Homebrew Launcher application for the console.
-- `deck3ds.cia` installs 3Decks on HOME using FBI (custom firmware required).
-
-The direct GitHub build cannot read Windows notifications because that API
-requires MSIX identity and user consent. Store packaging consumes the same
-wheel; this release note does not announce Store availability. Other features
-depend on native capabilities and permissions; see the installation guide.
+Before publishing, verify distribution signatures, `latest.json`, `SHA256SUMS.txt`, platform tests and the [release checklist](https://github.com/RomualdYT/3Decks/blob/main/docs/RELEASE.md). Windows notification history requires a packaged identity that the direct installer does not currently provide.
