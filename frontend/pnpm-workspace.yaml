@@ -3,3 +3,7 @@ packages:
 
 allowBuilds:
   esbuild: true
+
+overrides:
+  # openapi-typescript's Redocly dependency needs the patched YAML parser.
+  js-yaml: "^4.3.2"
