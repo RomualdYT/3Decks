@@ -36,8 +36,9 @@ les pages existantes.
 - Pochettes Spotify/Apple Music : conversion en texture RGB565 128×128,
   transfert binaire `ART0` à la console et aperçu dans l'éditeur.
 - Sorties audio macOS via CoreAudio : liste et sortie active dans `state.update`,
-  actions `audio_output.cycle` et `audio_output.set` depuis la 3DS, sélection
-  manuelle dans la fenêtre de diagnostic.
+  sélection explicite depuis la 3DS par jeton opaque, ou dans l'éditeur de
+  bureau. Sur Windows, la 3DS affiche la sortie active et renvoie vers les
+  réglages Son du PC sans proposer de changement distant.
 - Télémétrie CPU, mémoire, disque et débit réseau avec collecte ciblée ;
   l'intervalle et les fonctionnalités activées suivent la configuration.
 - Page dynamique des fenêtres macOS via CoreGraphics, rafraîchie sur la 3DS ;

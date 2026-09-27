@@ -393,18 +393,39 @@ static void parse_state(const JsonDoc *doc, const JsonToken *root,
 		                 sizeof(state->audio_output));
 	}
 
-	token = json_get(doc, root, "audio_outputs");
+	token = json_get(doc, root, "audio_output_mode");
+	if (token != NULL && token->type == JSON_STRING) {
+		char mode[16];
+		json_copy_string(doc, token, mode, sizeof(mode));
+		state->audio_output_mode = strcmp(mode, "direct") == 0
+		                               ? AUDIO_OUTPUT_DIRECT
+		                               : strcmp(mode, "host_only") == 0
+		                                     ? AUDIO_OUTPUT_HOST_ONLY
+		                                     : AUDIO_OUTPUT_UNAVAILABLE;
+	}
+
+	token = json_get(doc, root, "audio_output_count");
+	if (token != NULL && token->type == JSON_NUMBER) {
+		const int total = json_int(doc, token, 0);
+		state->audio_output_total = total > 0 ? total : 0;
+	}
+
+	token = json_get(doc, root, "audio_output_options");
 	if (token != NULL && token->type == JSON_ARRAY) {
 		const int count = json_size(token);
 		int written = 0;
 		for (int i = 0; i < count && written < MAX_OUTPUTS; i++) {
 			const JsonToken *item = json_at(doc, token, i);
-			if (item == NULL || item->type != JSON_STRING) {
+			if (item == NULL || item->type != JSON_OBJECT) {
 				continue;
 			}
-			if (json_copy_string(doc, item, state->audio_outputs[written],
-			                     sizeof(state->audio_outputs[written])) &&
-			    state->audio_outputs[written][0] != '\0') {
+			AudioOutput *output = &state->audio_outputs[written];
+			memset(output, 0, sizeof(*output));
+			json_get_string(doc, item, "id", output->id, sizeof(output->id));
+			json_get_string(doc, item, "name", output->name,
+			                sizeof(output->name));
+			output->active = json_get_bool(doc, item, "active", false);
+			if (output->id[0] != '\0' && output->name[0] != '\0') {
 				written++;
 			}
 		}
@@ -736,4 +757,14 @@ int protocol_encode_value(char *dest, size_t dest_size, int id,
 	                "{\"type\":\"value.set\",\"id\":%d,\"target\":\"%s\""
 	                ",\"value\":%d}",
 	                id, safe_target, value);
+}
+
+int protocol_encode_audio_output_select(char *dest, size_t dest_size, int id,
+                                        const char *output)
+{
+	char safe_output[LEN_ID * 2];
+	escape_json(output, safe_output, sizeof(safe_output));
+	return snprintf(dest, dest_size,
+	                "{\"type\":\"audio.output.select\",\"id\":%d,\"output\":\"%s\"}",
+	                id, safe_output);
 }

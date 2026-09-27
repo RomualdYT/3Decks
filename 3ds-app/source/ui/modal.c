@@ -36,6 +36,9 @@
 
 /* Hauteur de la ligne de sortie audio. */
 #define OUTPUT_H 24.0f
+#define OUTPUT_LIST_Y 50.0f
+#define OUTPUT_LIST_PITCH 26.0f
+#define OUTPUT_LIST_VISIBLE 6
 
 /* Pas vertical entre les deux curseurs. */
 #define SLIDER_PITCH 42.0f
@@ -100,6 +103,12 @@ void modal_open(Modal *modal, const App *app)
 	modal->system_volume = (app->state.volume >= 0) ? app->state.volume : 50;
 	modal->music_volume =
 	    (app->state.app_volume >= 0) ? app->state.app_volume : 50;
+	for (int i = 0; i < app->state.audio_output_count; i++) {
+		if (app->state.audio_outputs[i].active) {
+			modal->output_focus = i;
+			break;
+		}
+	}
 }
 
 void modal_close(Modal *modal)
@@ -108,6 +117,7 @@ void modal_close(Modal *modal)
 	modal->dragging = -1;
 	modal->editing_system = false;
 	modal->editing_music = false;
+	modal->choosing_output = false;
 }
 
 /** Envoie la valeur d'un curseur à l'ordinateur. */
@@ -128,10 +138,41 @@ static void send_value(App *app, const char *target, int value)
 	}
 }
 
+static bool send_output_select(App *app, int index)
+{
+	if (app->link != LINK_ONLINE ||
+	    app->state.audio_output_mode != AUDIO_OUTPUT_DIRECT || index < 0 ||
+	    index >= app->state.audio_output_count) {
+		return false;
+	}
+	const AudioOutput *output = &app->state.audio_outputs[index];
+	if (output->id[0] == '\0' || output->active) {
+		return false;
+	}
+	char payload[160];
+	const int written = protocol_encode_audio_output_select(
+	    payload, sizeof(payload), app->next_request_id, output->id);
+	if (written <= 0 || (size_t)written >= sizeof(payload) ||
+	    !net_send(payload, (size_t)written)) {
+		app_notify(app, tr(STR_SEND_FAILED), true);
+		return false;
+	}
+	app->next_request_id++;
+	return true;
+}
+
 void modal_update(Modal *modal, App *app, float dt)
 {
 	if (!modal->active) {
 		return;
+	}
+	if (modal->choosing_output) {
+		if (app->state.audio_output_mode != AUDIO_OUTPUT_DIRECT ||
+		    app->state.audio_output_count == 0) {
+			modal->choosing_output = false;
+		} else if (modal->output_focus >= app->state.audio_output_count) {
+			modal->output_focus = app->state.audio_output_count - 1;
+		}
 	}
 
 	if (modal->appear < 1.0f) {
@@ -223,6 +264,65 @@ static void draw_slider(int row, float offset, const char *label, int value,
 	}
 }
 
+static void draw_output_choices(const Modal *modal, const App *app, float offset)
+{
+	const float y = 14.0f + offset;
+	draw_shadow(PANEL_X, y, PANEL_W, 214.0f, 12.0f, Z_MODAL_VEIL);
+	draw_round_rect_vgrad(PANEL_X, y, PANEL_W, 214.0f, 12.0f,
+	                      Z_MODAL_CARD, COL_SURFACE_HI, COL_SURFACE_LO);
+	draw_round_rect_outline(PANEL_X, y, PANEL_W, 214.0f, 12.0f, 1.0f,
+	                        Z_MODAL_CONTENT, theme_alpha(COL_ACCENT, 0x66));
+	text_draw(PANEL_X + 16.0f, y + 11.0f, Z_MODAL_TOP, TEXT_LARGE,
+	          COL_TEXT, ALIGN_LEFT, tr(STR_AUDIO_OUTPUT));
+	text_draw(PANEL_X + PANEL_W - 15.0f, y + 15.0f, Z_MODAL_TOP,
+	          TEXT_MICRO, COL_TEXT_DIM, ALIGN_RIGHT, tr(STR_BACK));
+
+	const int first = (modal->output_focus / OUTPUT_LIST_VISIBLE) *
+	                  OUTPUT_LIST_VISIBLE;
+	for (int slot = 0; slot < OUTPUT_LIST_VISIBLE; slot++) {
+		const int index = first + slot;
+		if (index >= app->state.audio_output_count) break;
+		const AudioOutput *output = &app->state.audio_outputs[index];
+		const float row_y = OUTPUT_LIST_Y + slot * OUTPUT_LIST_PITCH + offset;
+		const bool focused = index == modal->output_focus;
+		const u32 color = output->active ? COL_ACCENT : COL_TEXT_DIM;
+		draw_round_rect(SLIDER_X, row_y, SLIDER_W, 24.0f, 7.0f,
+		                Z_MODAL_CONTENT,
+		                focused ? theme_alpha(COL_ACCENT, 0x33)
+		                        : theme_alpha(COL_SURFACE, 0xAA));
+		if (focused) {
+			draw_round_rect_outline(SLIDER_X, row_y, SLIDER_W, 24.0f,
+			                        7.0f, 1.0f, Z_MODAL_TOP,
+			                        theme_alpha(COL_ACCENT, 0x99));
+		}
+		draw_circle(SLIDER_X + 13.0f, row_y + 12.0f, 4.0f,
+		            Z_MODAL_TOP, output->active ? color : COL_BORDER);
+		if (output->active) {
+			draw_circle(SLIDER_X + 13.0f, row_y + 12.0f, 2.0f,
+			            Z_MODAL_TOP, COL_WHITE);
+		}
+		text_draw_clipped(SLIDER_X + 25.0f, row_y + 5.0f, Z_MODAL_TOP,
+		                  TEXT_SMALL, focused ? COL_TEXT : COL_TEXT_DIM,
+		                  ALIGN_LEFT, output->active ? SLIDER_W - 100.0f
+		                                             : SLIDER_W - 36.0f,
+		                  output->name);
+		if (output->active) {
+			text_draw(SLIDER_X + SLIDER_W - 9.0f, row_y + 7.0f,
+			          Z_MODAL_TOP, TEXT_MICRO, color, ALIGN_RIGHT,
+			          tr(STR_OUTPUT_ACTIVE));
+		}
+	}
+	if (app->state.audio_output_count > OUTPUT_LIST_VISIBLE) {
+		char page[24];
+		snprintf(page, sizeof(page), "<  %d / %d  >",
+		         first / OUTPUT_LIST_VISIBLE + 1,
+		         (app->state.audio_output_count + OUTPUT_LIST_VISIBLE - 1) /
+		             OUTPUT_LIST_VISIBLE);
+		text_draw(SCREEN_BOTTOM_W * 0.5f, y + 194.0f, Z_MODAL_TOP,
+		          TEXT_MICRO, COL_TEXT_DIM, ALIGN_CENTER, page);
+	}
+}
+
 void modal_draw(const Modal *modal, const App *app)
 {
 	/*
@@ -238,6 +338,10 @@ void modal_draw(const Modal *modal, const App *app)
 
 	/* Le panneau glisse légèrement en apparaissant. */
 	const float offset = (1.0f - modal->appear) * 12.0f;
+	if (modal->choosing_output) {
+		draw_output_choices(modal, app, offset);
+		return;
+	}
 	const float y = PANEL_Y + offset;
 
 	draw_shadow(PANEL_X, y, PANEL_W, PANEL_H, 12.0f, Z_MODAL_VEIL);
@@ -268,13 +372,16 @@ void modal_draw(const Modal *modal, const App *app)
 	draw_slider(MODAL_ROW_MUSIC, offset, tr(STR_MUSIC), modal->music_volume,
 	            COL_BLUE, modal->row == MODAL_ROW_MUSIC, true);
 
-	/* Sortie audio, sélectionnable pour passer à la suivante. */
+	/* Sortie audio : la sélection directe dépend des capacités de l'agent. */
 	float out_y;
 	float out_h;
 	output_bounds(&out_y, &out_h);
 	out_y += offset;
 
-	const bool out_selected = modal->row == MODAL_ROW_OUTPUT;
+	const bool can_choose = app->state.audio_output_mode ==
+	                        AUDIO_OUTPUT_DIRECT &&
+	                        app->state.audio_output_count > 0;
+	const bool out_selected = can_choose && modal->row == MODAL_ROW_OUTPUT;
 
 	draw_round_rect(SLIDER_X, out_y, SLIDER_W, out_h, 7.0f, Z_MODAL_CONTENT,
 	                out_selected ? theme_alpha(COL_ACCENT, 0x33)
@@ -290,10 +397,15 @@ void modal_draw(const Modal *modal, const App *app)
 	const float out_text_y = out_y + (out_h - TEXT_LINE_PX(TEXT_MICRO)) * 0.5f;
 	text_draw_clipped(SLIDER_X + 26.0f, out_text_y, Z_MODAL_TOP, TEXT_MICRO,
 	                  out_selected ? COL_TEXT : COL_TEXT_DIM, ALIGN_LEFT,
-	                  SLIDER_W - 40.0f,
+	                  SLIDER_W - 70.0f,
 	                  app->state.audio_output[0] != '\0'
 	                      ? app->state.audio_output
 	                      : tr(STR_OUTPUT_UNKNOWN));
+	if (can_choose || app->state.audio_output_mode == AUDIO_OUTPUT_HOST_ONLY) {
+		text_draw(SLIDER_X + SLIDER_W - 10.0f, out_text_y, Z_MODAL_TOP,
+		          TEXT_MICRO, out_selected ? COL_ACCENT : COL_TEXT_FAINT,
+		          ALIGN_RIGHT, can_choose ? ">" : "PC");
+	}
 
 	/*
 	 * Interrupteurs de coupure.
@@ -437,6 +549,31 @@ static void flush(Modal *modal, App *app)
 	modal->editing_music = false;
 }
 
+static void open_output_choices(Modal *modal, const App *app)
+{
+	if (app->state.audio_output_mode != AUDIO_OUTPUT_DIRECT ||
+	    app->state.audio_output_count == 0) {
+		return;
+	}
+	modal->choosing_output = true;
+	for (int i = 0; i < app->state.audio_output_count; i++) {
+		if (app->state.audio_outputs[i].active) {
+			modal->output_focus = i;
+			break;
+		}
+	}
+	sound_play(SOUND_PAGE);
+}
+
+static void choose_output(Modal *modal, App *app, int index)
+{
+	if (index < 0 || index >= app->state.audio_output_count) return;
+	if (!app->state.audio_outputs[index].active &&
+	    !send_output_select(app, index)) return;
+	modal->choosing_output = false;
+	sound_play(SOUND_TOGGLE);
+}
+
 bool modal_touch(Modal *modal, App *app, float x, float y, bool pressed,
                  bool released)
 {
@@ -463,6 +600,39 @@ bool modal_touch(Modal *modal, App *app, float x, float y, bool pressed,
 	}
 
 	if (!pressed) {
+		return true;
+	}
+
+	if (modal->choosing_output) {
+		if (x < PANEL_X || x > PANEL_X + PANEL_W || y < 14.0f ||
+		    y > 228.0f || y < 46.0f) {
+			modal->choosing_output = false;
+			sound_play(SOUND_PAGE);
+			return true;
+		}
+		if (y >= OUTPUT_LIST_Y &&
+		    y < OUTPUT_LIST_Y + OUTPUT_LIST_VISIBLE * OUTPUT_LIST_PITCH) {
+			const int first = (modal->output_focus / OUTPUT_LIST_VISIBLE) *
+			                  OUTPUT_LIST_VISIBLE;
+			const int index = first +
+			                  (int)((y - OUTPUT_LIST_Y) / OUTPUT_LIST_PITCH);
+			if (index < app->state.audio_output_count) {
+				modal->output_focus = index;
+				choose_output(modal, app, index);
+			}
+			return true;
+		}
+		if (y >= 207.0f &&
+		    app->state.audio_output_count > OUTPUT_LIST_VISIBLE) {
+			const int page = modal->output_focus / OUTPUT_LIST_VISIBLE;
+			const int pages = (app->state.audio_output_count +
+			                   OUTPUT_LIST_VISIBLE - 1) / OUTPUT_LIST_VISIBLE;
+			const int next = x < SCREEN_BOTTOM_W * 0.5f
+			                     ? (page + pages - 1) % pages
+			                     : (page + 1) % pages;
+			modal->output_focus = next * OUTPUT_LIST_VISIBLE;
+			sound_play(SOUND_PAGE);
+		}
 		return true;
 	}
 
@@ -506,8 +676,11 @@ bool modal_touch(Modal *modal, App *app, float x, float y, bool pressed,
 
 	if (y >= out_y && y <= out_y + out_h) {
 		modal->row = MODAL_ROW_OUTPUT;
-		app_press_action(app, "audio_output.cycle");
-		sound_play(SOUND_TOGGLE);
+		if (app->state.audio_output_mode == AUDIO_OUTPUT_HOST_ONLY) {
+			app_notify(app, tr(STR_OUTPUT_CHANGE_PC), false);
+		} else {
+			open_output_choices(modal, app);
+		}
 		return true;
 	}
 
@@ -535,6 +708,25 @@ bool modal_touch(Modal *modal, App *app, float x, float y, bool pressed,
 void modal_buttons(Modal *modal, App *app, u32 pressed)
 {
 	if (!modal->active) {
+		return;
+	}
+
+	if (modal->choosing_output) {
+		if (pressed & KEY_B) {
+			modal->choosing_output = false;
+			sound_play(SOUND_PAGE);
+		} else if (pressed & KEY_UP) {
+			modal->output_focus = (modal->output_focus +
+			                       app->state.audio_output_count - 1) %
+			                      app->state.audio_output_count;
+			sound_play(SOUND_PAGE);
+		} else if (pressed & KEY_DOWN) {
+			modal->output_focus = (modal->output_focus + 1) %
+			                      app->state.audio_output_count;
+			sound_play(SOUND_PAGE);
+		} else if (pressed & KEY_A) {
+			choose_output(modal, app, modal->output_focus);
+		}
 		return;
 	}
 
@@ -585,8 +777,11 @@ void modal_buttons(Modal *modal, App *app, u32 pressed)
 
 	if (pressed & KEY_A) {
 		if (modal->row == MODAL_ROW_OUTPUT) {
-			app_press_action(app, "audio_output.cycle");
-			sound_play(SOUND_TOGGLE);
+			if (app->state.audio_output_mode == AUDIO_OUTPUT_HOST_ONLY) {
+				app_notify(app, tr(STR_OUTPUT_CHANGE_PC), false);
+			} else {
+				open_output_choices(modal, app);
+			}
 		} else if (modal->row == MODAL_ROW_MUTES) {
 			app_press_action(app, modal->mute_focus == 0
 			                          ? "volume.mute_toggle"

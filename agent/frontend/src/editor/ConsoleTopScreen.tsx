@@ -108,14 +108,21 @@ function Lyrics({ media, lyrics, page, fr }: { media: Data; lyrics: Data; page: 
 function Audio({ snapshot, media, fr }: { snapshot: Data; media: Data; fr: boolean }) {
   const volume = number(snapshot.volume), music = number(snapshot.app_volume);
   const output = string(snapshot.audio_output, fr ? "Sortie inconnue" : "Unknown output");
-  const outputs = list(snapshot.audio_outputs).map(item => string(item)).filter(Boolean);
+  const outputCount = number(snapshot.audio_output_count) ?? list(snapshot.audio_output_options).length;
+  const hostOnly = snapshot.audio_output_mode === "host_only";
+  const outputUnit = fr
+    ? (outputCount === 1 ? "sortie disponible" : "sorties disponibles")
+    : (outputCount === 1 ? "output available" : "outputs available");
+  const outputDetail = hostOnly
+    ? (fr ? "À modifier dans les réglages Son du PC" : "Change in PC sound settings")
+    : (outputCount > 0 ? `${outputCount} ${outputUnit}` : "");
   return <g>
     <rect x={12} y={36} width={376} height={150} rx={10} fill="#1a1a1e" />
-    <rect x={24} y={45} width={352} height={34} rx={10} fill="#0d0d0f" />
+    <rect x={24} y={45} width={352} height={56} rx={10} fill="#0d0d0f" />
     <Icon name="volume-up" x={32} y={53} />
     <Label x={55} y={46} width={300} size={12} color="#686872">{fr ? "SORTIE AUDIO" : "AUDIO OUTPUT"}</Label>
     <Label x={55} y={60} width={300} size={13.8}>{output}</Label>
-    <Label x={28} y={84} width={340} size={12.6}>{outputs.join("  ·  ")}</Label>
+    <Label x={55} y={84} width={300} size={12.6}>{outputDetail}</Label>
     <Equalizer x={28} y={105} width={344} height={63} playing={media.playing === true && snapshot.muted !== true} />
     <rect x={0} y={194} width={400} height={46} fill="#121214" />
     {[{ x: 8, w: music === null ? 272 : 133, label: fr ? "Système" : "System", value: volume },

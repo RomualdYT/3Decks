@@ -56,17 +56,19 @@ One absolute five-second deadline covers the entire handshake, including fragmen
 |---|---|---|
 | `button.press` | `id`, `page`, `button`, optional `hold` | Execute configured primary/secondary action |
 | `value.set` | `id`, `target`, `value` | Set `volume` or `app_volume`; integer 0–100 |
+| `audio.output.select` | `id`, `output` | Select an output advertised when `audio_output_mode` is `direct` |
 | `config.request` | `id` | Request the latest resolved layout |
 | `ping` | `id` | Receive a correlated `pong` |
 
 ```json
 {"type":"button.press","id":7,"page":"main","button":"mic-toggle","hold":false}
 {"type":"value.set","id":8,"target":"volume","value":50}
-{"type":"config.request","id":9}
-{"type":"ping","id":10}
+{"type":"audio.output.select","id":9,"output":"0123456789abcdef0123456789abcdef"}
+{"type":"config.request","id":10}
+{"type":"ping","id":11}
 ```
 
-Mutation IDs must be nonnegative integers increasing across both press/value requests within a TCP session. Duplicate/older IDs are rejected, preventing duplicate effects in that session. The counter resets with the connection; this is not cryptographic replay protection. A paused agent rejects mutations while keeping state/connection alive.
+Mutation IDs must be nonnegative integers increasing across press, value and audio-selection requests within a TCP session. Duplicate/older IDs are rejected, preventing duplicate effects in that session. The counter resets with the connection; this is not cryptographic replay protection. A paused agent rejects mutations while keeping state/connection alive.
 
 The reserved `__direct` page accepts only `audio_output.cycle`, `volume.mute_toggle`, `mic.mute_toggle`, `volume.up` and `volume.down`. Other actions resolve from configured identifiers. The dynamic editor catalog describes supported action arguments; adding an action does not extend the direct network allow-list.
 
@@ -96,6 +98,8 @@ Button fields include `id`, `slot`, `label`, vector `icon`, `color` in `#RRGGBB`
 ### State updates
 
 `state.update` is a patch: absent fields leave previous state unchanged. State includes volume/mute, microphone, active/open apps, media metadata/progress/art token, audio outputs, notifications, time/date and available performance values.
+
+Audio state carries `audio_output` (active display name), `audio_output_mode` (`direct`, `host_only` or `unavailable`), `audio_output_count` (total available) and `audio_output_options` (up to 12 objects with `id`, `name` and `active`). IDs are opaque 32-character tokens for the current device identity. The console sends the selected token through `audio.output.select`; the agent resolves it against a fresh device list before changing the output. Windows reports `host_only`: its active output is shown, but the console does not offer remote selection.
 
 Performance keys include `cpu`, `memory`, `memory_used_mb`, `memory_total_mb`, `disk`, `disk_free_mb`, `disk_total_mb`, `network_down_kbps`, `network_up_kbps`, `top_process`, `top_process_cpu`, optional `gpu` and `temperature`. Memory/storage units are MiB, network rates kilobits/second and temperature Celsius. Missing metrics are unavailable, not invented zeros. Time/date are resolved by the agent; the console can fall back to its own clock.
 

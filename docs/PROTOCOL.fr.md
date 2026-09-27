@@ -128,7 +128,8 @@ d'une minute à cinq par adresse source et 30 au total.
 - `id` : entier croissant choisi par la 3DS, corrélé dans `action.result`.
 - `hold` : `true` pour un appui long (action secondaire du bouton).
 
-Pour les messages qui modifient l'état (`button.press` et `value.set`), un `id`
+Pour les messages qui modifient l'état (`button.press`, `value.set` et
+`audio.output.select`), un `id`
 déjà vu ou inférieur au précédent est refusé dans la même connexion. Cette
 protection évite un double effet après duplication d'une trame ; elle redémarre
 à chaque nouvelle connexion et ne constitue pas une authentification
@@ -143,6 +144,19 @@ Les curseurs envoient une valeur entière de 0 à 100 pour `volume` ou `app_volu
 ```
 
 Le résultat utilise `action.result`. Les mêmes contrôles de monotonie et de pause que pour les boutons s’appliquent.
+
+### `audio.output.select`
+
+La 3DS choisit une sortie annoncée par l'agent lorsque `audio_output_mode`
+vaut `direct` :
+
+```json
+{"type":"audio.output.select","id":9,"output":"0123456789abcdef0123456789abcdef"}
+```
+
+`output` est un jeton opaque de 32 caractères, pas un nom potentiellement
+dupliqué. L'agent vérifie l'identifiant sur la liste actualisée avant de
+changer la sortie et répond par `action.result`.
 
 ### `config.request`
 
@@ -330,6 +344,13 @@ patch, la 3DS conserve les valeurs qu'elle possède déjà.
 `time` et `date` viennent du PC pour garantir la cohérence avec l'affichage de
 l'ordinateur, mais la 3DS utilise son horloge interne en repli si le champ est
 absent ou la connexion perdue.
+
+Pour les sorties audio, l'agent fournit `audio_output` (nom de la sortie
+active), `audio_output_mode` (`direct`, `host_only` ou `unavailable`),
+`audio_output_count` (nombre total) et `audio_output_options` (jusqu'à 12 objets
+`{id,name,active}`). Sur Windows, le mode `host_only` affiche la sortie active
+sans proposer une sélection distante : celle-ci se fait dans les réglages Son
+du PC.
 
 Les mesures de performances enrichies sont elles aussi facultatives. Les
 volumes mémoire et disque sont exprimés en mébioctets ; les débits réseau en

@@ -32,6 +32,14 @@ int main(void)
     assert(!memcmp(&previous, &config, sizeof(config)));
     assert(decode("{\"type\":\"state.update\",\"extension_panels\":[{\"page\":\"main\",\"title\":\"Custom\",\"cards\":[{\"label\":\"CPU\",\"value\":\"42%\",\"progress\":42}]}]}"));
     assert(state.extension_panel_count == 1 && state.extension_panels[0].cards[0].progress == 42);
+    assert(decode("{\"type\":\"state.update\",\"audio_output\":\"USB Headphones\",\"audio_output_mode\":\"direct\",\"audio_output_count\":2,\"audio_output_options\":[{\"id\":\"0123456789abcdef0123456789abcdef\",\"name\":\"USB Headphones\",\"active\":true},{\"id\":\"fedcba9876543210fedcba9876543210\",\"name\":\"Speakers\",\"active\":false}]}"));
+    assert(state.audio_output_mode == AUDIO_OUTPUT_DIRECT && state.audio_output_count == 2);
+    assert(state.audio_output_total == 2 && state.audio_outputs[0].active);
+    assert(!strcmp(state.audio_outputs[1].name, "Speakers"));
+    assert(protocol_encode_audio_output_select(wire, sizeof(wire), 17, state.audio_outputs[1].id) > 0);
+    assert(!strcmp(wire, "{\"type\":\"audio.output.select\",\"id\":17,\"output\":\"fedcba9876543210fedcba9876543210\"}"));
+    assert(decode("{\"type\":\"state.update\",\"audio_output\":\"\",\"audio_output_mode\":\"host_only\",\"audio_output_count\":0,\"audio_output_options\":[]}"));
+    assert(state.audio_output_mode == AUDIO_OUTPUT_HOST_ONLY && state.audio_output_count == 0);
     assert(decode("{\"type\":\"state.update\",\"media\":{\"title\":\"Titre\",\"artist\":\"Artiste\",\"position\":12,\"duration\":180,\"seekable\":true}}"));
     assert(state.media_seekable && state.media_position == 12);
     assert(decode("{\"type\":\"media.lyrics\",\"track\":\"Titre\",\"artist\":\"Artiste\",\"status\":\"ready\",\"lines\":[{\"t\":12000,\"text\":\"Première ligne\"},{\"t\":16000,\"text\":\"Deuxième ligne\"}]}"));

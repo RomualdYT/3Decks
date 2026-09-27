@@ -530,10 +530,10 @@ void ui_top_audio_draw(const App *app)
 	                      theme_mix(COL_SURFACE_LO, accent, 0.02f));
 
 	const bool has_output = app->state.audio_output[0] != '\0';
-	draw_round_rect(TOP_PAD + 12.0f, top + 9.0f, card_w - 24.0f, 34.0f,
+	draw_round_rect(TOP_PAD + 12.0f, top + 9.0f, card_w - 24.0f, 56.0f,
 	                10.0f, Z_CONTENT, theme_alpha(COL_BG, 0x88));
 	draw_round_rect_outline(TOP_PAD + 12.0f, top + 9.0f, card_w - 24.0f,
-	                        34.0f, 10.0f, 1.0f, Z_OVERLAY,
+	                        56.0f, 10.0f, 1.0f, Z_OVERLAY,
 	                        theme_alpha(accent, 0x42));
 	icons_draw(app->state.muted ? ICON_VOLUME_MUTE : ICON_VOLUME_UP,
 	           TOP_PAD + 29.0f, top + 26.0f, 18.0f, Z_OVERLAY, accent);
@@ -545,28 +545,18 @@ void ui_top_audio_draw(const App *app)
 	                  has_output ? app->state.audio_output
 	                             : tr(STR_OUTPUT_UNKNOWN));
 
-	if (app->state.audio_output_count > 1) {
-		float chip_x = TOP_PAD + 16.0f;
-		const float chip_y = top + 48.0f;
-		const float limit = TOP_PAD + card_w - 12.0f;
-		for (int i = 0; i < app->state.audio_output_count; i++) {
-			const char *name = app->state.audio_outputs[i];
-			if (name[0] == '\0') {
-				continue;
-			}
-			const bool current =
-			    has_output && strcmp(name, app->state.audio_output) == 0;
-			const float chip_w = text_width(name, TEXT_MICRO) + 14.0f;
-			if (chip_x + chip_w > limit) {
-				break;
-			}
-			draw_round_rect(chip_x, chip_y, chip_w, 15.0f, 7.5f, Z_CONTENT,
-			                current ? theme_alpha(accent, 0x40)
-			                        : theme_alpha(COL_SURFACE_HI, 0xAA));
-			text_draw(chip_x + 7.0f, chip_y + 2.0f, Z_OVERLAY, TEXT_MICRO,
-			          current ? accent : COL_TEXT_FAINT, ALIGN_LEFT, name);
-			chip_x += chip_w + 5.0f;
-		}
+	if (has_output && app->state.audio_output_mode == AUDIO_OUTPUT_HOST_ONLY) {
+		text_draw_clipped(TOP_PAD + 43.0f, top + 46.0f, Z_OVERLAY,
+		                  TEXT_MICRO, COL_TEXT_DIM, ALIGN_LEFT, card_w - 76.0f,
+		                  tr(STR_OUTPUT_CHANGE_PC));
+	} else if (app->state.audio_output_total > 0) {
+		char count[56];
+		snprintf(count, sizeof(count), "%d %s", app->state.audio_output_total,
+		         tr(app->state.audio_output_total == 1 ? STR_OUTPUT_SINGLE
+		                                               : STR_OUTPUT_MULTIPLE));
+		text_draw_clipped(TOP_PAD + 43.0f, top + 46.0f, Z_OVERLAY,
+		                  TEXT_MICRO, COL_TEXT_DIM, ALIGN_LEFT, card_w - 76.0f,
+		                  count);
 	}
 
 	const float eq_y = top + 69.0f;

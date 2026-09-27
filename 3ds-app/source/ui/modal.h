@@ -50,6 +50,9 @@ typedef struct {
 	int dragging;
 	/** Interrupteur désigné sur la ligne des coupures : 0 ou 1. */
 	int mute_focus;
+	/** Vue de choix explicite des sorties, et ligne sélectionnée. */
+	bool choosing_output;
+	int output_focus;
 
 	/** Temps écoulé depuis le dernier envoi, pour espacer les messages. */
 	float send_timer;

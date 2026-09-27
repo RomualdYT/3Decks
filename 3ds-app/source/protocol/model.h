@@ -142,7 +142,7 @@ typedef struct {
 } Config;
 
 #define MAX_APPS 8
-#define MAX_OUTPUTS 6
+#define MAX_OUTPUTS 12
 #define LEN_APP_NAME 25
 
 typedef struct {

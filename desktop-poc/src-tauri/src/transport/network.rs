@@ -516,19 +516,29 @@ async fn collect_state(shared: &Shared) -> Value {
             state["notification_new"] = newest;
         }
     }
+    state["audio_output"] = json!("");
+    state["audio_output_mode"] = json!("unavailable");
+    state["audio_output_count"] = json!(0);
+    state["audio_output_options"] = json!([]);
     if shared.config.feature_enabled("audio_output") {
         if let Ok(outputs) = audio::outputs().await {
             if let Some(current) = outputs.iter().find(|output| output.is_default) {
                 state["audio_output"] = json!(current.name);
             }
-            let mut visible = outputs.iter().take(6).collect::<Vec<_>>();
+            let mut visible = outputs.iter().take(12).collect::<Vec<_>>();
             if !visible.iter().any(|output| output.is_default) {
                 if let Some(current) = outputs.iter().find(|output| output.is_default) {
-                    if visible.len() == 6 { visible.pop(); }
+                    if visible.len() == 12 {
+                        visible.pop();
+                    }
                     visible.push(current);
                 }
             }
-            state["audio_output_mode"] = json!(if cfg!(target_os = "macos") { "direct" } else { "host_only" });
+            state["audio_output_mode"] = json!(if cfg!(target_os = "macos") {
+                "direct"
+            } else {
+                "host_only"
+            });
             state["audio_output_count"] = json!(outputs.len());
             state["audio_output_options"] = json!(visible
                 .iter()

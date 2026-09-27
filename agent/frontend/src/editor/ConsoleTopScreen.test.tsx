@@ -53,3 +53,21 @@ it("does not invent metrics or keep media on an empty frame page", async () => {
   expect(container.textContent).toContain("Nothing playing");
   expect(agentApi.artwork).not.toHaveBeenCalled();
 });
+
+it("shows one audio output and the platform-specific selection hint", async () => {
+  const audioPage = { ...page, dashboard: "audio" } as PageConfig;
+  const status = { clients: [{}], snapshot: {
+    audio_output: "USB Headphones", audio_output_count: 2,
+    audio_output_mode: "direct", audio_output_options: [
+      { id: "first", name: "USB Headphones", active: true },
+      { id: "second", name: "Speakers", active: false },
+    ],
+  } } as unknown as AgentState;
+  await act(async () => root.render(<ConsoleTopScreen page={audioPage} status={status} locale="en" />));
+  expect(container.textContent).toContain("USB Headphones");
+  expect(container.textContent).toContain("2 outputs available");
+  expect(container.textContent).not.toContain("Speakers");
+  status.snapshot.audio_output_mode = "host_only";
+  await act(async () => root.render(<ConsoleTopScreen page={audioPage} status={status} locale="en" />));
+  expect(container.textContent).toContain("Change in PC sound settings");
+});

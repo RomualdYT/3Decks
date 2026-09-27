@@ -112,3 +112,7 @@ int protocol_encode_ping(char *dest, size_t dest_size, int id);
  */
 int protocol_encode_value(char *dest, size_t dest_size, int id,
                           const char *target, int value);
+
+/** Sélectionne une sortie par son jeton opaque annoncé dans `state.update`. */
+int protocol_encode_audio_output_select(char *dest, size_t dest_size, int id,
+                                        const char *output);
