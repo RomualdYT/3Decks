@@ -13,29 +13,27 @@ __pycache__/
 venv/
 .python/
 python-*-embed-amd64.zip
-agent/agent-windows*.log
-agent/node_modules/
-agent/node_modules
-agent/node_modules.dataless/
-agent/frontend/node_modules/
-agent/frontend/coverage/
+legacy/python-agent/agent-windows*.log
+frontend/node_modules/
+frontend/coverage/
+frontend/dist/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
 .coverage*
 htmlcov/
-agent/dist/
-agent/build/
-agent/release/
-agent/coverage.xml
-agent/backend/deck3ds/api/static/**/*.map
+legacy/python-agent/dist/
+legacy/python-agent/build/
+legacy/python-agent/release/
+legacy/python-agent/coverage.xml
+legacy/python-agent/backend/deck3ds/api/static/**/*.map
 
 # Configuration locale
 # Dupliquez config.json en config.local.json pour vos reglages personnels.
-agent/config.local.json
+legacy/python-agent/config.local.json
 paired-consoles.json
-agent/extensions/
-agent/*.3deckext
+legacy/python-agent/extensions/
+legacy/python-agent/*.3deckext
 
 # Systeme
 .DS_Store

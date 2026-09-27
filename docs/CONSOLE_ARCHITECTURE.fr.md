@@ -4,10 +4,10 @@
 
 ## Arborescence
 
-Les trois parties restent distinctes : `agent/backend/` pour l’agent Python,
-`agent/frontend/` pour son éditeur et `3ds-app/` pour la console native.
+Les trois parties actives restent distinctes : `desktop/` pour l’application Rust/Tauri,
+`frontend/` pour l’éditeur partagé et `3ds-app/` pour la console native.
 Les adaptateurs PC, dont CoreAudio, appartiennent à
-`agent/backend/deck3ds/platforms/`. Les compilations et caches de dépendances
+`desktop/src-tauri/src/platform/`. Les compilations et caches de dépendances
 ne sont pas des sources à versionner.
 
 | Dossier console | Responsabilité |

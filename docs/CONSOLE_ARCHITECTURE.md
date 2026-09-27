@@ -4,9 +4,9 @@
 
 ## Repository layout
 
-Keep the three products distinct: `agent/backend/` is the Python agent,
-`agent/frontend/` is its editor, and `3ds-app/` is the native console client.
-Native PC adapters belong under `agent/backend/deck3ds/platforms/`, including
+Keep the three active parts distinct: `desktop/` is the Rust/Tauri app,
+`frontend/` is the shared editor, and `3ds-app/` is the native console client.
+Native PC adapters belong under `desktop/src-tauri/src/platform/`, including
 CoreAudio. Generated build products and dependency caches are not source files.
 
 | Console directory | Responsibility |

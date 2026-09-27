@@ -88,7 +88,9 @@ def documents(root: Path = ROOT) -> list[Path]:
     files = set(root.glob("*.md"))
     for directory in ("docs", "packaging", "examples"):
         files.update((root / directory).rglob("*.md"))
-    files.add(root / "agent/backend/README.md")
+    files.update((root / "desktop").glob("*.md"))
+    files.update((root / "desktop/docs").glob("*.md"))
+    files.update((root / "desktop/extension-sdk").glob("*.md"))
     return sorted(files)
 
 

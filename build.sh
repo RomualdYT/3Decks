@@ -96,7 +96,7 @@ if [ -f "$APP_DIR/deck3ds.3dsx" ]; then
 	echo
 	echo "Installation sur la console :"
 	echo "  1. copier deck3ds.3dsx dans sdmc:/3ds/"
-	echo "  2. demarrer l'agent sur l'ordinateur"
+		echo "  2. demarrer l'application 3Decks sur l'ordinateur"
 	echo "  3. choisir l'ordinateur detecte automatiquement sur la console"
 	echo "     (adresse et port restent disponibles dans Configuration manuelle)"
 fi
