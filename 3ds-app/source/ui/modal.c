@@ -313,7 +313,7 @@ static void draw_output_choices(const Modal *modal, const App *app, float offset
 		}
 	}
 	if (app->state.audio_output_count > OUTPUT_LIST_VISIBLE) {
-		char page[24];
+		char page[40];
 		snprintf(page, sizeof(page), "<  %d / %d  >",
 		         first / OUTPUT_LIST_VISIBLE + 1,
 		         (app->state.audio_output_count + OUTPUT_LIST_VISIBLE - 1) /
