@@ -21,7 +21,7 @@ communes sans exposer les types Cocoa, COM ou WinRT au protocole réseau.
 | URL, chemins, verrouiller la session | `NSWorkspace` / Quartz | `ShellExecuteW` / `LockWorkStation` | Non porté |
 | Liste et activation des fenêtres | CoreGraphics + Accessibilité/Apple Events | `EnumWindows` + `SetForegroundWindow` ; refus possible par Windows | Non porté |
 | Notifications des autres applications | Lecture SQLite `usernoted`, format non documenté | WinRT UserNotificationListener ; consentement requis, historique local borné des alertes observées | Non porté ; D-Bus ne fournit pas d'historique global standard |
-| Installateur, signature et mises à jour vérifiées | Bundle local ; chaîne de signature à finaliser | Packaging/signature à bâtir et valider en CI Windows | Packaging à bâtir |
+| Installateur, signature et mises à jour vérifiées | DMG local ; chaîne CI candidate écrite, clés et notarisation à configurer et valider | Chaîne CI candidate écrite ; signature et installation à valider sur Windows | Packaging différé |
 
 ## Architecture native
 

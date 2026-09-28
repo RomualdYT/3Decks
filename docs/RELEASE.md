@@ -1,6 +1,8 @@
 # Release process
 
-The active GitHub Actions workflows are [Quality](../.github/workflows/quality.yml), [Release candidate](../.github/workflows/release.yml) and [Publish qualified release](../.github/workflows/publish-release.yml). They package **Tauri and the 3DS app**, never the archived Python wheel. A `vX.Y.Z` tag runs the full quality suite, then builds macOS Apple Silicon, macOS Intel and Windows x64 sequentially so their updater entries merge into one `latest.json`. It attaches the 3DS `.3dsx` and `.cia`, validates all expected platforms and files, generates SHA-256 checksums, and leaves the GitHub Release **as a draft**.
+The active GitHub Actions workflows are [Quality](../.github/workflows/quality.yml), [Release candidate](../.github/workflows/release.yml) and [Publish qualified release](../.github/workflows/publish-release.yml). They package **Tauri and the 3DS app**. A `vX.Y.Z` tag runs the full quality suite, then builds macOS Apple Silicon, macOS Intel and Windows x64 sequentially so their updater entries merge into one `latest.json`. It attaches the 3DS `.3dsx` and `.cia`, validates all expected platforms and files, generates SHA-256 checksums, and leaves the GitHub Release **as a draft**.
+
+This pipeline is implemented but has **not** yet completed a signed, multi-platform release. Configure the secrets below and qualify the Windows installer and updater before treating it as production ready. Pushing `main` runs quality checks, but does not publish a version.
 
 ## One-time repository setup
 
@@ -18,6 +20,6 @@ The release workflow intentionally fails early if required signing material is m
 3. Commit and push the version change, then create and push the annotated tag `vX.Y.Z`. Tagging is the explicit trigger; pushing `main` alone never creates a release.
 4. Inspect the draft: binaries, signing/notarization, `latest.json`, checksum manifest and actual install/update behavior. Test a real 3DS or Citra with the packaged version. After the gates pass, run **Publish qualified release** with the tag. The workflow rechecks assets and checksums, then publishes the draft after environment approval.
 
-The updater uses `https://github.com/RomualdYT/3Decks/releases/latest/download/latest.json`. A draft is invisible to regular clients; publication makes this version eligible for updates. Do not publish a draft with failed jobs, unsigned installers, invalid updater signatures or unverified Windows behavior. Linux packaging is deferred until its native feature and platform validation are complete.
+The updater uses `https://github.com/RomualdYT/3Decks/releases/latest/download/latest.json`. The user starts a check from **Settings → Advanced → Updates**; there is no background update check yet. A draft is invisible to regular clients; publication makes this version eligible for updates. Do not publish a draft with failed jobs, unsigned installers, invalid updater signatures or unverified Windows behavior. Linux packaging is deferred until its native feature and platform validation are complete. The first direct Windows installer will not provide the packaged identity required for notification history.
 
 For local unsigned UI tests, use `npm run tauri -- build --bundles dmg --no-sign --ci` from `desktop/`; these builds have no updater artifacts and are not distribution releases.

@@ -1,15 +1,14 @@
 # 3Decks Desktop
 
-Application de bureau Tauri 2 et Rust. Le backend Python est archivé dans `../legacy/python-agent/` ; le frontend partagé est dans `../frontend/`.
+Application de bureau Tauri 2 et Rust. Son éditeur React partagé se trouve dans `../frontend/`.
 
 ## Périmètre
 
-- Premier démarrage guidé : accueil Decky, choix des fonctions, permissions
-  macOS et appairage 3DS. La progression reprend après fermeture ou relance ;
+- Premier démarrage guidé : accueil Decky, choix des fonctions, permissions adaptées au système et appairage 3DS. La progression reprend après fermeture ou relance ;
   les réglages peuvent rouvrir ce parcours.
 - Frontend React partagé : éditeur visuel, réglages, état et
   vue Extensions chargés directement depuis `frontend/`. Le client API
-  Tauri redirige ces vues vers les commandes Rust sans lancer Python.
+  Tauri relie ces vues aux commandes Rust.
 - Galerie de pages prédéfinies entièrement éditables. La page musique propose
   les paroles LRC synchronisées sur l'écran supérieur et la navigation
   temporelle sur l'écran tactile. La recherche LRCLIB est facultative et
@@ -26,7 +25,7 @@ Application de bureau Tauri 2 et Rust. Le backend Python est archivé dans `../l
 - Actions macOS : volume système et lecteur (plus, moins et valeur), muet sortie
   et micro, sorties audio, Spotify et Apple Music, ouverture et fermeture
   d'applications, liens et chemins, focalisation de fenêtres, raccourcis clavier
-  incluant les touches spéciales du catalogue Python (navigation, édition et F1–F12).
+  incluant les touches spéciales (navigation, édition et F1–F12).
 - Panneaux 3DS : volume, réglages et cadre via les indicateurs `action.result`.
 - État `state.update` : volume, mode muet, micro et lecteur actif.
 - Notifications macOS : lecture SQLite en lecture seule, liste dédupliquée,
@@ -45,7 +44,7 @@ Application de bureau Tauri 2 et Rust. Le backend Python est archivé dans `../l
   source, de l'enregistrement et du stream. Test de connexion depuis la fenêtre.
 - Extensions natives : paquet approuvé par empreinte, exécutable par cible,
   protocole JSON Lines borné, actions/sources/écrans et SDK Rust dans
-  [`extension-sdk/`](extension-sdk/README.md). Aucun runtime Python dans l'app.
+  [`extension-sdk/`](extension-sdk/README.md).
 - Démarrage avec la session, restauration de la fenêtre et vérification des
   mises à jour signées lorsque la clé publique est fournie au build.
 - Verrouillage de session macOS via le raccourci système.
@@ -75,11 +74,10 @@ OBS est désactivé dans la configuration initiale. Pour l'utiliser, activez
 enregistrez puis utilisez « Tester la connexion ». Les actions OBS ne sont
 exécutées que lorsque cette intégration est activée.
 
-L’application stocke sa configuration dans le répertoire de configuration Tauri. Elle migre les fichiers de la version de test `.poc` au premier lancement si nécessaire. L’éditeur visuel
+L’application stocke sa configuration dans le répertoire de configuration Tauri. L’éditeur visuel
 enregistre sa configuration dans ce fichier, incrémente la révision et envoie
-les nouvelles pages aux consoles connectées. Le secret partagé de l’ancien
-agent et le changement à chaud du port sont refusés explicitement ; 3Decks
-utilise l’appairage individuel par code et jeton.
+les nouvelles pages aux consoles connectées. Le changement à chaud du port
+est refusé explicitement ; 3Decks utilise l’appairage individuel par code et jeton.
 Fermer l'éditeur détruit sa WebView tout en laissant le serveur actif ; le menu
 « Ouvrir 3Decks » recrée la fenêtre. Pour démarrer directement dans la barre des
 menus, définir `DECKS_START_TRAY_ONLY=1`.
@@ -109,8 +107,7 @@ cd ../desktop && npm ci
 npm run tauri -- dev
 ```
 
-Sur les ports par défaut, l'agent Python doit être arrêté : les deux serveurs
-utilisent les mêmes ports.
+Une seule instance du serveur peut utiliser les ports par défaut à la fois.
 Pour utiliser des ports de développement distincts :
 
 ```bash

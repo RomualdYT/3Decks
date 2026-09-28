@@ -16,11 +16,10 @@
 
 | Directory | Purpose |
 |---|---|
-| [`desktop/`](desktop/README.md) | The supported macOS and Windows desktop application, native integrations, tray and updater |
-| [`frontend/`](frontend/) | The React editor used by the desktop webview |
+| [`desktop/`](desktop/README.md) | Tauri desktop application for macOS and Windows, native integrations, tray and updater |
+| [`frontend/`](frontend/README.md) | The React editor used by the desktop webview |
 | [`3ds-app/`](3ds-app/) | Native C application for Nintendo 3DS and 2DS |
 | [`docs/`](docs/README.md) | Current installation, architecture, protocol and release guides |
-| [`legacy/python-agent/`](legacy/python-agent/README.md) | Archived Python implementation and its historical documentation |
 
 The macOS path has been exercised with Citra and Apple Music. Windows has native adapters and an [explicit validation plan](desktop/docs/WINDOWS_TEST_PLAN.md), but its release build still needs real-device qualification. Linux remains a later target. No public desktop release has been published yet.
 
@@ -33,7 +32,7 @@ cd frontend && pnpm install --frozen-lockfile
 cd ../desktop && npm ci && npm run tauri -- dev
 ```
 
-Build the console with `./build.sh all` (Docker and devkitPro packaging image) or see the [console guide](docs/CONSOLE_PACKAGING.md). Do not run the old Python server on UDP 38122 or TCP 38123 at the same time as Tauri.
+Build the console with `./build.sh all` (Docker and devkitPro packaging image) or see the [console guide](docs/CONSOLE_PACKAGING.md). Only one desktop server can use UDP 38122 and TCP 38123 at a time.
 
 ## Security and releases
 

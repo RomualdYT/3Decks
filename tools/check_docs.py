@@ -91,6 +91,7 @@ def documents(root: Path = ROOT) -> list[Path]:
     files.update((root / "desktop").glob("*.md"))
     files.update((root / "desktop/docs").glob("*.md"))
     files.update((root / "desktop/extension-sdk").glob("*.md"))
+    files.update((root / "frontend").glob("*.md"))
     return sorted(files)
 
 

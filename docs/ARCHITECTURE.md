@@ -1,17 +1,38 @@
 # Desktop architecture
 
-The native desktop application lives in [`desktop/`](../desktop/README.md). Its Tauri window loads the same React editor source as `frontend/`. The editor uses one typed API boundary; the entry point selects `desktop/src/tauri-api.ts` for Tauri or the isolated HTTP adapter for historical preview builds. React does not start Python or call the archived HTTP server in the desktop bundle.
+[Documentation](README.md) · [Français](ARCHITECTURE.fr.md)
 
-| Layer | Code | Responsibility |
-|---|---|---|
-| UI | `frontend/src/` | Editor, settings, pages, shared types and components |
-| Desktop bridge | `desktop/src/` | Onboarding, Tauri command adapter and desktop styling |
-| Application state | `desktop/src-tauri/src/app/` | Configuration, credentials, pairing, tray and lifecycle |
-| Transport | `desktop/src-tauri/src/transport/` | UDP discovery, framed TCP, 3DS protocol |
-| Features | `desktop/src-tauri/src/features/` | Media, lyrics, OBS, telemetry, extensions and notifications |
-| Platform adapters | `desktop/src-tauri/src/platform/` | macOS, Windows and Linux system integration |
-| Console | `3ds-app/source/` | Native C UI and network client |
+3Decks has two programs: the Tauri desktop application and the C client on the 3DS. The desktop process owns the local network server, system integrations, configuration and tray. Its WebView runs the React editor; closing that window keeps the desktop process and console connection alive.
 
-The Rust server runs on Tokio tasks independently of the WebView. Closing the editor keeps the server and tray active. Configuration changes use a revision and are broadcast to connected consoles. App pairing credentials are stored in the application config directory; the pre-release `.poc` application ID is migrated on first launch under the final ID.
+## Source map
 
-The archived Python implementation, historical HTTP API and distribution scripts are in [`legacy/python-agent/`](../legacy/python-agent/README.md). The current [3DS protocol](PROTOCOL.md) is the shared wire contract.
+| Area | Responsibility |
+|---|---|
+| [`frontend/src/`](../frontend/src/) | Editor, settings, localization, shared components and generated API types |
+| [`desktop/src/`](../desktop/src/) | Tauri entry point, onboarding, command adapter and desktop styles |
+| [`desktop/src-tauri/src/app/`](../desktop/src-tauri/src/app/) | Persistent configuration, pairing, onboarding progress, window lifecycle and tray |
+| [`desktop/src-tauri/src/transport/`](../desktop/src-tauri/src/transport/) | UDP discovery, framed TCP sessions and 3DS messages |
+| [`desktop/src-tauri/src/features/`](../desktop/src-tauri/src/features/) | OBS, lyrics, artwork, telemetry, notifications and native extensions |
+| [`desktop/src-tauri/src/platform/`](../desktop/src-tauri/src/platform/) | OS specific audio, keyboard, media, windows and shell adapters |
+| [`3ds-app/source/`](../3ds-app/source/) | Console UI, input, networking and protocol parser |
+
+The editor calls a typed boundary in `frontend/src/api/client.ts`. The desktop build resolves that boundary to `desktop/src/tauri-api.ts`, which invokes Rust commands. The frontend HTTP adapter is isolated for development of the shared editor; it is excluded from the desktop bundle. New desktop features should extend the Rust command adapter and its types instead of adding HTTP calls to React components.
+
+## Console connection and state
+
+1. The desktop starts Tokio tasks for UDP discovery on port 38122 and the TCP listener on port 38123. Neither runs on the WebView thread.
+2. The console discovers the computer or uses a manually entered address. TCP messages contain a four-byte big-endian JSON length followed by the JSON payload. The [protocol guide](PROTOCOL.md) defines limits and message types.
+3. A new console pairs with the six-digit code shown in the app. The desktop stores a per-console credential in its application data directory; a known console reconnects with its credential.
+4. The desktop validates actions, invokes the relevant feature or platform adapter, and sends state and results back to the console. Saving a page increments the configuration revision and broadcasts the new layout to connected consoles.
+
+The network is intended for a trusted LAN. The transport is not encrypted; see [Security](SECURITY.md). The application config and onboarding progress are stored separately. The setup assistant resumes its saved step after a restart.
+
+## Platform boundaries
+
+Shared control flow belongs in `features/` or `platform/system.rs`; platform-specific APIs stay under `platform/macos/` and `platform/windows/`. Blocking system calls use Tokio's blocking pool where needed. macOS integrates CoreAudio, Quartz and Apple Events. Windows uses WASAPI, GSMTC, WinRT, `SendInput` and Win32 shell/window APIs. Some features have deliberate OS limits, listed in the [platform matrix](../desktop/PLATFORM_STATUS.md) and [Windows test plan](../desktop/docs/WINDOWS_TEST_PLAN.md). Linux distribution is deferred.
+
+Native extensions are approved packages with a bounded JSON Lines protocol. The [extension SDK](../desktop/extension-sdk/README.md) describes the manifest and lifecycle. They run with the current user's permissions.
+
+## Builds and updates
+
+The [quality workflow](../.github/workflows/quality.yml) checks the shared editor, native backend, documentation and console. A version tag starts the [release candidate workflow](../.github/workflows/release.yml): it builds signed desktop packages and console packages into a draft GitHub Release. A separate, reviewed [publish workflow](../.github/workflows/publish-release.yml) makes that draft public after asset checks. The in-app updater checks GitHub's `latest.json` when the user requests it in Settings, verifies a signed update, installs it and restarts. A release build needs the updater public key at compile time. See [Release process](RELEASE.md) for setup and remaining validation.

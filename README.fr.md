@@ -15,10 +15,9 @@
 | Dossier | Rôle |
 |---|---|
 | [`desktop/`](desktop/README.md) | Application macOS et Windows, intégrations natives, menu système et mises à jour |
-| [`frontend/`](frontend/) | Éditeur React affiché dans la WebView |
+| [`frontend/`](frontend/README.md) | Éditeur React affiché dans la WebView |
 | [`3ds-app/`](3ds-app/) | Application C native pour 3DS et 2DS |
 | [`docs/`](docs/README.fr.md) | Guides actuels |
-| [`legacy/python-agent/`](legacy/python-agent/README.md) | Ancienne implémentation Python et documentation historique |
 
 Le parcours macOS a été essayé avec Citra et Apple Music. Les adaptateurs Windows doivent encore être qualifiés sur une vraie machine ; Linux viendra ensuite. Aucune version de bureau publique n’a encore été publiée.
 
@@ -29,6 +28,6 @@ cd frontend && pnpm install --frozen-lockfile
 cd ../desktop && npm ci && npm run tauri -- dev
 ```
 
-La [publication](docs/RELEASE.md) prépare une Release GitHub **en brouillon** après un tag de version. La signature de distribution et les essais Windows restent nécessaires avant publication. Utilisez un réseau local de confiance ; n’exposez pas les ports de la console sur Internet.
+La [publication](docs/RELEASE.fr.md) prépare une Release GitHub **en brouillon** après un tag de version. La signature de distribution et les essais Windows restent nécessaires avant publication. Utilisez un réseau local de confiance ; n’exposez pas les ports de la console sur Internet.
 
 [GPL-3.0-only](LICENSE). Police Inter sous [SIL Open Font License](docs/licences/Inter-OFL.txt). Projet indépendant, non affilié à Nintendo.

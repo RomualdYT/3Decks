@@ -2,6 +2,12 @@
 
 [Documentation](README.md) · [Français](USAGE.fr.md)
 
+## First launch
+
+The setup assistant lets you choose console features, review the access they need, and pair a 3DS or 2DS. You can finish without a console and pair it later. Progress is saved after each step, including when macOS asks you to quit and reopen the app. On Windows, media, audio and shortcuts use native APIs; the firewall may ask for local network access. Reading other apps' notification history additionally needs a compatible packaged identity and your consent, so it is unavailable in the current direct installer. Reopen the assistant from **Settings → Advanced**.
+
+Public signed builds offer **Settings → Advanced → Updates → Check**. The app checks when you press the button; it does not currently check in the background. A local unsigned build has no updater key and shows the control as unavailable.
+
 ## Your first page
 
 1. Open the editor from the computer's 3Decks system menu.
@@ -11,7 +17,7 @@
 5. Choose an icon and color, then save using the bottom bar.
 6. Tap the button on the connected console.
 
-Saving installs the configuration in the running agent and sends the new layout to connected consoles. You do not need to restart. If another editor changed the configuration, reload after the explicit conflict instead of repeatedly saving over it.
+Saving applies the configuration in the running desktop app and sends the new layout to connected consoles. You do not need to restart. If another editor changed the configuration, reload after the explicit conflict instead of repeatedly saving over it.
 
 ## Organize the touch screen
 
@@ -20,7 +26,7 @@ Drag pages in the sidebar to reorder them; right-click a page for its context ac
 - **Grid:** six large positions in a 3 × 2 layout, available on every page.
 - **List:** scrollable rows, useful for generated windows or extension content.
 - **My own actions:** buttons you configure.
-- **Available windows:** the agent generates items for open windows; touching one focuses it on the computer.
+- **Available windows:** 3Decks generates items for open windows; touching one focuses it on the computer.
 - **Extension source:** content supplied by an enabled extension.
 
 Generated content is not a second editable copy of your buttons. A grid displays the first six items; use a list when you need more. The preview explains generated areas; it is an editor preview, not a video stream from the console.
@@ -94,7 +100,7 @@ There are no needs, streaks or penalties for time away. This console-only settin
 is not currently mirrored by the computer's editor preview.
 
 On the computer, Decky greets you in the connection dialog and appears during
-loading, unavailable-agent states and the empty extensions view. **Settings →
+loading, unavailable-desktop states and the empty extensions view. **Settings →
 Language & appearance** lets you preview his expressions or hide these appearances.
 This browser-local preference applies immediately, separately from console settings.
 The Decky logo stays visible: it briefly blinks every eight seconds and waves once
@@ -109,6 +115,6 @@ generates the static header logo and the English/French README banners.
 
 ## Integrations and extensions
 
-Settings lets you enable only what you need. Turning the media group off preserves its individual player/artwork choices for the next activation. Some permission changes need an agent restart. [Troubleshooting](TROUBLESHOOTING.md) covers unavailable providers.
+Settings lets you enable only what you need. Turning the media group off preserves its individual player/artwork choices for the next activation. Some permission changes need an application restart. [Troubleshooting](TROUBLESHOOTING.md) covers unavailable providers.
 
 Import extensions through the Extensions tab, review their declared access and approve their fingerprint before activation. Import alone does not execute the package. See [extension trust](SECURITY.md) before enabling community code.

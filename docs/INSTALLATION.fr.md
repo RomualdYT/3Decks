@@ -7,6 +7,6 @@ Les installateurs publics ne sont pas encore publiés. Les builds de développem
 3. Placez l’ordinateur et la console sur le même réseau Wi-Fi de confiance. Démarrez 3Decks et suivez l’assistant initial.
 4. Choisissez l’ordinateur sur la console et saisissez le code à six chiffres affiché dans l’application.
 
-3Decks écoute par défaut sur UDP 38122 et TCP 38123. Arrêtez l’ancien agent Python avant de démarrer Tauri. Si la découverte échoue, utilisez l’adresse et le port manuels sur la console et vérifiez le pare-feu. Certaines fonctions macOS demandent des autorisations. L’historique des notifications Windows exige une identité de paquet et le consentement utilisateur ; l’installateur direct actuel ne la fournit pas.
+3Decks écoute par défaut sur UDP 38122 et TCP 38123. Si la découverte échoue, utilisez l’adresse et le port manuels sur la console et vérifiez le pare-feu. Certaines fonctions macOS demandent des autorisations. L’historique des notifications Windows exige une identité de paquet et le consentement utilisateur ; l’installateur direct actuel ne la fournit pas.
 
 Voir [Développement](CONTRIBUTING.md) pour construire depuis les sources et [Paquets console](CONSOLE_PACKAGING.fr.md) pour la 3DS.

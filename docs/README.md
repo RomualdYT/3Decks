@@ -13,5 +13,4 @@
 - [Windows validation](../desktop/docs/WINDOWS_TEST_PLAN.md)
 - [Lyrics and page templates](../desktop/docs/LYRICS_AND_PAGE_TEMPLATES.md)
 
-The former Python HTTP API and packaging guides are archived in [`legacy/python-agent/docs/`](../legacy/python-agent/docs/). The [OpenAPI snapshot](../frontend/api/openapi.json) remains as a TypeScript contract for the shared editor while its native adapter is in use.
-The original migration proposals are archived in [`legacy/planning/`](../legacy/planning/); current behavior is documented here and in `desktop/`.
+The [editor contract](../frontend/api/openapi.json) generates TypeScript types used by the shared React code. The desktop adapter implements those operations through Tauri commands.

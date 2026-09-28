@@ -2,6 +2,12 @@
 
 [Documentation](README.fr.md) · [English](USAGE.md)
 
+## Premier démarrage
+
+L’assistant permet de choisir les fonctions de la console, de vérifier les accès nécessaires et d’appairer une 3DS ou 2DS. Vous pouvez terminer sans console et l’appairer plus tard. La progression est enregistrée après chaque étape, y compris si macOS demande de quitter et rouvrir l’application. Sur Windows, les médias, l’audio et les raccourcis utilisent les API natives ; le pare-feu peut demander l’accès au réseau local. La lecture de l’historique des notifications d’autres applications exige en plus un paquet compatible et votre consentement : l’installateur direct actuel ne la propose pas. L’assistant se rouvre dans **Réglages → Avancé**.
+
+Les builds publics signés proposent **Réglages → Avancé → Mises à jour → Vérifier**. La recherche se fait lorsque vous appuyez sur le bouton ; elle n’est pas encore lancée en arrière-plan. Un build local non signé ne contient pas la clé de mise à jour et désactive ce contrôle.
+
 ## Première page
 
 1. Ouvrez l’éditeur depuis le menu système de 3Decks.
@@ -17,7 +23,7 @@ L’enregistrement applique et diffuse la configuration sans redémarrage. En ca
 
 Glissez les pages dans la colonne gauche pour les réordonner ; le clic droit ouvre leurs actions contextuelles. Les boutons peuvent aussi être déplacés.
 
-La **grille 3 × 2** propose six emplacements sur toutes les pages. La **liste** convient aux contenus plus longs. **Mes propres actions** désigne vos boutons ; **Fenêtres disponibles** est une liste produite par l’agent pour afficher une fenêtre de l’ordinateur. Une extension peut aussi fournir du contenu.
+La **grille 3 × 2** propose six emplacements sur toutes les pages. La **liste** convient aux contenus plus longs. **Mes propres actions** désigne vos boutons ; **Fenêtres disponibles** est une liste produite par 3Decks pour afficher une fenêtre de l’ordinateur. Une extension peut aussi fournir du contenu.
 
 Le contenu généré n’est pas une copie éditable de vos boutons. La grille affiche les six premiers éléments ; préférez la liste pour en afficher davantage. Le visualiseur est un aperçu de l’éditeur, pas une retransmission vidéo de la console.
 
@@ -91,7 +97,7 @@ silencieuses, sans requête réseau, permission supplémentaire ou pénalité d�
 Ce réglage propre à la console n’est pas encore reproduit dans l’aperçu PC.
 
 Sur PC, Decky apparaît dans la fenêtre de connexion, pendant le chargement,
-en cas d’agent indisponible et dans la page des extensions vide. **Réglages →
+si l’application de bureau est indisponible et dans la page des extensions vide. **Réglages →
 Langue & apparence** permet de découvrir ses expressions ou de masquer ces
 apparitions. Ce choix est immédiat et propre au navigateur, indépendant de la 3DS.
 Le logo reste visible : il cligne brièvement des yeux toutes les huit secondes et
