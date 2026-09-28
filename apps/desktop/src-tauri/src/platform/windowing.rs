@@ -32,7 +32,7 @@ fn truncate(text: &str, maximum: usize) -> String {
 #[cfg(target_os = "macos")]
 mod macos {
     use super::Window;
-    use objc2_app_kit::{NSApplicationActivationOptions, NSRunningApplication};
+    use objc2_app_kit::{NSApplicationActivationOptions, NSRunningApplication, NSWorkspace};
     use std::ffi::{c_char, c_void, CString};
 
     type Ref = *const c_void;
@@ -50,12 +50,14 @@ mod macos {
         fn CFStringGetCString(value: Ref, buffer: *mut c_char, size: isize, encoding: u32) -> bool;
         fn CFNumberGetValue(value: Ref, number_type: i32, output: *mut c_void) -> bool;
         fn CFRelease(value: Ref);
+        static kCFBooleanTrue: Ref;
     }
     #[link(name = "ApplicationServices", kind = "framework")]
     unsafe extern "C" {
         fn AXUIElementCreateApplication(pid: i32) -> Ref;
         fn AXUIElementCopyAttributeValue(element: Ref, attribute: Ref, value: *mut Ref) -> i32;
         fn AXUIElementPerformAction(element: Ref, action: Ref) -> i32;
+        fn AXUIElementSetAttributeValue(element: Ref, attribute: Ref, value: Ref) -> i32;
     }
 
     const UTF8: u32 = 0x08000100;
@@ -155,60 +157,101 @@ mod macos {
             .unwrap_or_default()
     }
 
+    /// Releases a CoreFoundation object created or copied by this module.
+    struct Owned(Ref);
+    impl Owned {
+        fn new(value: Ref) -> Option<Self> {
+            (!value.is_null()).then_some(Self(value))
+        }
+    }
+    impl Drop for Owned {
+        fn drop(&mut self) {
+            unsafe { CFRelease(self.0) }
+        }
+    }
+    fn cf_key(name: &str) -> Result<Owned, String> {
+        Owned::new(unsafe { key(name) }).ok_or_else(|| "CoreFoundation string unavailable".into())
+    }
+
+    /// Makes the application frontmost through Accessibility. Unlike AppKit
+    /// activation, which macOS 14+ treats as a request the frontmost app must
+    /// yield to, this is honoured while 3Decks runs in the background.
+    unsafe fn raise_application(element: Ref) -> bool {
+        let Ok(frontmost) = cf_key("AXFrontmost") else {
+            return false;
+        };
+        unsafe { AXUIElementSetAttributeValue(element, frontmost.0, kCFBooleanTrue) == 0 }
+    }
+
+    /// Raises the window whose title matches, and makes it the main window.
+    unsafe fn raise_window(element: Ref, title: &str) -> Result<(), String> {
+        let windows_key = cf_key("AXWindows")?;
+        let title_key = cf_key("AXTitle")?;
+        let raise_key = cf_key("AXRaise")?;
+        let main_key = cf_key("AXMain")?;
+        let mut windows: Ref = std::ptr::null();
+        let result = unsafe { AXUIElementCopyAttributeValue(element, windows_key.0, &mut windows) };
+        let windows = Owned::new(windows).filter(|_| result == 0).ok_or_else(|| {
+            format!("Accessibility permission or window access unavailable ({result})")
+        })?;
+        for index in 0..unsafe { CFArrayGetCount(windows.0) } {
+            let candidate = unsafe { CFArrayGetValueAtIndex(windows.0, index) };
+            let mut value: Ref = std::ptr::null();
+            if unsafe { AXUIElementCopyAttributeValue(candidate, title_key.0, &mut value) } != 0 {
+                continue;
+            }
+            let Some(value) = Owned::new(value) else {
+                continue;
+            };
+            if unsafe { string(value.0) } != title {
+                continue;
+            }
+            if unsafe { AXUIElementPerformAction(candidate, raise_key.0) } != 0 {
+                return Err("Window could not be raised".into());
+            }
+            unsafe { AXUIElementSetAttributeValue(candidate, main_key.0, kCFBooleanTrue) };
+            return Ok(());
+        }
+        Err("Window not found".into())
+    }
+
+    /// Same path as launching from the Dock: always allowed, and brings an
+    /// already running application forward without choosing a window.
+    fn reopen(app: &NSRunningApplication) -> bool {
+        app.bundleURL()
+            .is_some_and(|url| NSWorkspace::sharedWorkspace().openURL(&url))
+    }
+
     fn focus_sync(window: Window) -> Result<&'static str, String> {
         let pid = i32::try_from(window.pid).map_err(|_| "Invalid window process ID")?;
         let app = NSRunningApplication::runningApplicationWithProcessIdentifier(pid)
             .ok_or("Application is no longer running")?;
-        if !app.activateWithOptions(NSApplicationActivationOptions::empty()) {
-            return Err("Could not activate application".into());
+        // Stages are tried by outcome rather than by macOS version: whether
+        // activation is honoured also depends on the frontmost application.
+        let mut active = app.activateWithOptions(NSApplicationActivationOptions::empty());
+        let element = Owned::new(unsafe { AXUIElementCreateApplication(pid) });
+        if !active {
+            active = element
+                .as_ref()
+                .is_some_and(|element| unsafe { raise_application(element.0) });
         }
         if window.title.is_empty() {
-            return Ok("Application focused");
-        }
-        unsafe {
-            let element = AXUIElementCreateApplication(pid);
-            if element.is_null() {
-                return Err("Accessibility element unavailable".into());
-            }
-            let windows_key = key("AXWindows");
-            let title_key = key("AXTitle");
-            let raise_key = key("AXRaise");
-            let mut windows: Ref = std::ptr::null();
-            let result = AXUIElementCopyAttributeValue(element, windows_key, &mut windows);
-            if result != 0 || windows.is_null() {
-                CFRelease(element);
-                CFRelease(windows_key);
-                CFRelease(title_key);
-                CFRelease(raise_key);
-                return Err(format!(
-                    "Accessibility permission or window access unavailable ({result})"
-                ));
-            }
-            let mut raised = false;
-            for index in 0..CFArrayGetCount(windows) {
-                let candidate = CFArrayGetValueAtIndex(windows, index);
-                let mut title: Ref = std::ptr::null();
-                if AXUIElementCopyAttributeValue(candidate, title_key, &mut title) == 0
-                    && !title.is_null()
-                {
-                    let matches = string(title) == window.title;
-                    CFRelease(title);
-                    if matches {
-                        raised = AXUIElementPerformAction(candidate, raise_key) == 0;
-                        break;
-                    }
-                }
-            }
-            CFRelease(windows);
-            CFRelease(element);
-            CFRelease(windows_key);
-            CFRelease(title_key);
-            CFRelease(raise_key);
-            if raised {
-                Ok("Window focused")
+            return if active || reopen(&app) {
+                Ok("Application focused")
             } else {
-                Err("Window not found or could not be raised".into())
-            }
+                Err("Could not activate application".into())
+            };
+        }
+        let raised = element
+            .ok_or_else(|| "Accessibility element unavailable".to_string())
+            .and_then(|element| unsafe { raise_window(element.0, &window.title) });
+        match raised {
+            Ok(()) if active || reopen(&app) => Ok("Window focused"),
+            Ok(()) => Err("Could not activate application".into()),
+            // The window is gone or not accessible: the application is still
+            // the most useful thing to bring forward.
+            Err(_) if active || reopen(&app) => Ok("Application focused"),
+            Err(error) => Err(error),
         }
     }
 
