@@ -9,20 +9,29 @@ updates:
         patterns:
           - "*"
 
-  - package-ecosystem: "pip"
-    directory: "/agent"
+  - package-ecosystem: "npm"
+    directory: "/frontend"
     schedule:
       interval: "weekly"
     groups:
-      python-dependencies:
+      frontend-dependencies:
         patterns:
           - "*"
 
   - package-ecosystem: "npm"
-    directory: "/agent"
+    directory: "/desktop"
     schedule:
       interval: "weekly"
     groups:
-      npm-dependencies:
+      desktop-dependencies:
+        patterns:
+          - "*"
+
+  - package-ecosystem: "cargo"
+    directory: "/desktop/src-tauri"
+    schedule:
+      interval: "weekly"
+    groups:
+      rust-dependencies:
         patterns:
           - "*"

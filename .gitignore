@@ -6,34 +6,19 @@
 3ds-app/*.smdh
 3ds-app/*.map
 
-# Python
+# Local tooling
 __pycache__/
 *.py[cod]
 .venv/
 venv/
 .python/
-python-*-embed-amd64.zip
-legacy/python-agent/agent-windows*.log
 frontend/node_modules/
 frontend/coverage/
 frontend/dist/
 .pytest_cache/
-.mypy_cache/
-.ruff_cache/
-.coverage*
-htmlcov/
-legacy/python-agent/dist/
-legacy/python-agent/build/
-legacy/python-agent/release/
-legacy/python-agent/coverage.xml
-legacy/python-agent/backend/deck3ds/api/static/**/*.map
 
 # Configuration locale
-# Dupliquez config.json en config.local.json pour vos reglages personnels.
-legacy/python-agent/config.local.json
 paired-consoles.json
-legacy/python-agent/extensions/
-legacy/python-agent/*.3deckext
 
 # Systeme
 .DS_Store
