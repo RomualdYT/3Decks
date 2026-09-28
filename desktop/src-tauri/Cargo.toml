@@ -35,7 +35,8 @@ tauri-plugin-autostart = "2"
 tauri-plugin-updater = "2"
 tauri-plugin-window-state = "2"
 plist = "1.10"
-rusqlite = "0.37"
+# Windows installers must not depend on an external sqlite3.lib.
+rusqlite = { version = "0.37", features = ["bundled-windows"] }
 zip = { version = "4", default-features = false, features = ["deflate"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
