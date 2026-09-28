@@ -425,7 +425,7 @@ pub fn run() {
             install_update
         ])
         .build(tauri::generate_context!())
-        .expect("3Decks 3Decks failed to start");
+        .expect("3Decks failed to start");
     app.run(|_app, event| {
         if let RunEvent::ExitRequested {
             code: None, api, ..
