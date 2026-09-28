@@ -4,10 +4,10 @@
 
 ## Arborescence
 
-Les trois parties actives restent distinctes : `desktop/` pour l’application Rust/Tauri,
-`frontend/` pour l’éditeur partagé et `3ds-app/` pour la console native.
+Le dépôt contient deux applications : `apps/desktop/` pour l’application Rust/Tauri
+et son éditeur React dans `frontend/`, et `apps/console/` pour la console native.
 Les adaptateurs PC, dont CoreAudio, appartiennent à
-`desktop/src-tauri/src/platform/`. Les compilations et caches de dépendances
+`apps/desktop/src-tauri/src/platform/`. Les compilations et caches de dépendances
 ne sont pas des sources à versionner.
 
 | Dossier console | Responsabilité |

@@ -104,7 +104,7 @@ Le logo reste visible : il cligne brièvement des yeux toutes les huit secondes 
 salue une fois au survol ou au focus clavier. Masquer Decky ou activer la réduction
 des mouvements du système le laisse immobile.
 
-Le dessin portable se trouve dans `3ds-app/source/graphics/decky.c`. L’outil
+Le dessin portable se trouve dans `apps/console/source/graphics/decky.c`. L’outil
 `tools/render_decky.c` exporte les six poses depuis le même code ; les tests sont
 lancés avec `bash tools/test_console.sh`.
 

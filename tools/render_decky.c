@@ -1,6 +1,6 @@
 /** Export a contact sheet from the production renderer; no SDK or image library.
- * cc -std=c11 -I3ds-app/source/graphics tools/render_decky.c \
- *    3ds-app/source/graphics/decky.c -lm -o /tmp/render-decky
+ * cc -std=c11 -Iapps/console/source/graphics tools/render_decky.c \
+ *    apps/console/source/graphics/decky.c -lm -o /tmp/render-decky
  * /tmp/render-decky /tmp/decky.svg
  */
 #include "decky.h"

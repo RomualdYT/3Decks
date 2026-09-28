@@ -24,7 +24,7 @@ IMAGE="devkitpro/devkitarm:latest"
 
 SIZE="${1:-17}"
 SOURCE="${2:-$ROOT/tools/fonts/Inter-Regular.ttf}"
-OUTPUT="$ROOT/3ds-app/romfs/deck.bcfnt"
+OUTPUT="$ROOT/apps/console/romfs/deck.bcfnt"
 CHARSET="$ROOT/tools/font-charset.txt"
 
 if [ ! -f "$SOURCE" ]; then
@@ -89,5 +89,5 @@ cp "$WORK/deck.bcfnt" "$OUTPUT"
 
 SIZE_KB=$(($(wc -c <"$OUTPUT") / 1024))
 echo
-echo "Écrit : 3ds-app/romfs/deck.bcfnt (${SIZE_KB} Ko)"
+echo "Écrit : apps/console/romfs/deck.bcfnt (${SIZE_KB} Ko)"
 echo "Recompilez avec ./build.sh pour l'embarquer."

@@ -86,12 +86,13 @@ def check(path: Path, root: Path = ROOT) -> list[str]:
 
 def documents(root: Path = ROOT) -> list[Path]:
     files = set(root.glob("*.md"))
-    for directory in ("docs", "packaging", "examples"):
+    for directory in ("docs", ".github", "examples"):
         files.update((root / directory).rglob("*.md"))
-    files.update((root / "desktop").glob("*.md"))
-    files.update((root / "desktop/docs").glob("*.md"))
-    files.update((root / "desktop/extension-sdk").glob("*.md"))
-    files.update((root / "frontend").glob("*.md"))
+    files.update((root / "apps/desktop").glob("*.md"))
+    files.update((root / "apps/desktop/docs").glob("*.md"))
+    files.update((root / "apps/desktop/extension-sdk").glob("*.md"))
+    files.update((root / "apps/desktop/frontend").glob("*.md"))
+    files.update((root / "apps/console").glob("*.md"))
     return sorted(files)
 
 

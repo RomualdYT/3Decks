@@ -47,17 +47,17 @@ From the repository root, with Docker running:
 
 The packaging image adds source-built [makerom](https://github.com/3DSGuy/Project_CTR)
 and [bannertool](https://github.com/diasurgical/bannertool), pinned to commits in
-[the Dockerfile](../packaging/3ds/Dockerfile). No Nintendo SDK or private signing
+[the Dockerfile](../apps/console/packaging/Dockerfile). No Nintendo SDK or private signing
 keys are needed. These are unsigned homebrew packages, not official Nintendo
 software. The base devkitPro image and Debian package repository remain rolling
 dependencies; this is not a promise of bit-identical builds over time.
 
-For a local devkitPro installation, `make -C 3ds-app cia` or `release` also needs
+For a local devkitPro installation, `make -C apps/console cia` or `release` also needs
 makerom, bannertool and Python 3 in PATH. The checked-in PNGs let normal `make`
 build the 3DSX without those packaging tools.
 
 The title ID is **`000400000F3D3C00`**, declared in
-[application.rsf](../packaging/3ds/application.rsf). Keep it stable for updates.
+[application.rsf](../apps/console/packaging/application.rsf). Keep it stable for updates.
 It is a private homebrew identifier, not an allocated Nintendo title ID; no
 global collision-free registry is assumed. Forks must choose their own ID and
 update the package checker. Never overwrite another installed title using this ID.
@@ -69,13 +69,13 @@ The release workflow derives it automatically from the tag.
 
 ## Artwork and verification
 
-The original pixel geometry lives in `3ds-app/source/graphics/decky.c`.
+The original pixel geometry lives in `apps/console/source/graphics/decky.c`.
 [The exporter](../tools/export_home_menu.c) creates a 48 × 48 icon and a 256 × 128
 banner; librsvg renders their text using the repository's Inter font. To regenerate:
 
 ```sh
 docker run --rm -v "$PWD":/repo -w /repo 3decks-console-packaging:local \
-  bash packaging/3ds/generate_artwork.sh
+  bash apps/console/packaging/generate_artwork.sh
 ```
 
 Use `--check` to verify the PNGs without replacing them. App artwork follows the

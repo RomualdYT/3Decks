@@ -3,7 +3,7 @@
 # Compile l'application 3DS dans un conteneur devkitPro.
 #
 # Aucune installation locale de devkitPro n'est requise : seul Docker est
-# necessaire. Le resultat est 3ds-app/deck3ds.3dsx.
+# necessaire. Le resultat est apps/console/deck3ds.3dsx.
 #
 # Usage :
 #   ./build.sh          compile
@@ -16,7 +16,7 @@ set -euo pipefail
 
 IMAGE="devkitpro/devkitarm:latest"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-APP_DIR="$ROOT/3ds-app"
+APP_DIR="$ROOT/apps/console"
 APP_VERSION="${APP_VERSION:-1}"
 if [[ ! "$APP_VERSION" =~ ^[0-9]{1,5}$ ]] || (( 10#$APP_VERSION > 65535 )); then
 	echo "APP_VERSION must be an integer from 0 to 65535." >&2
@@ -26,7 +26,7 @@ APP_VERSION=$((10#$APP_VERSION))
 
 if ! command -v docker >/dev/null 2>&1; then
 	echo "Docker est requis pour compiler l'application 3DS." >&2
-	echo "Autre possibilite : installer devkitPro et lancer 'make' dans 3ds-app/." >&2
+	echo "Autre possibilite : installer devkitPro et lancer 'make' dans apps/console/." >&2
 	exit 1
 fi
 
@@ -35,7 +35,7 @@ fi
 case "${1:-build}" in
 cia | all)
 	IMAGE="3decks-console-packaging:local"
-	docker build -t "$IMAGE" -f "$ROOT/packaging/3ds/Dockerfile" "$ROOT"
+	docker build -t "$IMAGE" -f "$ROOT/apps/console/packaging/Dockerfile" "$ROOT"
 	;;
 esac
 
@@ -50,7 +50,7 @@ run_make() {
 	esac
 	MSYS2_ARG_CONV_EXCL="$CONVERSION_EXCLUSION" docker run --rm \
 		-e APP_VERSION="$APP_VERSION" \
-		-v "$DOCKER_APP_DIR":/repo -w /repo/3ds-app \
+		-v "$DOCKER_APP_DIR":/repo -w /repo/apps/console \
 		"$IMAGE" \
 		bash -c 'export PATH=$DEVKITARM/bin:$DEVKITPRO/tools/bin:$PATH && make '"$1"' 2>&1' |
 		sed -E '/modification time|Clock skew/d'
@@ -84,7 +84,7 @@ esac
 
 case "${1:-build}" in
 cia | all)
-	echo "Built: 3ds-app/deck3ds.cia"
+	echo "Built: apps/console/deck3ds.cia"
 	echo "CIA: install with FBI on a CFW-enabled console, then open 3Decks from HOME."
 	;;
 esac
@@ -92,7 +92,7 @@ esac
 if [ -f "$APP_DIR/deck3ds.3dsx" ]; then
 	SIZE=$(du -h "$APP_DIR/deck3ds.3dsx" | cut -f1)
 	echo
-	echo "Construit : 3ds-app/deck3ds.3dsx ($SIZE)"
+	echo "Construit : apps/console/deck3ds.3dsx ($SIZE)"
 	echo
 	echo "Installation sur la console :"
 	echo "  1. copier deck3ds.3dsx dans sdmc:/3ds/"

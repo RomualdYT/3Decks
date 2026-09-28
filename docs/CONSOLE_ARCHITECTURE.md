@@ -4,9 +4,9 @@
 
 ## Repository layout
 
-Keep the three active parts distinct: `desktop/` is the Rust/Tauri app,
-`frontend/` is the shared editor, and `3ds-app/` is the native console client.
-Native PC adapters belong under `desktop/src-tauri/src/platform/`, including
+The repository contains two applications: `apps/desktop/` is the Rust/Tauri app
+with its React editor in `frontend/`, and `apps/console/` is the native 3DS client.
+Native PC adapters belong under `apps/desktop/src-tauri/src/platform/`, including
 CoreAudio. Generated build products and dependency caches are not source files.
 
 | Console directory | Responsibility |

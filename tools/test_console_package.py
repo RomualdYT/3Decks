@@ -49,7 +49,7 @@ class ConsolePackagingTests(unittest.TestCase):
 
     def test_release_version(self):
         spec = importlib.util.spec_from_file_location(
-            "package_version", package.ROOT / "packaging/3ds/package_version.py")
+            "package_version", package.ROOT / "apps/console/packaging/package_version.py")
         version = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(version)
         self.assertEqual(version.encode("v1.2.3"), 1059)

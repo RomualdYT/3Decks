@@ -267,7 +267,7 @@ def send(
 
 
 def default_binary() -> Path:
-    return Path(__file__).resolve().parent.parent / "3ds-app" / "deck3ds.3dsx"
+    return Path(__file__).resolve().parent.parent / "apps" / "console" / "deck3ds.3dsx"
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -281,7 +281,7 @@ def main(argv: list[str] | None = None) -> int:
         nargs="?",
         type=Path,
         default=default_binary(),
-        help="fichier .3dsx a envoyer (defaut : 3ds-app/deck3ds.3dsx)",
+        help="fichier .3dsx a envoyer (defaut : apps/console/deck3ds.3dsx)",
     )
     parser.add_argument(
         "-a", "--address", help="adresse de la console, sinon recherche automatique"

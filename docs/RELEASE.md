@@ -11,15 +11,15 @@ This pipeline is implemented but has **not** yet completed a signed, multi-platf
 3. Add the Windows Authenticode `.pfx` as base64 secret `WINDOWS_CERTIFICATE` and its export password as `WINDOWS_CERTIFICATE_PASSWORD`. The workflow imports it into the runner certificate store and supplies its thumbprint to Tauri. Confirm the installer signature and timestamp on a real Windows machine.
 4. Allow GitHub Actions to create Releases (`contents: write`). Protect release tags. Configure required reviewers on the `production` environment for the publish workflow. An environment with no protection rules does not require an approval.
 
-The release workflow intentionally fails early if required signing material is missing. The updater public key is embedded at compile time; adding it later cannot make an already built binary update-capable. Tauri generates updater bundles and `.sig` files only for release builds via `desktop/src-tauri/tauri.release.conf.json`.
+The release workflow intentionally fails early if required signing material is missing. The updater public key is embedded at compile time; adding it later cannot make an already built binary update-capable. Tauri generates updater bundles and `.sig` files only for release builds via `apps/desktop/src-tauri/tauri.release.conf.json`.
 
 ## Prepare a candidate
 
-1. Update all three desktop versions: `desktop/package.json`, `desktop/src-tauri/Cargo.toml`, `desktop/src-tauri/tauri.conf.json`. Refresh `desktop/package-lock.json` and `desktop/src-tauri/Cargo.lock` if needed. The tag validator rejects mismatches.
-2. Run local frontend, Rust and console tests. Review the platform matrix and the [Windows test plan](../desktop/docs/WINDOWS_TEST_PLAN.md). Build and test an installable candidate on both operating systems.
+1. Update all three desktop versions: `apps/desktop/package.json`, `apps/desktop/src-tauri/Cargo.toml`, `apps/desktop/src-tauri/tauri.conf.json`. Refresh `apps/desktop/package-lock.json` and `apps/desktop/src-tauri/Cargo.lock` if needed. The tag validator rejects mismatches.
+2. Run local frontend, Rust and console tests. Review the platform matrix and the [Windows test plan](../apps/desktop/docs/WINDOWS_TEST_PLAN.md). Build and test an installable candidate on both operating systems.
 3. Commit and push the version change, then create and push the annotated tag `vX.Y.Z`. Tagging is the explicit trigger; pushing `main` alone never creates a release.
 4. Inspect the draft: binaries, signing/notarization, `latest.json`, checksum manifest and actual install/update behavior. Test a real 3DS or Citra with the packaged version. After the gates pass, run **Publish qualified release** with the tag. The workflow rechecks assets and checksums, then publishes the draft. GitHub requests environment approval only when required reviewers have been configured.
 
 The updater uses `https://github.com/RomualdYT/3Decks/releases/latest/download/latest.json`. The user starts a check from **Settings → Advanced → Updates**; there is no background update check yet. A draft is invisible to regular clients; publication makes this version eligible for updates. Do not publish a draft with failed jobs, unsigned installers, invalid updater signatures or unverified Windows behavior. Linux packaging is deferred until its native feature and platform validation are complete. The first direct Windows installer will not provide the packaged identity required for notification history.
 
-For local unsigned UI tests, use `npm run tauri -- build --bundles dmg --no-sign --ci` from `desktop/`; these builds have no updater artifacts and are not distribution releases.
+For local unsigned UI tests, use `npm run tauri -- build --bundles dmg --no-sign --ci` from `apps/desktop/`; these builds have no updater artifacts and are not distribution releases.

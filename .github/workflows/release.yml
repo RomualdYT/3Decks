@@ -55,13 +55,13 @@ jobs:
         with:
           node-version: "24"
           cache: pnpm
-          cache-dependency-path: frontend/pnpm-lock.yaml
+          cache-dependency-path: apps/desktop/frontend/pnpm-lock.yaml
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: desktop/src-tauri -> target
+          workspaces: apps/desktop/src-tauri -> target
       - name: Require updater signing configuration
         shell: bash
         env:
@@ -98,7 +98,7 @@ jobs:
           $password = ConvertTo-SecureString $env:WINDOWS_CERTIFICATE_PASSWORD -AsPlainText -Force
           $certificate = Import-PfxCertificate -FilePath $certificatePath -CertStoreLocation Cert:\CurrentUser\My -Password $password
           if (!$certificate -or !$certificate.Thumbprint) { throw 'Windows certificate import failed' }
-          $releaseConfig = 'desktop/src-tauri/tauri.release.conf.json'
+          $releaseConfig = 'apps/desktop/src-tauri/tauri.release.conf.json'
           $config = Get-Content $releaseConfig -Raw | ConvertFrom-Json
           $config.bundle | Add-Member -NotePropertyName windows -NotePropertyValue @{
             certificateThumbprint = $certificate.Thumbprint
@@ -107,9 +107,9 @@ jobs:
           }
           $config | ConvertTo-Json -Depth 10 | Set-Content $releaseConfig
       - run: pnpm install --frozen-lockfile
-        working-directory: frontend
+        working-directory: apps/desktop/frontend
       - run: npm ci
-        working-directory: desktop
+        working-directory: apps/desktop
       - uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -123,7 +123,7 @@ jobs:
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         with:
-          projectPath: desktop
+          projectPath: apps/desktop
           tagName: ${{ github.ref_name }}
           releaseName: 3Decks ${{ github.ref_name }}
           releaseDraft: true

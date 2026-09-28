@@ -4,8 +4,8 @@ set -euo pipefail
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 test_build="$(mktemp -d "${TMPDIR:-/tmp}/3decks-tests.XXXXXX")"
 trap 'rm -rf -- "$test_build"' EXIT
-src="$repo/3ds-app/source"
-tests="$repo/3ds-app/tests"
+src="$repo/apps/console/source"
+tests="$repo/apps/console/tests"
 cc="${CC:-cc}"
 flags=(-std=c11 -D_POSIX_C_SOURCE=200112L -Wall -Wextra -Werror -g -O1)
 if [[ "${SANITIZE:-1}" == 1 ]]; then
@@ -23,10 +23,10 @@ run test_framing "$src/network/framing.c"
 run test_decky "$src/graphics/decky.c"
 "$cc" "${flags[@]}" -I"$src/graphics" "$repo/tools/export_decky_sprite.c" "$src/graphics/decky.c" -lm -o "$test_build/export-decky"
 "$test_build/export-decky" "$test_build/decky.svg"
-cmp "$test_build/decky.svg" "$repo/frontend/public/decky.svg"
+cmp "$test_build/decky.svg" "$repo/apps/desktop/frontend/public/decky.svg"
 "$cc" "${flags[@]}" -I"$src/graphics" "$repo/tools/export_decky_brand.c" "$src/graphics/decky.c" -lm -o "$test_build/export-decky-brand"
 "$test_build/export-decky-brand" "$test_build/logo.svg" logo
-cmp "$test_build/logo.svg" "$repo/frontend/public/decky-logo.svg"
+cmp "$test_build/logo.svg" "$repo/apps/desktop/frontend/public/decky-logo.svg"
 "$test_build/export-decky-brand" "$test_build/banner.svg" en
 cmp "$test_build/banner.svg" "$repo/docs/assets/3decks-banner.svg"
 "$test_build/export-decky-brand" "$test_build/banner.fr.svg" fr

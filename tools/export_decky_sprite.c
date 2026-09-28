@@ -1,7 +1,7 @@
 /** Export the PC sprite atlas from the production 3DS artwork.
- * cc -std=c11 -I3ds-app/source/graphics tools/export_decky_sprite.c \
- *    3ds-app/source/graphics/decky.c -lm -o /tmp/export-decky
- * /tmp/export-decky frontend/public/decky.svg
+ * cc -std=c11 -Iapps/console/source/graphics tools/export_decky_sprite.c \
+ *    apps/console/source/graphics/decky.c -lm -o /tmp/export-decky
+ * /tmp/export-decky apps/desktop/frontend/public/decky.svg
  */
 #include "decky.h"
 #include <stdio.h>

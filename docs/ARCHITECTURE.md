@@ -8,15 +8,15 @@
 
 | Area | Responsibility |
 |---|---|
-| [`frontend/src/`](../frontend/src/) | Editor, settings, localization, shared components and generated API types |
-| [`desktop/src/`](../desktop/src/) | Tauri entry point, onboarding, command adapter and desktop styles |
-| [`desktop/src-tauri/src/app/`](../desktop/src-tauri/src/app/) | Persistent configuration, pairing, onboarding progress, window lifecycle and tray |
-| [`desktop/src-tauri/src/transport/`](../desktop/src-tauri/src/transport/) | UDP discovery, framed TCP sessions and 3DS messages |
-| [`desktop/src-tauri/src/features/`](../desktop/src-tauri/src/features/) | OBS, lyrics, artwork, telemetry, notifications and native extensions |
-| [`desktop/src-tauri/src/platform/`](../desktop/src-tauri/src/platform/) | OS specific audio, keyboard, media, windows and shell adapters |
-| [`3ds-app/source/`](../3ds-app/source/) | Console UI, input, networking and protocol parser |
+| [`apps/desktop/frontend/src/`](../apps/desktop/frontend/src/) | Editor, settings, localization, shared components and generated API types |
+| [`apps/desktop/src/`](../apps/desktop/src/) | Tauri entry point, onboarding, command adapter and desktop styles |
+| [`apps/desktop/src-tauri/src/app/`](../apps/desktop/src-tauri/src/app/) | Persistent configuration, pairing, onboarding progress, window lifecycle and tray |
+| [`apps/desktop/src-tauri/src/transport/`](../apps/desktop/src-tauri/src/transport/) | UDP discovery, framed TCP sessions and 3DS messages |
+| [`apps/desktop/src-tauri/src/features/`](../apps/desktop/src-tauri/src/features/) | OBS, lyrics, artwork, telemetry, notifications and native extensions |
+| [`apps/desktop/src-tauri/src/platform/`](../apps/desktop/src-tauri/src/platform/) | OS specific audio, keyboard, media, windows and shell adapters |
+| [`apps/console/source/`](../apps/console/source/) | Console UI, input, networking and protocol parser |
 
-The editor calls a typed boundary in `frontend/src/api/client.ts`. The desktop build resolves that boundary to `desktop/src/tauri-api.ts`, which invokes Rust commands. The frontend HTTP adapter is isolated for development of the shared editor; it is excluded from the desktop bundle. New desktop features should extend the Rust command adapter and its types instead of adding HTTP calls to React components.
+The editor calls a typed boundary in `apps/desktop/frontend/src/api/client.ts`. The desktop build resolves that boundary to `apps/desktop/src/tauri-api.ts`, which invokes Rust commands. The frontend HTTP adapter is isolated for development of the shared editor; it is excluded from the desktop bundle. New desktop features should extend the Rust command adapter and its types instead of adding HTTP calls to React components.
 
 ## Console connection and state
 
@@ -29,9 +29,9 @@ The network is intended for a trusted LAN. The transport is not encrypted; see [
 
 ## Platform boundaries
 
-Shared control flow belongs in `features/` or `platform/system.rs`; platform-specific APIs stay under `platform/macos/` and `platform/windows/`. Blocking system calls use Tokio's blocking pool where needed. macOS integrates CoreAudio, Quartz and Apple Events. Windows uses WASAPI, GSMTC, WinRT, `SendInput` and Win32 shell/window APIs. Some features have deliberate OS limits, listed in the [platform matrix](../desktop/PLATFORM_STATUS.md) and [Windows test plan](../desktop/docs/WINDOWS_TEST_PLAN.md). Linux distribution is deferred.
+Shared control flow belongs in `features/` or `platform/system.rs`; platform-specific APIs stay under `platform/macos/` and `platform/windows/`. Blocking system calls use Tokio's blocking pool where needed. macOS integrates CoreAudio, Quartz and Apple Events. Windows uses WASAPI, GSMTC, WinRT, `SendInput` and Win32 shell/window APIs. Some features have deliberate OS limits, listed in the [platform matrix](../apps/desktop/PLATFORM_STATUS.md) and [Windows test plan](../apps/desktop/docs/WINDOWS_TEST_PLAN.md). Linux distribution is deferred.
 
-Native extensions are approved packages with a bounded JSON Lines protocol. The [extension SDK](../desktop/extension-sdk/README.md) describes the manifest and lifecycle. They run with the current user's permissions.
+Native extensions are approved packages with a bounded JSON Lines protocol. The [extension SDK](../apps/desktop/extension-sdk/README.md) describes the manifest and lifecycle. They run with the current user's permissions.
 
 ## Builds and updates
 

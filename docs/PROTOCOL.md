@@ -2,7 +2,7 @@
 
 [Documentation](README.md) · [Français](PROTOCOL.fr.md) · [Extension API](EXTENSIONS.md)
 
-This is the PC–3DS transport, not the editor's HTTP API. Implementations: `desktop/src-tauri/src/transport/` and `3ds-app/source/protocol/protocol.c`. Version/host values in examples are illustrative.
+This is the PC–3DS transport, not the editor's HTTP API. Implementations: `apps/desktop/src-tauri/src/transport/` and `apps/console/source/protocol/protocol.c`. Version/host values in examples are illustrative.
 
 ## Transport and discovery
 

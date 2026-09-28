@@ -10,7 +10,7 @@ updates:
           - "*"
 
   - package-ecosystem: "npm"
-    directory: "/frontend"
+    directory: "/apps/desktop/frontend"
     schedule:
       interval: "weekly"
     groups:
@@ -19,7 +19,7 @@ updates:
           - "*"
 
   - package-ecosystem: "npm"
-    directory: "/desktop"
+    directory: "/apps/desktop"
     schedule:
       interval: "weekly"
     groups:
@@ -28,7 +28,7 @@ updates:
           - "*"
 
   - package-ecosystem: "cargo"
-    directory: "/desktop/src-tauri"
+    directory: "/apps/desktop/src-tauri"
     schedule:
       interval: "weekly"
     groups:

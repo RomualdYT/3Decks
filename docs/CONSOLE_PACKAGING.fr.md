@@ -48,17 +48,17 @@ Depuis la racine, avec Docker lancé :
 
 L’image de packaging compile [makerom](https://github.com/3DSGuy/Project_CTR) et
 [bannertool](https://github.com/diasurgical/bannertool) à des révisions fixées dans
-[le Dockerfile](../packaging/3ds/Dockerfile). Aucun SDK Nintendo ni clé privée de
+[le Dockerfile](../apps/console/packaging/Dockerfile). Aucun SDK Nintendo ni clé privée de
 signature n’est nécessaire. Ces paquets homebrew ne sont pas signés officiellement.
 L’image devkitPro et les paquets Debian restent évolutifs : le build n’est pas
 garanti identique bit à bit dans le temps.
 
-Avec devkitPro local, `make -C 3ds-app cia` ou `release` demande également makerom,
+Avec devkitPro local, `make -C apps/console cia` ou `release` demande également makerom,
 bannertool et Python 3 dans PATH. Les PNG versionnés permettent de conserver un
 build 3DSX normal sans ces outils de packaging.
 
 L’identifiant **`000400000F3D3C00`** est fixé dans
-[application.rsf](../packaging/3ds/application.rsf) : le conserver permet les mises
+[application.rsf](../apps/console/packaging/application.rsf) : le conserver permet les mises
 à jour. C’est un identifiant homebrew privé, pas une attribution Nintendo garantie
 sans collision. Les forks doivent choisir un autre identifiant et adapter le
 vérificateur. N’écrasez jamais un autre logiciel portant cet identifiant.
@@ -70,13 +70,13 @@ sont refusés. Le workflow de Release calcule la valeur automatiquement. En loca
 
 ## Visuels et vérifications
 
-Les dessins originaux viennent de `3ds-app/source/graphics/decky.c`.
+Les dessins originaux viennent de `apps/console/source/graphics/decky.c`.
 [L’exporteur](../tools/export_home_menu.c) produit une icône 48 × 48 et une bannière
 256 × 128 ; librsvg utilise Inter pour le texte. Pour les régénérer :
 
 ```sh
 docker run --rm -v "$PWD":/repo -w /repo 3decks-console-packaging:local \
-  bash packaging/3ds/generate_artwork.sh
+  bash apps/console/packaging/generate_artwork.sh
 ```
 
 Ajoutez `--check` pour comparer sans remplacer les PNG. Les visuels suivent la

@@ -16,20 +16,21 @@
 
 | Directory | Purpose |
 |---|---|
-| [`desktop/`](desktop/README.md) | Tauri desktop application for macOS and Windows, native integrations, tray and updater |
-| [`frontend/`](frontend/README.md) | The React editor used by the desktop webview |
-| [`3ds-app/`](3ds-app/) | Native C application for Nintendo 3DS and 2DS |
+| [`apps/desktop/`](apps/desktop/README.md) | Computer application: Tauri/Rust backend and its [`frontend/`](apps/desktop/frontend/README.md) React editor |
+| [`apps/console/`](apps/console/README.md) | Nintendo 3DS/2DS application in C, with its own packaging assets |
 | [`docs/`](docs/README.md) | Current installation, architecture, protocol and release guides |
 
-The macOS path has been exercised with Citra and Apple Music. Windows has native adapters and an [explicit validation plan](desktop/docs/WINDOWS_TEST_PLAN.md), but its release build still needs real-device qualification. Linux remains a later target. No public desktop release has been published yet.
+Root `tools/` and `.github/` contain checks and release automation shared by both applications.
+
+The macOS path has been exercised with Citra and Apple Music. Windows has native adapters and an [explicit validation plan](apps/desktop/docs/WINDOWS_TEST_PLAN.md), but its release build still needs real-device qualification. Linux remains a later target. No public desktop release has been published yet.
 
 ## Build from source
 
 Install Rust, Node.js 24, pnpm 11 and the [Tauri 2 platform prerequisites](https://v2.tauri.app/start/prerequisites/). From the repository root:
 
 ```sh
-cd frontend && pnpm install --frozen-lockfile
-cd ../desktop && npm ci && npm run tauri -- dev
+cd apps/desktop/frontend && pnpm install --frozen-lockfile
+cd .. && npm ci && npm run tauri -- dev
 ```
 
 Build the console with `./build.sh all` (Docker and devkitPro packaging image) or see the [console guide](docs/CONSOLE_PACKAGING.md). Only one desktop server can use UDP 38122 and TCP 38123 at a time.

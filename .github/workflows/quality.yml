@@ -30,19 +30,19 @@ jobs:
         with:
           node-version: "24"
           cache: pnpm
-          cache-dependency-path: frontend/pnpm-lock.yaml
+          cache-dependency-path: apps/desktop/frontend/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
-        working-directory: frontend
+        working-directory: apps/desktop/frontend
       - run: pnpm api:check
-        working-directory: frontend
+        working-directory: apps/desktop/frontend
       - run: pnpm typecheck
-        working-directory: frontend
+        working-directory: apps/desktop/frontend
       - run: pnpm test:frontend
-        working-directory: frontend
+        working-directory: apps/desktop/frontend
       - run: npm ci
-        working-directory: desktop
+        working-directory: apps/desktop
       - run: npm run build
-        working-directory: desktop
+        working-directory: apps/desktop
 
   rust:
     name: Native desktop (${{ matrix.os }})
@@ -62,19 +62,19 @@ jobs:
         with:
           node-version: "24"
           cache: pnpm
-          cache-dependency-path: frontend/pnpm-lock.yaml
+          cache-dependency-path: apps/desktop/frontend/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
-        working-directory: frontend
+        working-directory: apps/desktop/frontend
       - run: npm ci
-        working-directory: desktop
+        working-directory: apps/desktop
       - run: npm run build
-        working-directory: desktop
+        working-directory: apps/desktop
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: desktop/src-tauri -> target
-      - run: cargo check --locked --manifest-path desktop/src-tauri/Cargo.toml
-      - run: cargo test --locked --manifest-path desktop/src-tauri/Cargo.toml
+          workspaces: apps/desktop/src-tauri -> target
+      - run: cargo check --locked --manifest-path apps/desktop/src-tauri/Cargo.toml
+      - run: cargo test --locked --manifest-path apps/desktop/src-tauri/Cargo.toml
 
   console-tests:
     name: 3DS host tests (${{ matrix.os }})
@@ -98,25 +98,25 @@ jobs:
       - uses: docker/build-push-action@v7
         with:
           context: .
-          file: packaging/3ds/Dockerfile
+          file: apps/console/packaging/Dockerfile
           tags: 3decks-console-packaging:local
           load: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: Encode console version from release tag
         if: startsWith(github.ref, 'refs/tags/v')
-        run: python3 packaging/3ds/package_version.py "$GITHUB_REF_NAME" >> "$GITHUB_ENV"
+        run: python3 apps/console/packaging/package_version.py "$GITHUB_REF_NAME" >> "$GITHUB_ENV"
       - run: ./build.sh all
       - name: Verify HOME artwork and CIA structure
         run: |
-          docker run --rm -v "$PWD":/repo -w /repo 3decks-console-packaging:local bash packaging/3ds/generate_artwork.sh --check
+          docker run --rm -v "$PWD":/repo -w /repo 3decks-console-packaging:local bash apps/console/packaging/generate_artwork.sh --check
           python3 -m unittest discover -s tools -p test_console_package.py
       - uses: actions/upload-artifact@v7
         with:
           name: homebrew-3ds
           path: |
-            3ds-app/deck3ds.3dsx
-            3ds-app/deck3ds.cia
+            apps/console/deck3ds.3dsx
+            apps/console/deck3ds.cia
           if-no-files-found: error
 
   docs:

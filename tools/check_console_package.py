@@ -13,7 +13,7 @@ import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-APP = ROOT / "3ds-app"
+APP = ROOT / "apps/console"
 TITLE_ID = 0x000400000F3D3C00
 
 
@@ -81,7 +81,7 @@ def check_cia(data: bytes) -> None:
 def check_syscalls(objdump: str) -> None:
     disassembly = subprocess.check_output([objdump, "-d", str(APP / "deck3ds.elf")], text=True)
     used = {int(value, 16) for value in re.findall(r"\bsvc\s+0x([0-9a-fA-F]+)", disassembly)}
-    rsf = (ROOT / "packaging/3ds/application.rsf").read_text()
+    rsf = (ROOT / "apps/console/packaging/application.rsf").read_text()
     section = rsf.split("SystemCallAccess:", 1)[1].split("ServiceAccessControl:", 1)[0]
     allowed = {int(value) for value in re.findall(r":\s+(\d+)\s*$", section, re.MULTILINE)}
     require(bool(used), "No ELF system calls detected; check objdump format")
