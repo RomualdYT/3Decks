@@ -315,7 +315,7 @@ static void finish_touch(App *app, u32 up)
 }
 
 /** Traite le défilement et la sélection d'une page en liste. */
-static void handle_list_controls(App *app, u32 down)
+static void handle_list_controls(App *app, u32 down, float dt)
 {
 	const Page *page = app_current_page(app);
 	if (page == NULL || page->layout != LAYOUT_LIST) {
@@ -344,7 +344,7 @@ static void handle_list_controls(App *app, u32 down)
 		    amount * amount * amount * LIST_SCROLL_SPEED;
 
 		/* Le pavé ou le C-Stick pointé vers le haut fait remonter la liste. */
-		app_scroll_list(app, -speed * FRAME_TIME, max_scroll);
+		app_scroll_list(app, -speed * dt, max_scroll);
 		app_touch_activity(app);
 	}
 
@@ -426,7 +426,7 @@ static void request_config(App *app, u32 down)
  * Le tactile déclenche l'action au relâchement, pas à l'appui : cela permet
  * d'annuler en glissant hors du bouton, et rend possible l'appui long.
  */
-static void handle_input(App *app)
+static void handle_input(App *app, float dt)
 {
 	hidScanInput();
 
@@ -451,7 +451,7 @@ static void handle_input(App *app)
 
 	update_grid_touch(app, held);
 	finish_touch(app, up);
-	handle_list_controls(app, down);
+	handle_list_controls(app, down, dt);
 
 	if (down & KEY_L) {
 		app_cycle_page(app, -1);
@@ -627,7 +627,7 @@ int main(int argc, char *argv[])
 			 * a control on the screen underneath. START still exits. */
 			if (!was_active && hidKeysHeld() == 0) intro_input_guard = false;
 		} else {
-			handle_input(&s_app);
+			handle_input(&s_app, dt);
 		}
 
 		if (hidKeysDown() & KEY_START) {
@@ -691,6 +691,8 @@ int main(int argc, char *argv[])
 		 * Intensité du relief : produit du curseur de la console et du réglage
 		 * de l'application. En veille (dimmed), le relief est désactivé afin
 		 * d'éviter la seconde passe de rendu et d'économiser la batterie.
+		 * Sans image pour l'œil droit, citro3d présente l'image gauche aux
+		 * deux yeux.
 		 */
 		const float slider = osGet3DSliderState();
 		const float depth_strength =

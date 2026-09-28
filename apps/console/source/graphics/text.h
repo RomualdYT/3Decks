@@ -52,7 +52,10 @@ bool text_has_custom_font(void);
 /** Libère les tampons. */
 void text_exit(void);
 
-/** Vide le tampon de glyphes. À appeler une fois par frame, avant tout dessin. */
+/**
+ * Vide le tampon de glyphes de la frame, et le cache de textes s'il est plein.
+ * À appeler une fois par frame, avant tout dessin.
+ */
 void text_frame_begin(void);
 
 /** Largeur qu'occuperait `str` à l'échelle `scale`. */

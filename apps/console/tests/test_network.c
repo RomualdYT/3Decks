@@ -67,12 +67,13 @@ int main(void)
     assert(net_init());
     assert(!net_connect(NULL, 9000) && !net_connect("127.0.0.1", 65536));
     assert(!net_connect("not-an-ip.invalid", 9000) && net_state() == NET_IDLE);
+    assert(net_last_error_kind() == NET_ERROR_ENDPOINT);
     int port, listener = open_listener(&port);
     assert(net_connect("127.0.0.1", port));
     if (net_state() == NET_CONNECTING) {
         test_now += CONNECT_TIMEOUT_SECONDS;
         net_poll();
-        assert(net_state() == NET_IDLE);
+        assert(net_state() == NET_IDLE && net_last_error_kind() == NET_ERROR_UNREACHABLE);
     }
     net_disconnect();
     int expired_peer = accept(listener, NULL, NULL);
@@ -97,7 +98,8 @@ int main(void)
     for (int i = 0; i < 10000 && net_state() != NET_IDLE; i++) {
         net_poll(); net_receive(output, 3, &size);
     }
-    assert(net_state() == NET_IDLE); close(peer);
+    assert(net_state() == NET_IDLE && net_last_error_kind() == NET_ERROR_PROTOCOL);
+    close(peer);
 
     peer = connect_peer(listener, port);
     app.link = LINK_CONNECTING;

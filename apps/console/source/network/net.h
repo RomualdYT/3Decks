@@ -69,5 +69,17 @@ bool net_send(const char *payload, size_t length);
 /** Envoie une chaîne terminée par zéro. */
 bool net_send_text(const char *payload);
 
-/** Dernier message d'erreur lisible, chaîne vide si aucune erreur. */
+/** Catégorie de la dernière erreur, pour choisir le message affiché. */
+typedef enum {
+	NET_ERROR_NONE = 0,
+	NET_ERROR_UNAVAILABLE, /**< Service réseau ou ressource locale absente. */
+	NET_ERROR_ENDPOINT,    /**< Adresse ou port invalide. */
+	NET_ERROR_UNREACHABLE, /**< Délai dépassé ou connexion refusée. */
+	NET_ERROR_LOST,        /**< Liaison établie puis interrompue. */
+	NET_ERROR_PROTOCOL,    /**< Trame invalide reçue de l'ordinateur. */
+} NetError;
+
+NetError net_last_error_kind(void);
+
+/** Dernier message d'erreur technique, chaîne vide si aucune erreur. */
 const char *net_last_error(void);

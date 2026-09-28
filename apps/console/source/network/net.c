@@ -36,6 +36,7 @@ static bool s_soc_ready = false;
 static int s_socket = -1;
 static NetState s_state = NET_IDLE;
 static char s_error[96] = {0};
+static NetError s_error_kind = NET_ERROR_NONE;
 
 /*
  * Tampon de réception. On accumule les octets bruts et on extrait les messages
@@ -66,14 +67,22 @@ static TxFrame s_tx[NET_TX_QUEUE_SIZE];
 static int s_tx_head = 0;
 static int s_tx_count = 0;
 
-static void set_error(const char *message)
+static void set_error(NetError kind, const char *message)
 {
+	s_error_kind = kind;
 	snprintf(s_error, sizeof(s_error), "%s", message);
 }
 
-static void set_error_errno(const char *context)
+static void set_error_errno(NetError kind, const char *context)
 {
+	s_error_kind = kind;
 	snprintf(s_error, sizeof(s_error), "%s (%d)", context, errno);
+}
+
+static void clear_error(void)
+{
+	s_error_kind = NET_ERROR_NONE;
+	s_error[0] = '\0';
 }
 
 bool net_init(void)
@@ -84,7 +93,7 @@ bool net_init(void)
 
 	s_soc_buffer = (u32 *)memalign(SOC_ALIGN, SOC_BUFFER_SIZE);
 	if (s_soc_buffer == NULL) {
-		set_error("memoire SOC indisponible");
+		set_error(NET_ERROR_UNAVAILABLE, "memoire SOC indisponible");
 		return false;
 	}
 
@@ -92,12 +101,12 @@ bool net_init(void)
 	if (R_FAILED(res)) {
 		free(s_soc_buffer);
 		s_soc_buffer = NULL;
-		set_error("socInit a echoue");
+		set_error(NET_ERROR_UNAVAILABLE, "socInit a echoue");
 		return false;
 	}
 
 	s_soc_ready = true;
-	s_error[0] = '\0';
+	clear_error();
 	return true;
 }
 
@@ -122,7 +131,7 @@ void net_disconnect(void)
 		s_socket = -1;
 	}
 	s_state = NET_IDLE;
-	s_rx.used = 0;
+	frame_reset(&s_rx);
 	s_tx_head = 0;
 	s_tx_count = 0;
 }
@@ -130,6 +139,11 @@ void net_disconnect(void)
 NetState net_state(void)
 {
 	return s_state;
+}
+
+NetError net_last_error_kind(void)
+{
+	return s_error_kind;
 }
 
 const char *net_last_error(void)
@@ -140,19 +154,19 @@ const char *net_last_error(void)
 bool net_connect(const char *host, int port)
 {
 	if (!s_soc_ready) {
-		set_error("reseau non initialise");
+		set_error(NET_ERROR_UNAVAILABLE, "reseau non initialise");
 		return false;
 	}
 
 	net_disconnect();
 	if (host == NULL || port < 1 || port > 65535) {
-		set_error("invalid IPv4 endpoint");
+		set_error(NET_ERROR_ENDPOINT, "invalid IPv4 endpoint");
 		return false;
 	}
 
 	s_socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	if (s_socket < 0) {
-		set_error_errno("socket");
+		set_error_errno(NET_ERROR_UNAVAILABLE, "socket");
 		return false;
 	}
 
@@ -162,7 +176,7 @@ bool net_connect(const char *host, int port)
 	 */
 	const int flags = fcntl(s_socket, F_GETFL, 0);
 	if (flags < 0 || fcntl(s_socket, F_SETFL, flags | O_NONBLOCK) < 0) {
-		set_error_errno("fcntl");
+		set_error_errno(NET_ERROR_UNAVAILABLE, "fcntl");
 		net_disconnect();
 		return false;
 	}
@@ -177,7 +191,8 @@ bool net_connect(const char *host, int port)
 	addr.sin_port = htons((u16)port);
 
 	if (inet_pton(AF_INET, host, &addr.sin_addr) != 1) {
-		set_error("IPv4 address required (e.g. 192.168.1.10)");
+		set_error(NET_ERROR_ENDPOINT,
+		          "IPv4 address required (e.g. 192.168.1.10)");
 		net_disconnect();
 		return false;
 	}
@@ -185,19 +200,19 @@ bool net_connect(const char *host, int port)
 	const int rc = connect(s_socket, (struct sockaddr *)&addr, sizeof(addr));
 	if (rc == 0) {
 		s_state = NET_CONNECTED;
-		s_rx.used = 0;
-		s_error[0] = '\0';
+		frame_reset(&s_rx);
+		clear_error();
 		return true;
 	}
 
 	if (errno == EINPROGRESS || errno == EALREADY || errno == EWOULDBLOCK) {
 		s_state = NET_CONNECTING;
 		s_connect_deadline = monotonic_seconds() + CONNECT_TIMEOUT_SECONDS;
-		s_rx.used = 0;
+		frame_reset(&s_rx);
 		return true;
 	}
 
-	set_error_errno("connect");
+	set_error_errno(NET_ERROR_UNREACHABLE, "connect");
 	net_disconnect();
 	return false;
 }
@@ -206,7 +221,7 @@ bool net_connect(const char *host, int port)
 static void poll_connecting(void)
 {
 	if (deadline_reached(monotonic_seconds(), s_connect_deadline)) {
-		set_error("connect timeout");
+		set_error(NET_ERROR_UNREACHABLE, "connect timeout");
 		net_disconnect();
 		return;
 	}
@@ -237,7 +252,7 @@ static void poll_connecting(void)
 	 */
 	if (pfd.revents & POLLOUT) {
 		s_state = NET_CONNECTED;
-		s_error[0] = '\0';
+		clear_error();
 		return;
 	}
 
@@ -246,7 +261,7 @@ static void poll_connecting(void)
 	 * absent ou aucun agent n'écoute sur ce port.
 	 */
 	if (pfd.revents & (POLLERR | POLLHUP | POLLNVAL)) {
-		set_error("connexion refusee");
+		set_error(NET_ERROR_UNREACHABLE, "connexion refusee");
 		net_disconnect();
 	}
 }
@@ -258,26 +273,27 @@ static void poll_reading(void)
 		size_t length;
 		const FrameResult pending = frame_peek(&s_rx, &length);
 		if (pending == FRAME_INVALID) {
-			set_error("invalid frame length");
+			set_error(NET_ERROR_PROTOCOL, "invalid frame length");
 			net_disconnect();
 			return;
 		}
 		/* Let the consumer extract complete frames before reading again. */
-		if (pending == FRAME_READY || s_rx.used == sizeof(s_rx.data)) return;
+		if (pending == FRAME_READY) return;
+		size_t available;
+		unsigned char *area = frame_write_area(&s_rx, &available);
+		if (available == 0) return;
 		s_read_budget--;
-		const size_t available = sizeof(s_rx.data) - s_rx.used;
 		const size_t capacity = available < s_read_bytes ? available : s_read_bytes;
-		const ssize_t got = recv(s_socket, s_rx.data + s_rx.used,
-		                         capacity, 0);
+		const ssize_t got = recv(s_socket, area, capacity, 0);
 
 		if (got > 0) {
-			s_rx.used += (size_t)got;
+			frame_commit(&s_rx, (size_t)got);
 			s_read_bytes -= (size_t)got;
 			continue; /* il peut rester des données */
 		}
 
 		if (got == 0) {
-			set_error("connexion fermee par le PC");
+			set_error(NET_ERROR_LOST, "connexion fermee par le PC");
 			net_disconnect();
 			return;
 		}
@@ -289,7 +305,7 @@ static void poll_reading(void)
 			continue;
 		}
 
-		set_error_errno("recv");
+		set_error_errno(NET_ERROR_LOST, "recv");
 		net_disconnect();
 		return;
 	}
@@ -321,7 +337,7 @@ static void poll_writing(void)
 			continue;
 		}
 
-		set_error_errno("send");
+		set_error_errno(NET_ERROR_LOST, "send");
 		net_disconnect();
 		return;
 	}
@@ -330,7 +346,7 @@ static void poll_writing(void)
 void net_poll(void)
 {
 	s_read_budget = READ_CALLS_PER_FRAME;
-	s_read_bytes = sizeof(s_rx.data);
+	s_read_bytes = FRAME_BUFFER_SIZE;
 	if (s_socket < 0) {
 		return;
 	}
@@ -354,8 +370,9 @@ bool net_receive(char *out, size_t out_size, size_t *out_length)
 	if (s_state == NET_CONNECTED) poll_reading();
 	const FrameResult result = frame_take(&s_rx, out, out_size, out_length);
 	if (result == FRAME_INVALID || result == FRAME_OUTPUT_TOO_SMALL) {
-		set_error(result == FRAME_INVALID ? "invalid frame length" :
-		          "message destination too small");
+		set_error(NET_ERROR_PROTOCOL, result == FRAME_INVALID
+		                                  ? "invalid frame length"
+		                                  : "message destination too small");
 		net_disconnect();
 	}
 	return result == FRAME_READY;
@@ -370,7 +387,7 @@ bool net_send(const char *payload, size_t length)
 		return false;
 	}
 	if (s_tx_count >= NET_TX_QUEUE_SIZE) {
-		set_error("file d'envoi pleine");
+		set_error(NET_ERROR_UNAVAILABLE, "file d'envoi pleine");
 		return false;
 	}
 

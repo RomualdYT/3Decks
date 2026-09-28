@@ -37,7 +37,7 @@ APP_VERSION     ?= 1
 ARCH	:=	-march=armv6k -mtune=mpcore -mfloat-abi=hard -mtp=soft
 
 CFLAGS	:=	-g -Wall -Wextra -Werror -O2 -mword-relocations \
-			-ffunction-sections \
+			-ffunction-sections -fdata-sections \
 			$(ARCH)
 
 CFLAGS	+=	$(INCLUDE) -D__3DS__

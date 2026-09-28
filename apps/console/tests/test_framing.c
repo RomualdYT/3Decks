@@ -9,6 +9,47 @@ static void header(unsigned char *out, size_t n)
 {
     out[0] = n >> 24; out[1] = n >> 16; out[2] = n >> 8; out[3] = n;
 }
+/* Feeds bytes through the receive API, as net.c does. */
+static void feed(const unsigned char *bytes, size_t count)
+{
+    while (count > 0) {
+        size_t space;
+        unsigned char *area = frame_write_area(&rx, &space);
+        assert(space > 0);
+        const size_t chunk = count < space ? count : space;
+        memcpy(area, bytes, chunk);
+        frame_commit(&rx, chunk);
+        bytes += chunk; count -= chunk;
+    }
+}
+static unsigned char big[FRAME_BUFFER_SIZE];
+static void compaction(void)
+{
+    size_t length;
+    frame_reset(&rx);
+    const unsigned char wire[] = {0, 0, 0, 3, 'a', 'b', 'c'};
+    feed(wire, sizeof(wire));
+    /* Leave the header and half of a maximum frame behind a taken one. */
+    header(big, FRAME_MAX_PAYLOAD);
+    memset(big + 4, 'y', FRAME_MAX_PAYLOAD);
+    feed(big, 4 + FRAME_MAX_PAYLOAD / 2);
+    assert(frame_take(&rx, output, sizeof(output), &length) == FRAME_READY);
+    assert(length == 3 && rx.start == sizeof(wire));
+    /* The tail cannot hold the rest: the pending bytes move to the front. */
+    feed(big + 4 + FRAME_MAX_PAYLOAD / 2, FRAME_MAX_PAYLOAD / 2);
+    assert(rx.start == 0);
+    size_t space;
+    frame_write_area(&rx, &space);
+    assert(space == 0);
+    assert(frame_take(&rx, output, sizeof(output), &length) == FRAME_READY);
+    assert(length == FRAME_MAX_PAYLOAD && output[0] == 'y' && output[length - 1] == 'y');
+    assert(rx.used == 0 && rx.start == 0);
+    /* An invalid header never receives more bytes. */
+    const unsigned char invalid[] = {0, 0, 0, 0};
+    feed(invalid, sizeof(invalid));
+    frame_write_area(&rx, &space);
+    assert(space == 0);
+}
 int main(void)
 {
     size_t length;
@@ -23,10 +64,10 @@ int main(void)
         assert(frame_take(&rx, output, sizeof(output), &length) == FRAME_READY);
         assert(length == 3 && !strcmp(output, "abc") && rx.used == 0);
     }
-    for (int i = 0; i < 100; i++) { memcpy(rx.data + rx.used, wire, sizeof(wire)); rx.used += sizeof(wire); }
+    for (int i = 0; i < 100; i++) { feed(wire, sizeof(wire)); }
     for (int i = 0; i < 100; i++)
         assert(frame_take(&rx, output, sizeof(output), &length) == FRAME_READY && length == 3);
-    assert(rx.used == 0);
+    assert(rx.used == 0 && rx.start == 0);
     header(rx.data, FRAME_MAX_PAYLOAD); rx.used = sizeof(rx.data);
     memset(rx.data + 4, 'x', FRAME_MAX_PAYLOAD);
     assert(frame_take(&rx, output, FRAME_MAX_PAYLOAD, &length) == FRAME_OUTPUT_TOO_SMALL);
@@ -38,5 +79,6 @@ int main(void)
         header(rx.data, invalid[i]); rx.used = 4;
         assert(frame_take(&rx, output, sizeof(output), &length) == FRAME_INVALID);
     }
-    puts("framing: fragmented headers/payloads, bursts, maximum size and invalid lengths passed");
+    compaction();
+    puts("framing: fragmented headers/payloads, bursts, maximum size, invalid lengths and compaction passed");
 }

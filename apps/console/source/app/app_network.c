@@ -37,22 +37,24 @@ static void schedule_reconnect(App *app)
 	}
 }
 
-static void remember_network_error(App *app, const char *raw)
+static void remember_network_error(App *app)
 {
 	snprintf(app->link_error_detail, sizeof(app->link_error_detail), "%s",
-	         raw != NULL ? raw : "");
+	         net_last_error());
 
 	const char *friendly = tr(STR_NETWORK_UNAVAILABLE);
-	if (raw != NULL && strstr(raw, "hote introuvable") != NULL) {
-		friendly = tr(STR_PC_NOT_FOUND);
-	} else if (raw != NULL &&
-	           (strstr(raw, "refusee") != NULL ||
-	            strstr(raw, "connect") != NULL)) {
+	switch (net_last_error_kind()) {
+	case NET_ERROR_UNREACHABLE:
 		friendly = tr(STR_AGENT_UNAVAILABLE);
-	} else if (raw != NULL &&
-	           (strstr(raw, "fermee") != NULL || strstr(raw, "recv") != NULL ||
-	            strstr(raw, "send") != NULL)) {
+		break;
+	case NET_ERROR_LOST:
 		friendly = tr(STR_CONNECTION_LOST);
+		break;
+	case NET_ERROR_NONE:
+	case NET_ERROR_UNAVAILABLE:
+	case NET_ERROR_ENDPOINT:
+	case NET_ERROR_PROTOCOL:
+		break;
 	}
 	snprintf(app->link_error, sizeof(app->link_error), "%s", friendly);
 }
@@ -252,7 +254,9 @@ static void check_heartbeat(App *app)
 	     deadline_reached(monotonic_seconds(), app->hello_deadline)) ||
 	    (app->handshake_ok &&
 	     monotonic_seconds() - app->last_rx_at >= HEARTBEAT_TIMEOUT_SECONDS)) {
-		remember_network_error(app, app->handshake_ok ? "heartbeat timeout" : "hello timeout");
+		snprintf(app->link_error_detail, sizeof(app->link_error_detail),
+		         "%s",
+		         app->handshake_ok ? "heartbeat timeout" : "hello timeout");
 		snprintf(app->link_error, sizeof(app->link_error), "%s",
 		         tr(STR_CONNECTION_STALE));
 		net_disconnect();
@@ -289,7 +293,7 @@ void app_pump_network(App *app)
 			app->handshake_ok = false;
 			app->config_received = false;
 			app->pending_ping_id = -1;
-			remember_network_error(app, net_last_error());
+			remember_network_error(app);
 			schedule_reconnect(app);
 		}
 		break;
@@ -349,7 +353,7 @@ void app_network_update(App *app)
 	if (net_connect(app->settings.host, app->settings.port)) {
 		app->link = LINK_CONNECTING;
 	} else {
-		remember_network_error(app, net_last_error());
+		remember_network_error(app);
 		schedule_reconnect(app);
 	}
 }
