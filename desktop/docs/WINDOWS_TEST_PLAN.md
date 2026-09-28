@@ -20,7 +20,12 @@ et une compilation dédiés.
    comportement de l'installateur.
 4. Parcourir l'onboarding puis relancer après chaque étape ; vérifier reprise,
    écriture du fichier de configuration, toggles des fonctionnalités, aspect
-   de l'éditeur à 100/125/150/200 % DPI et sur deux moniteurs.
+   de l'éditeur à 100/125/150/200 % DPI et sur deux moniteurs. L'étape des
+   accès doit afficher les contrôles Windows et l'état du réseau, sans texte
+   macOS ni fausse demande de permission. Sur l'installateur direct, les
+   notifications doivent être signalées indisponibles sans bouton d'autorisation
+   inopérant. Sur un paquet avec identité compatible, vérifier le consentement,
+   son refus puis sa révocation.
 5. Fermer la fenêtre : le serveur doit rester accessible depuis le tray.
    Tester ouvrir/masquer, quitter, démarrage avec la session, redémarrage et
    veille/réveil. Vérifier que l'éditeur reprend sa taille et sa position.
