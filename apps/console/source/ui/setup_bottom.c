@@ -21,6 +21,7 @@
 #include "theme.h"
 
 #include "setup_internal.h"
+#include "platform_label.h"
 
 static void draw_primary_button(const char *label, u32 accent)
 {
@@ -36,8 +37,8 @@ static void draw_primary_button(const char *label, u32 accent)
 	                      theme_mix(COL_SURFACE_LO, accent, 0.30f));
 	draw_round_rect_outline(x, y, w, h, 10.0f, 1.4f, Z_CONTENT,
 	                        theme_alpha(accent, 0xDD));
-	text_draw(x + w * 0.5f, y + (h - TEXT_LINE_PX(TEXT_BODY)) * 0.5f, Z_OVERLAY,
-	          TEXT_BODY, COL_WHITE, ALIGN_CENTER, label);
+	text_draw_clipped(x + w * 0.5f, y + (h - text_height(TEXT_BODY)) * 0.5f,
+	                  Z_OVERLAY, TEXT_BODY, COL_WHITE, ALIGN_CENTER, w - 24.0f, label);
 }
 
 /** Ligne de réglage : intitulé à gauche, valeur à droite. */
@@ -58,11 +59,15 @@ static void draw_row(int index, const char *label, const char *value,
 	}
 
 	const float text_y = y + (h - TEXT_LINE_PX(TEXT_SMALL)) * 0.5f;
+	const float inset = 26.0f;
+	const float column_gap = 8.0f;
+	const float columns_width = SCREEN_BOTTOM_W - inset * 2.0f - column_gap;
+	const float label_width = columns_width * 0.55f;
 
-	text_draw_clipped(26.0f, text_y, Z_CONTENT, TEXT_SMALL, COL_TEXT_DIM,
-	                  ALIGN_LEFT, 150.0f, label);
-	text_draw_clipped(SCREEN_BOTTOM_W - 26.0f, text_y, Z_CONTENT, TEXT_SMALL,
-	                  highlight ? COL_ACCENT : COL_TEXT, ALIGN_RIGHT, 130.0f,
+	text_draw_clipped(inset, text_y, Z_CONTENT, TEXT_SMALL, COL_TEXT_DIM,
+	                  ALIGN_LEFT, label_width, label);
+	text_draw_clipped(SCREEN_BOTTOM_W - inset, text_y, Z_CONTENT, TEXT_SMALL,
+	                  highlight ? COL_ACCENT : COL_TEXT, ALIGN_RIGHT, columns_width - label_width,
 	                  value);
 }
 
@@ -137,7 +142,7 @@ static void draw_discovered_agents(const Setup *setup)
 		                  agent->announcement.name);
 		text_draw_clipped(49.0f, y + 18.0f, Z_OVERLAY, TEXT_MICRO,
 		                  COL_TEXT_FAINT, ALIGN_LEFT, 188.0f,
-		                  agent->announcement.platform);
+		                  platform_label(agent->announcement.platform));
 		if (agent->announcement.pairing_required) {
 			icons_draw(ICON_LOCK, SCREEN_BOTTOM_W - 33.0f,
 			           y + AGENT_CARD_H * 0.5f, 14.0f, Z_OVERLAY,
@@ -156,9 +161,9 @@ static void draw_discovered_agents(const Setup *setup)
 	                              : theme_alpha(COL_BORDER, 0x77));
 	icons_draw(ICON_GEAR, 34.0f, MANUAL_CARD_Y + 14.0f, 14.0f, Z_OVERLAY,
 	           manual_selected ? COL_ACCENT : COL_TEXT_FAINT);
-	text_draw(51.0f, MANUAL_CARD_Y + 6.0f, Z_OVERLAY, TEXT_SMALL,
-	          manual_selected ? COL_TEXT : COL_TEXT_DIM, ALIGN_LEFT,
-	          tr(STR_SETUP_MANUAL));
+	text_draw_clipped(51.0f, MANUAL_CARD_Y + 6.0f, Z_OVERLAY, TEXT_SMALL,
+	                  manual_selected ? COL_TEXT : COL_TEXT_DIM, ALIGN_LEFT,
+	                  SCREEN_BOTTOM_W - 65.0f, tr(STR_SETUP_MANUAL));
 
 	const char *primary =
 	    setup->probe == PROBE_SUCCESS

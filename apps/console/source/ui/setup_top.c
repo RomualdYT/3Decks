@@ -21,6 +21,7 @@
 #include "theme.h"
 
 #include "setup_internal.h"
+#include "platform_label.h"
 #include "ui_companion.h"
 
 /* --- Rendu de l'écran supérieur ------------------------------------------- */
@@ -103,7 +104,7 @@ static void draw_host_step(const Setup *setup, const App *app)
 			text_draw_clipped(110.0f, 121.0f, Z_OVERLAY, TEXT_BODY, COL_TEXT,
 			                  ALIGN_LEFT, 205.0f, agent->announcement.name);
 			char detail[96];
-			snprintf(detail, sizeof(detail), "%s · %s", agent->announcement.platform,
+			snprintf(detail, sizeof(detail), "%s · %s", platform_label(agent->announcement.platform),
 			         agent->host);
 			text_draw_clipped(110.0f, 140.0f, Z_OVERLAY, TEXT_MICRO,
 			                  COL_TEXT_FAINT, ALIGN_LEFT, 205.0f, detail);
@@ -251,4 +252,21 @@ void setup_draw_top(const Setup *setup, const App *app)
 		draw_done_step(setup, app);
 		break;
 	}
+}
+
+void setup_draw_pairing_top(const App *app)
+{
+	const float cx = SCREEN_TOP_W * 0.5f;
+	draw_rect_vgrad(0.0f, 0.0f, SCREEN_TOP_W, SCREEN_H, Z_BG,
+	                theme_mix(COL_BG, COL_ACCENT, 0.10f), COL_BG);
+	text_draw(cx, 27.0f, Z_CONTENT, TEXT_HUGE, COL_TEXT, ALIGN_CENTER, "3Decks");
+	if (app->settings.companion) {
+		ui_companion_draw(DECKY_WAVE, app->uptime, cx - 40.0f, 68.0f, 2);
+	} else {
+		icons_draw(ICON_LOCK, cx, 108.0f, 32.0f, Z_CONTENT, COL_ACCENT);
+	}
+	text_draw_clipped(cx, 159.0f, Z_CONTENT, TEXT_LARGE, COL_TEXT,
+	                  ALIGN_CENTER, 352.0f, tr(STR_SETUP_PAIR_COMPUTER));
+	text_draw_clipped(cx, 185.0f, Z_CONTENT, TEXT_BODY, COL_TEXT_DIM,
+	                  ALIGN_CENTER, 352.0f, tr(STR_SETUP_PAIR_ENTER));
 }

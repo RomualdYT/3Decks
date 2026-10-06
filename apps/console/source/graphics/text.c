@@ -5,6 +5,7 @@
 
 #include "text.h"
 
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -34,16 +35,38 @@ static TextCache s_cache_index;
 static C2D_Text s_cache_text[TEXT_CACHE_SLOTS];
 static bool s_cache_full = false;
 
-/**
- * Police embarquée, ou NULL pour utiliser celle du système.
- *
- * La police système est un bitmap de trente pixels de haut. Aux tailles
- * employées par cette interface, l'afficher revient à la réduire fortement, ce
- * qui détruit les détails des caractères et rend le texte illisible. On charge
- * donc une police matricielle générée à la taille d'affichage, ce qui maintient
- * les facteurs d'échelle proches de 1.
- */
-static C2D_Font s_font = NULL;
+/** Police de repli pour les tailles libres ou les ressources manquantes. */
+static C2D_Font s_fallback_font = NULL;
+
+typedef struct {
+	const char *path;
+	unsigned pixels;
+	C2D_Font font;
+} FontFace;
+
+static FontFace s_faces[] = {
+#define FONT_FACE(name, pixels, points) {"romfs:/fonts/deck-" #pixels ".bcfnt", pixels, NULL},
+#include "font_faces.def"
+#undef FONT_FACE
+};
+#define FONT_COUNT (sizeof(s_faces) / sizeof(s_faces[0]))
+
+/* Canonical UI sizes render one atlas texel per screen pixel. Other scales
+ * retain the legacy font's smooth scaling, including the system fallback. */
+static unsigned font_id(float scale)
+{
+	for (unsigned i = 0; i < FONT_COUNT; i++) {
+		if (s_faces[i].font &&
+		    scale == s_faces[i].pixels / TEXT_REFERENCE_PX)
+			return i;
+	}
+	return FONT_COUNT;
+}
+
+static C2D_Font font_for(unsigned id)
+{
+	return id < FONT_COUNT ? s_faces[id].font : s_fallback_font;
+}
 
 #define CACHED_GLYPHS 4096
 #define FRAME_GLYPHS 4096
@@ -51,15 +74,6 @@ static C2D_Font s_font = NULL;
 
 /** Chemin de la police embarquée dans le système de fichiers de l'application. */
 #define FONT_PATH "romfs:/deck.bcfnt"
-
-/**
- * Hauteur de référence d'une ligne à l'échelle 1.
- *
- * Trente pixels correspondent à la police système ; la police embarquée est
- * générée à dix-sept points, d'où le rapport appliqué lorsqu'elle est utilisée.
- */
-#define SYSTEM_LINE_HEIGHT 30.0f
-#define EMBEDDED_LINE_HEIGHT 17.0f
 
 bool text_init(void)
 {
@@ -80,29 +94,51 @@ bool text_init(void)
 	 * En repli (notamment pour Citra en mode .3dsx où RomFS n'est pas monté par SelfNCCH),
 	 * on charge la police depuis la carte SD dans le répertoire de l'application.
 	 */
-	s_font = C2D_FontLoad(FONT_PATH);
-	if (s_font == NULL) {
-		s_font = C2D_FontLoad("sdmc:/3ds/deck3ds/deck.bcfnt");
+	s_fallback_font = C2D_FontLoad(FONT_PATH);
+	if (s_fallback_font == NULL) {
+		s_fallback_font = C2D_FontLoad("sdmc:/3ds/deck3ds/deck.bcfnt");
 	}
-	if (s_font == NULL) {
-		s_font = C2D_FontLoad("sdmc:/3ds/deck.bcfnt");
+	if (s_fallback_font == NULL) {
+		s_fallback_font = C2D_FontLoad("sdmc:/3ds/deck.bcfnt");
 	}
 
+	for (unsigned i = 0; i < FONT_COUNT; i++) {
+		FontFace *face = &s_faces[i];
+		face->font = C2D_FontLoad(face->path);
+		if (!face->font) continue;
+		/* Reject stale assets rather than silently stretching a wrong atlas. */
+		const FINF_s *info = C2D_FontGetInfo(face->font);
+		if (!info || !info->tglp || info->tglp->cellHeight != face->pixels) {
+			C2D_FontFree(face->font);
+			face->font = NULL;
+			continue;
+		}
+		/* Coverage antialiasing is baked into the atlas. At native size,
+		 * interpolation only adds blur; nearest preserves those coverages. */
+		C2D_FontSetFilter(face->font, GPU_NEAREST, GPU_NEAREST);
+	}
 	return true;
 }
 
 bool text_has_custom_font(void)
 {
-	return s_font != NULL;
+	if (s_fallback_font) return true;
+	for (unsigned i = 0; i < FONT_COUNT; i++)
+		if (s_faces[i].font) return true;
+	return false;
 }
 
 void text_exit(void)
 {
+	for (unsigned i = 0; i < FONT_COUNT; i++) {
+		if (s_faces[i].font) C2D_FontFree(s_faces[i].font);
+		s_faces[i].font = NULL;
+	}
 	text_layout_reset();
 	text_cache_reset(&s_cache_index);
-	if (s_font != NULL) {
-		C2D_FontFree(s_font);
-		s_font = NULL;
+	if (s_fallback_font != NULL) {
+		C2D_FontFree(s_fallback_font);
+		s_fallback_font = NULL;
 	}
 	if (s_cached != NULL) {
 		C2D_TextBufDelete(s_cached);
@@ -116,22 +152,6 @@ void text_exit(void)
 		C2D_TextBufDelete(s_measure);
 		s_measure = NULL;
 	}
-}
-
-/**
- * Convertit une échelle exprimée pour la police système en échelle adaptée à la
- * police réellement utilisée.
- *
- * Les échelles de `text.h` sont définies par rapport à une hauteur de trente
- * pixels. La police embarquée mesurant dix-sept points, le facteur nécessaire
- * pour obtenir la même hauteur apparente est plus grand.
- */
-static float adjust(float scale)
-{
-	if (s_font == NULL) {
-		return scale;
-	}
-	return scale * (SYSTEM_LINE_HEIGHT / EMBEDDED_LINE_HEIGHT);
 }
 
 void text_frame_begin(void)
@@ -151,9 +171,9 @@ void text_frame_begin(void)
 }
 
 /** Analyse `str` dans `buf` ; faux si le tampon n'a pas tout accueilli. */
-static bool parse_into(C2D_Text *text, C2D_TextBuf buf, const char *str)
+static bool parse_into(C2D_Text *text, C2D_TextBuf buf, unsigned face, const char *str)
 {
-	const char *end = C2D_TextFontParse(text, s_font, buf, str);
+	const char *end = C2D_TextFontParse(text, font_for(face), buf, str);
 	if (end == NULL || *end != '\0') {
 		/*
 		 * Tampon saturé en cours d'analyse : on ne garde pas un texte tronqué.
@@ -166,9 +186,9 @@ static bool parse_into(C2D_Text *text, C2D_TextBuf buf, const char *str)
 }
 
 /** Texte prêt à dessiner, depuis le cache si possible. */
-static bool prepare_text(C2D_Text *out, const char *str)
+static bool prepare_text(C2D_Text *out, unsigned face, const char *str)
 {
-	const int hit = text_cache_find(&s_cache_index, str);
+	const int hit = text_cache_find(&s_cache_index, face, str);
 	if (hit >= 0) {
 		*out = s_cache_text[hit];
 		return true;
@@ -179,8 +199,8 @@ static bool prepare_text(C2D_Text *out, const char *str)
 	    text_cache_cacheable(str)) {
 		C2D_Text parsed;
 		if (text_cache_has_room(&s_cache_index) &&
-		    parse_into(&parsed, s_cached, str)) {
-			const int slot = text_cache_insert(&s_cache_index, str);
+		    parse_into(&parsed, s_cached, face, str)) {
+			const int slot = text_cache_insert(&s_cache_index, face, str);
 			s_cache_text[slot] = parsed;
 			*out = parsed;
 			return true;
@@ -189,7 +209,7 @@ static bool prepare_text(C2D_Text *out, const char *str)
 		s_cache_full = true;
 	}
 
-	return s_frame != NULL && parse_into(out, s_frame, str);
+	return s_frame != NULL && parse_into(out, s_frame, face, str);
 }
 
 static float measure_width(const char *str, float scale)
@@ -201,14 +221,13 @@ static float measure_width(const char *str, float scale)
 	C2D_TextBufClear(s_measure);
 
 	C2D_Text text;
-	if (C2D_TextFontParse(&text, s_font, s_measure, str) == NULL) {
+	if (C2D_TextFontParse(&text, font_for(font_id(scale)), s_measure, str) == NULL) {
 		return 0.0f;
 	}
 
-	const float applied = adjust(scale);
 	float width = 0.0f;
 	float height = 0.0f;
-	C2D_TextGetDimensions(&text, applied, applied, &width, &height);
+	C2D_TextGetDimensions(&text, scale, scale, &width, &height);
 	return width;
 }
 
@@ -219,11 +238,7 @@ float text_width(const char *str, float scale)
 
 float text_height(float scale)
 {
-	/*
-	 * La hauteur apparente est identique quelle que soit la police employée :
-	 * l'ajustement d'échelle compense la différence de taille native.
-	 */
-	return SYSTEM_LINE_HEIGHT * scale;
+	return TEXT_LINE_PX(scale);
 }
 
 float text_draw(float x, float y, float depth, float scale, u32 color,
@@ -234,7 +249,7 @@ float text_draw(float x, float y, float depth, float scale, u32 color,
 	}
 
 	C2D_Text text;
-	if (!prepare_text(&text, str)) {
+	if (!prepare_text(&text, font_id(scale), str)) {
 		/*
 		 * Les tampons sont saturés. On abandonne ce texte plutôt que de
 		 * dessiner des glyphes invalides.
@@ -242,10 +257,9 @@ float text_draw(float x, float y, float depth, float scale, u32 color,
 		return 0.0f;
 	}
 
-	const float applied = adjust(scale);
 	float width = 0.0f;
 	float height = 0.0f;
-	C2D_TextGetDimensions(&text, applied, applied, &width, &height);
+	C2D_TextGetDimensions(&text, scale, scale, &width, &height);
 
 	float draw_x = x;
 	if (align == ALIGN_CENTER) {
@@ -257,7 +271,10 @@ float text_draw(float x, float y, float depth, float scale, u32 color,
 	/* Le texte suit le relief de la couche à laquelle il appartient. */
 	draw_x += stereo_offset(depth * STEREO_FROM_Z);
 
-	C2D_DrawText(&text, C2D_WithColor, draw_x, y, depth, applied, applied,
+	/* Aligner l'origine finale, après centrage et relief, sur les pixels de
+	 * l'écran. Une origine fractionnaire ajoute un flou variable selon la
+	 * largeur du libellé et la position du bouton. */
+	C2D_DrawText(&text, C2D_WithColor, roundf(draw_x), roundf(y), depth, scale, scale,
 	             color);
 	return width;
 }

@@ -1,3 +1,4 @@
+import { platformLabel } from "../utils/platform";
 import { Button, Disclosure } from "@heroui/react";
 import { useState } from "react";
 import type { InstalledExtension, Locale } from "../app/types";
@@ -66,11 +67,7 @@ export function ExtensionCard({
       <div className="extension-tags">
         {manifest.platforms.map((platform) => (
           <span key={platform}>
-            {platform === "darwin"
-              ? "macOS"
-              : platform === "win32"
-                ? "Windows"
-                : "Linux"}
+            {platformLabel(platform)}
           </span>
         ))}
         {manifest.permissions.map((permission) => (

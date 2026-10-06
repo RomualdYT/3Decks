@@ -2,25 +2,29 @@
 #
 # Génère la police embarquée de l'application.
 #
-# Pourquoi une police dédiée : la police système de la console est un bitmap
-# dont la hauteur de glyphe est de trente pixels. L'afficher à petite taille
-# revient à la réduire, ce qui détruit l'information et rend le texte
-# illisible, sans qu'aucun filtrage puisse le rattraper.
-#
-# On génère donc une police matricielle à la taille réellement affichée. Les
-# facteurs d'échelle restent alors proches de 1, et le rendu est net.
+# La taille en points contrôle la rasterisation du BCFNT. Citro2D normalise
+# ensuite toutes les polices à une cellule de 30 pixels : le code d'affichage
+# ne doit donc pas appliquer une seconde correction fondée sur cette taille.
 #
 # Inter est aussi utilisée par l'interface web. Sa licence OFL autorise son
 # intégration et sa redistribution dans l'application, tout en couvrant les
 # accents nécessaires aux interfaces française et anglaise.
 #
 # Usage :
-#   ./tools/make-font.sh [taille] [chemin/police.ttf]
+#   ./tools/make-font.sh                       # famille native de production
+#   ./tools/make-font.sh taille [police.ttf]    # police de repli historique
 
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-IMAGE="devkitpro/devkitarm:latest"
+IMAGE="${FONT_BUILD_IMAGE:-devkitpro/devkitarm@sha256:116afba8df8453961de2936ffab20dd441edf4d682856c1ec8b0e53d7ed0bbf5}"
+
+# No arguments: regenerate the validated native-size family.
+if [ "$#" -eq 0 ]; then
+    docker run --rm -v "$ROOT":/repo -w /repo "$IMAGE" \
+        python3 tools/build_console_fonts.py
+    exit 0
+fi
 
 SIZE="${1:-17}"
 SOURCE="${2:-$ROOT/tools/fonts/Inter-Regular.ttf}"

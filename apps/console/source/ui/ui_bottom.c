@@ -17,6 +17,29 @@
 
 #include "ui_bottom_internal.h"
 
+/* Returns the left edge reserved for navigation, or the right margin. */
+static float draw_page_indicator(const App *app, u32 accent)
+{
+	int count = app->config.page_count;
+	const float right = SCREEN_BOTTOM_W - GRID_MARGIN_X;
+	if (count <= 1) return right;
+	if (count > MAX_PAGES) count = MAX_PAGES;
+	int current = app->current_page;
+	if (current < 0 || current >= count) current = 0;
+
+	const float dot = 4.0f, active = 10.0f, gap = 4.0f;
+	const float width = (count - 1) * (dot + gap) + active;
+	const float left = right - width;
+	float x = left;
+	for (int i = 0; i < count; ++i) {
+		const float w = i == current ? active : dot;
+		draw_round_rect(x, 15.0f, w, dot, 2.0f, Z_CONTENT,
+		                i == current ? accent : COL_TEXT_FAINT);
+		x += w + gap;
+	}
+	return left;
+}
+
 static void draw_title_bar(const App *app)
 {
 	const Page *page = app_current_page(app);
@@ -32,26 +55,12 @@ static void draw_title_bar(const App *app)
 	const u32 accent = (app->link == LINK_ONLINE) ? COL_ACCENT : COL_ERR;
 	draw_round_rect(GRID_MARGIN_X, 11.0f, 3.0f, 13.0f, 1.5f, Z_CONTENT, accent);
 
+	const float indicator_left = draw_page_indicator(
+	    app, page != NULL && page->accent_custom ? page->accent : COL_ACCENT);
+	const float title_x = GRID_MARGIN_X + 9.0f;
 	const char *title = (page != NULL) ? page->title : "3Decks";
-	text_draw_clipped(GRID_MARGIN_X + 9.0f, 8.0f, Z_CONTENT, TEXT_LARGE, COL_TEXT,
-	                  ALIGN_LEFT, 190.0f, title);
-
-	/* Compteur de pages, à droite. */
-	if (app->config.page_count > 1) {
-		/*
-		 * Les valeurs sont bornées par MAX_PAGES, mais le compilateur ne peut
-		 * pas le déduire : on les restreint explicitement pour garantir que le
-		 * formatage ne soit jamais tronqué.
-		 */
-		const unsigned current =
-		    (unsigned)(app->current_page + 1) % (MAX_PAGES + 1);
-		const unsigned total = (unsigned)app->config.page_count % (MAX_PAGES + 1);
-
-		char counter[16];
-		snprintf(counter, sizeof(counter), "%u / %u", current, total);
-		text_draw(SCREEN_BOTTOM_W - GRID_MARGIN_X, 12.0f, Z_CONTENT, TEXT_SMALL,
-		          COL_TEXT_FAINT, ALIGN_RIGHT, counter);
-	}
+	text_draw_clipped(title_x, 8.0f, Z_CONTENT, TEXT_LARGE, COL_TEXT,
+	                  ALIGN_LEFT, indicator_left - title_x - 10.0f, title);
 
 	/*
 	 * Trait de séparation en dégradé : plus lumineux au centre, il structure

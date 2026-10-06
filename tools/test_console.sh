@@ -35,6 +35,7 @@ run test_companion "$src/graphics/decky.c" "$src/ui/ui_companion.c" "$src/ui/ui_
 run test_localization "$src/ui/i18n.c"
 run test_text_layout "$src/graphics/text_layout.c"
 run test_text_cache "$src/graphics/text_cache.c"
+run test_text_render "$src/graphics/text.c" "$src/graphics/text_layout.c" "$src/graphics/text_cache.c"
 run test_render_pacing "$src/app/render_pacing.c"
 run test_draw_geometry "$src/graphics/draw.c"
 run test_interactions "${common[@]}" "$src/app/app_feedback.c" "$src/ui/ui_layout.c"

@@ -5,7 +5,85 @@
 
 #include "icons.h"
 
+#include <citro2d.h>
+#include <math.h>
+#include <stdio.h>
+
 #include "draw.h"
+#include "stereo.h"
+
+enum {
+#define ICON_ASSET(id, name) ASSET_##id,
+#include "icon_assets.def"
+#undef ICON_ASSET
+	ASSET_COUNT
+};
+
+static const int s_asset_index[ICON_COUNT] = {
+	[ICON_NONE] = -1,
+#define ICON_ASSET(id, name) [ICON_##id] = ASSET_##id,
+#include "icon_assets.def"
+#undef ICON_ASSET
+};
+
+static const int s_sizes[] = {
+#define ICON_SIZE(pixels) pixels,
+#include "icon_sizes.def"
+#undef ICON_SIZE
+};
+#define ICON_SHEET_COUNT (sizeof(s_sizes) / sizeof(s_sizes[0]))
+static C2D_SpriteSheet s_sheets[ICON_SHEET_COUNT];
+
+void icons_init(void)
+{
+	for (size_t i = 0; i < ICON_SHEET_COUNT; ++i) {
+		char path[48];
+		snprintf(path, sizeof(path), "romfs:/icons/icons-%d.t3x", s_sizes[i]);
+		s_sheets[i] = C2D_SpriteSheetLoad(path);
+		if (s_sheets[i] && C2D_SpriteSheetCount(s_sheets[i]) != ASSET_COUNT) {
+			C2D_SpriteSheetFree(s_sheets[i]);
+			s_sheets[i] = NULL;
+		} else if (s_sheets[i]) {
+			const C2D_Image image = C2D_SpriteSheetGetImage(s_sheets[i], 0);
+			C3D_TexSetFilter(image.tex, GPU_LINEAR, GPU_LINEAR);
+		}
+	}
+}
+
+void icons_exit(void)
+{
+	for (size_t i = 0; i < ICON_SHEET_COUNT; ++i) {
+		if (s_sheets[i]) C2D_SpriteSheetFree(s_sheets[i]);
+		s_sheets[i] = NULL;
+	}
+}
+
+static bool draw_asset(IconId icon, float cx, float cy, float size, float z,
+                       u32 color)
+{
+	if (icon <= ICON_NONE || icon >= ICON_COUNT || size <= 0.0f) return false;
+	size_t best = 0;
+	float distance = INFINITY;
+	for (size_t i = 0; i < ICON_SHEET_COUNT; ++i) {
+		if (!s_sheets[i]) continue;
+		const float candidate = fabsf(size - (float)s_sizes[i]);
+		/* Break exact ties toward the larger source: preserve fine strokes. */
+		if (candidate <= distance) { distance = candidate; best = i; }
+	}
+	if (!s_sheets[best]) return false;
+	const C2D_Image image = C2D_SpriteSheetGetImage(s_sheets[best],
+	                                             s_asset_index[icon]);
+	if (!image.tex || !image.subtex) return false;
+	/* Pixel aligned geometry plus closely spaced native atlases keep glyphs
+	 * crisp; light linear filtering avoids harsh stair steps when resized. */
+	C2D_ImageTint tint;
+	C2D_PlainImageTint(&tint, color, 1.0f);
+	const float draw_size = fmaxf(1.0f, roundf(size));
+	const float scale = draw_size / (float)s_sizes[best];
+	return C2D_DrawImageAt(image,
+	                       roundf(cx - draw_size * 0.5f + stereo_offset(z * STEREO_FROM_Z)),
+	                       roundf(cy - draw_size * 0.5f), z, &tint, scale, scale);
+}
 
 /*
  * Chaque icône est construite à partir de rectangles, cercles, triangles et
@@ -275,6 +353,7 @@ static void icon_star(float cx, float cy, float s, float z, u32 c)
 void icons_draw(IconId icon, float cx, float cy, float size, float depth,
                 u32 color)
 {
+	if (draw_asset(icon, cx, cy, size, depth, color)) return;
 	switch (icon) {
 	case ICON_MIC:
 		icon_mic(cx, cy, size, depth, color, false);

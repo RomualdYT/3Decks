@@ -4,7 +4,7 @@ import type { Locale, View } from "./types";
 import { AppHeader } from "../components/AppHeader";
 import { SaveBar } from "../components/SaveBar";
 import { Decky } from "../components/Decky";
-import { initialLocale, translate } from "../i18n/copy";
+import { initialLocale, saveLocale, translate } from "../i18n/copy";
 import { useDeckConfig } from "../hooks/useDeckConfig";
 
 const EditorView = lazy(() => import("../editor/EditorView").then(({ EditorView }) => ({ default: EditorView })));
@@ -26,7 +26,7 @@ export function App() {
   const setLocale = useCallback((next: Locale) => {
     setLocaleState(next);
     document.documentElement.lang = next;
-    try { localStorage.setItem("deck3ds.locale", next); } catch { /* temporary preference */ }
+    saveLocale(next);
   }, []);
   const selectView = useCallback((next: View) => {
     setView(next);

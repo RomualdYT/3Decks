@@ -23,25 +23,26 @@ typedef enum {
 } TextAlign;
 
 /**
- * Échelle typographique.
- *
- * La police système de la console est une police bitmap dont la hauteur de
- * glyphe est de 30 pixels. L'échelle est donc un facteur de réduction, et non
- * une taille en points : à 0,30 les caractères ne mesurent plus que neuf
- * pixels, ce qui les rend illisibles quel que soit le filtrage appliqué.
- *
- * Les valeurs ci-dessous fixent un plancher au-delà duquel on ne descend pas.
- * Mieux vaut afficher moins de texte que du texte qu'on ne peut pas lire.
+ * Échelles Citro2D : la bibliothèque normalise la cellule de toutes les
+ * polices (système et BCFNT) à 30 pixels avant d'appliquer cette échelle.
+ * Ne pas appliquer de conversion depuis la taille en points de mkbcfnt.
+ * Cette référence commune garde mesures, dessin et placement cohérents.
  */
-#define TEXT_HUGE 0.80f   /**< 24 px : horloge du mode cadre. */
-#define TEXT_TITLE 0.66f  /**< 20 px : titre de morceau, heure. */
-#define TEXT_LARGE 0.58f  /**< 17 px : titres de page, valeurs importantes. */
-#define TEXT_BODY 0.52f   /**< 16 px : libellés de boutons, texte courant. */
-#define TEXT_SMALL 0.46f  /**< 14 px : informations secondaires. */
-#define TEXT_MICRO 0.42f  /**< 13 px : plus petite taille encore lisible. */
+#define TEXT_REFERENCE_PX 30.0f
+enum {
+#define FONT_FACE(name, pixels, points) TEXT_##name##_PX = pixels,
+#include "font_faces.def"
+#undef FONT_FACE
+};
+#define TEXT_HUGE (TEXT_HUGE_PX / TEXT_REFERENCE_PX)
+#define TEXT_TITLE (TEXT_TITLE_PX / TEXT_REFERENCE_PX)
+#define TEXT_LARGE (TEXT_LARGE_PX / TEXT_REFERENCE_PX)
+#define TEXT_BODY (TEXT_BODY_PX / TEXT_REFERENCE_PX)
+#define TEXT_SMALL (TEXT_SMALL_PX / TEXT_REFERENCE_PX)
+#define TEXT_MICRO (TEXT_MICRO_PX / TEXT_REFERENCE_PX)
 
 /** Hauteur en pixels d'une ligne à l'échelle donnée. */
-#define TEXT_LINE_PX(scale) ((scale) * 30.0f)
+#define TEXT_LINE_PX(scale) ((scale) * TEXT_REFERENCE_PX)
 
 /** Alloue les tampons de texte. À appeler après `C2D_Init`. */
 bool text_init(void);

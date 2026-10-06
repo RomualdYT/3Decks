@@ -1,3 +1,4 @@
+import { platformLabel } from "../utils/platform";
 import { Button, Card, Disclosure, DisclosureGroup, Switch, toast } from "@heroui/react";
 import { useEffect, useState } from "react";
 import type { DesktopControls } from "../app/desktopControls";
@@ -92,7 +93,7 @@ export function SettingsView({ config, schema, status, locale, t, update, onLoca
       <aside className="settings-sidebar">
         <div className="sidebar-heading"><div><span className="eyebrow">3Decks</span><h2>{t("settings")}</h2></div></div>
         <nav>{SECTIONS.map(([id, icon]) => <button key={id} type="button" aria-label={t(id === "features" ? "features" : id === "appearance" ? "appearance" : id === "obs" ? "obs" : id === "advanced" ? "advanced" : "connection")} className={section === id ? "active" : ""} onClick={() => setSection(id)}><span><DeckIcon name={icon} /></span>{t(id === "features" ? "features" : id === "appearance" ? "appearance" : id === "obs" ? "obs" : id === "advanced" ? "advanced" : "connection")}{id === "obs" && !config.integrations.obs.enabled ? <small>{t("disabled")}</small> : null}</button>)}</nav>
-        <div className="settings-platform"><span className="connection-dot connected" /><div><strong>{status?.platform ?? "3Decks Agent"}</strong><small>{status ? t("online") : t("offline")}</small></div></div>
+        <div className="settings-platform"><span className="connection-dot connected" /><div><strong>{platformLabel(status?.platform)}</strong><small>{status ? t("online") : t("offline")}</small></div></div>
       </aside>
       <main className="settings-workspace">
         {section === "features" && <FeatureSettings config={config} schema={schema} status={status} locale={locale} t={t} update={update} />}

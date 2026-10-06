@@ -192,6 +192,90 @@
       ]
     },
     {
+      "id": "lyrics",
+      "title": {
+        "en": "Lyrics",
+        "fr": "Paroles"
+      },
+      "icon": "music",
+      "dashboard": "lyrics",
+      "buttons": [
+        {
+          "id": "previous",
+          "slot": 0,
+          "label": {
+            "en": "Previous",
+            "fr": "Précédent"
+          },
+          "icon": "previous",
+          "color": "#6EE7B7",
+          "action": "media.previous"
+        },
+        {
+          "id": "play",
+          "slot": 1,
+          "label": {
+            "en": "Play",
+            "fr": "Lecture"
+          },
+          "icon": "play",
+          "color": "#1DB954",
+          "toggle": "playing",
+          "action": "media.play_pause"
+        },
+        {
+          "id": "next",
+          "slot": 2,
+          "label": {
+            "en": "Next",
+            "fr": "Suivant"
+          },
+          "icon": "next",
+          "color": "#6EE7B7",
+          "action": "media.next"
+        },
+        {
+          "id": "down",
+          "slot": 3,
+          "label": {
+            "fr": "Volume −",
+            "en": "Volume −"
+          },
+          "icon": "volume-down",
+          "color": "#6EE7B7",
+          "action": "volume.down"
+        },
+        {
+          "id": "up",
+          "slot": 4,
+          "label": {
+            "fr": "Volume +",
+            "en": "Volume +"
+          },
+          "icon": "volume-up",
+          "color": "#6EE7B7",
+          "action": "volume.up"
+        },
+        {
+          "id": "frame",
+          "slot": 5,
+          "label": {
+            "en": "Frame",
+            "fr": "Cadre"
+          },
+          "icon": "video",
+          "color": "#8B5CF6",
+          "hold_label": {
+            "en": "Mute",
+            "fr": "Muet"
+          },
+          "action": "frame.toggle",
+          "hold_action": "volume.mute_toggle"
+        }
+      ],
+      "lyrics_lines": 3
+    },
+    {
       "id": "windows",
       "title": {
         "en": "Windows",

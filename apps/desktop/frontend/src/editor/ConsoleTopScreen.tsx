@@ -91,18 +91,30 @@ function Lyrics({ media, lyrics, page, fr }: { media: Data; lyrics: Data; page: 
   let active = -1;
   for (const [index, line] of lines.entries()) if ((number(line.t) ?? Number.MAX_VALUE) <= position) active = index;
   const visible = typeof page.lyrics_lines === "number" ? Math.min(5, Math.max(2, page.lyrics_lines)) : 3;
-  const before = visible === 5 ? 2 : visible === 2 ? 0 : 1;
-  const after = visible - before - 1;
+  const before = Math.floor((visible - 1) / 2);
+  const focus = Math.max(0, active);
+  const top = Math.round(84 + (146 - (44 + (visible - 1) * 23)) / 2);
   const state = string(lyrics.status);
   const fallback = state === "loading" ? (fr ? "Recherche des paroles…" : "Finding lyrics…") : state === "disabled" ? (fr ? "Activez les paroles dans Réglages" : "Enable lyrics in Settings") : state === "instrumental" ? (fr ? "Morceau instrumental" : "Instrumental track") : (fr ? "Paroles indisponibles" : "No synced lyrics found");
   return <g>
-    <Label x={20} y={38} width={360} size={13.8}>{string(media.artist, fr ? "Artiste" : "Artist")}</Label>
-    <Label x={20} y={57} width={360} size={16.5} bold color="#f6f6f7">{string(media.title, fr ? "Aucune lecture en cours" : "Nothing playing")}</Label>
-    {state === "ready" && lines.length ? Array.from({ length: visible }, (_, index) => index - before).map((offset) => {
-      const line = lines[active + offset];
-      const y = 117 + offset * 42;
-      return line && y >= 72 && y <= 220 ? <Label key={`${active + offset}`} x={24} y={y} width={352} size={offset === 0 ? 19 : 15.5} bold={offset === 0} align="center" color={offset === 0 ? "#fff" : offset < 0 ? "#797985" : "#b6b6c0"}>{string(line.text)}</Label> : null;
-    }) : <Label x={24} y={122} width={352} size={15} align="center">{fallback}</Label>}
+    <Label x={24} y={36} width={352} size={17} color="#f6f6f7">{string(media.title, fr ? "Aucune lecture en cours" : "Nothing playing")}</Label>
+    <Label x={24} y={58} width={352} size={13}>{string(media.artist, fr ? "Artiste" : "Artist")}</Label>
+    <rect x={24} y={79} width={352} height={1} fill="var(--media-accent)" opacity={0.3} />
+    {state === "ready" && lines.length ? Array.from({ length: visible }, (_, slot) => {
+      const offset = slot - before;
+      const line = lines[focus + offset];
+      const y = top + slot * 23 + (slot > before ? 29 : 0);
+      if (!line) return null;
+      if (offset === 0 && active >= 0) return <foreignObject key={focus + offset} x={24} y={y} width={352} height={44}>
+        <div style={{ height: 44, display: "flex", alignItems: "center", justifyContent: "center", color: "#f6f6f7", textAlign: "center", fontSize: 20, lineHeight: "23px" }}>
+          <span style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", textWrap: "balance", overflowWrap: "anywhere" }}>{string(line.text)}</span>
+        </div>
+      </foreignObject>;
+      return <Label key={focus + offset} x={24} y={y + (offset === 0 ? 14 : 0)} width={352} size={15} align="center" color={offset < 0 ? "#8c8c98" : "#b6b6be"}>{string(line.text)}</Label>;
+    }) : <>
+      <Icon name="music" x={189} y={114} size={22} color="var(--media-accent)" />
+      <Label x={24} y={154} width={352} size={15} align="center">{fallback}</Label>
+    </>}
   </g>;
 }
 function Audio({ snapshot, media, fr }: { snapshot: Data; media: Data; fr: boolean }) {

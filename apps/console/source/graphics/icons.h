@@ -7,12 +7,16 @@
  * @file icons.h
  * @brief Icônes dessinées en primitives citro2d.
  *
- * Aucun fichier graphique n'est nécessaire : les icônes sont vectorielles, donc
- * nettes à n'importe quelle taille et modifiables sans pipeline d'assets.
+ * Les atlas Lucide reprennent les icônes de l'éditeur PC. Les primitives
+ * vectorielles assurent le repli si les atlas sont absents.
  */
 #pragma once
 
 #include "model.h"
+
+/** Charge les atlas après C2D_Init ; libère avant C2D_Fini. */
+void icons_init(void);
+void icons_exit(void);
 
 /**
  * Dessine une icône centrée sur (`cx`, `cy`), inscrite dans un carré de côté

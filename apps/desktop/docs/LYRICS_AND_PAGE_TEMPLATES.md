@@ -3,21 +3,33 @@
 ## Utilisation
 
 Dans l'éditeur Tauri, « Ajouter une page » ouvre une galerie de points de départ :
-page vierge, musique et paroles, notifications, fenêtres, OBS et performances.
+page vierge, paroles, notifications, fenêtres, OBS et performances.
 Chaque choix crée une page ordinaire : titre, icône, tableau de bord, couleur,
 boutons et actions restent modifiables. Le modèle n'établit pas de connexion à
 OBS et n'active aucune autorisation à la place de l'utilisateur.
 
-La page « Musique et paroles » affiche le titre et les paroles horodatées sur
+La page « Paroles » affiche le titre et les paroles horodatées sur
 l'écran supérieur. L'écran tactile conserve ses six commandes ; la fine barre
 de progression sous le titre permet d'avancer dans un morceau quand le lecteur
 annonce une durée et prend en charge le déplacement. Le nombre de lignes
 visibles (2 à 5) et la couleur d'accent sont réglables dans l'inspecteur.
+Le passage actif dispose de deux lignes, équilibrées selon leur largeur réelle,
+avec des tailles de police natives. Les lignes voisines gardent une position
+stable dans la zone de lecture, séparée des métadonnées du morceau.
+
+Les nouvelles configurations comprennent déjà la page Paroles. L'assistant de
+premier démarrage propose son activation ; pour une configuration existante,
+il ajoute la page si elle manque, sans dupliquer une page déjà présente. À la
+limite des 12 pages, il demande de libérer un emplacement dans l'éditeur.
+Les configurations existantes ne sont pas réinitialisées. Le parcours initial
+peut être rouvert depuis les réglages.
 
 ## Provenance et confidentialité
 
 La recherche LRCLIB est **désactivée par défaut**. Il faut activer « Paroles
-en ligne » dans les fonctionnalités, puis créer une page « Musique et paroles ».
+en ligne » dans les fonctionnalités, ou choisir « Page Paroles » dans
+l'assistant initial. Si nécessaire, le modèle Paroles reste disponible dans la
+galerie. Les contrôles multimédias doivent être activés pour la recherche.
 Le poste envoie à `https://lrclib.net/api/get` le titre, l'artiste et, s'ils
 sont connus, l'album et la durée. La 3DS ne contacte jamais LRCLIB. Si la
 fonction est désactivée, le cache téléchargé n'est plus affiché.

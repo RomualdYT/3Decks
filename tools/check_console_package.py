@@ -64,8 +64,22 @@ def check_ncch(data: bytes) -> None:
     romfs_offset = u32(data, 0x1B0) * 512
     romfs_size = u32(data, 0x1B4) * 512
     require(romfs_offset > 0 and romfs_offset + romfs_size <= len(data), "Invalid RomFS")
-    require((APP / "romfs/deck.bcfnt").read_bytes() in data[romfs_offset:romfs_offset + romfs_size],
-            "Bundled Inter console font missing")
+    fonts = [APP / "romfs/deck.bcfnt", *sorted((APP / "romfs/fonts").glob("*.bcfnt"))]
+    require(len(fonts) == 7, "Expected fallback and six native font sizes")
+    for font in fonts:
+        require(font.read_bytes() in data[romfs_offset:romfs_offset + romfs_size],
+                f"Bundled Inter console font missing: {font.name}")
+    icon_sizes = [int(value) for value in re.findall(
+        r"^ICON_SIZE\((\d+)\)$",
+        (APP / "source/graphics/icon_sizes.def").read_text(), re.MULTILINE)]
+    require(bool(icon_sizes), "Missing console icon sizes")
+    for size in icon_sizes:
+        atlas = APP / f"romfs/icons/icons-{size}.t3x"
+        require(atlas.read_bytes() in data[romfs_offset:romfs_offset + romfs_size],
+                f"Bundled icon atlas missing: {atlas.name}")
+    spotify = APP / "romfs/brands/spotify.t3x"
+    require(spotify.read_bytes() in data[romfs_offset:romfs_offset + romfs_size],
+            "Bundled Spotify mark missing")
 
 
 def check_cia(data: bytes) -> None:
@@ -95,7 +109,7 @@ def main() -> None:
     check_cia((APP / "deck3ds.cia").read_bytes())
     if args.objdump:
         check_syscalls(args.objdump)
-    print("Console packaging (CIA): identity, hashes, artwork and embedded font OK")
+    print("Console packaging (CIA): identity, hashes, fonts and icons OK")
 
 
 if __name__ == "__main__":

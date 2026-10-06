@@ -3,12 +3,13 @@ import { useCallback, useEffect, useState } from "react";
 import type { AgentState, DeckConfig, Locale, Schema } from "../../frontend/src/app/types";
 import { DeckIcon } from "../../frontend/src/components/DeckIcon";
 import { Decky, DeckyLogo } from "../../frontend/src/components/Decky";
-import { initialLocale } from "../../frontend/src/i18n/copy";
+import { initialLocale, saveLocale } from "../../frontend/src/i18n/copy";
 import { notificationPermissionError } from "../../frontend/src/utils/notificationPermission";
+import { pageFromTemplate } from "../../frontend/src/editor/pageTemplates";
 import { agentApi } from "../tauri-api";
 import type { OnboardingProgress } from "../DesktopRoot";
 
-type FeatureKey = "media" | "windows" | "system_stats" | "notifications" | "media_artwork";
+type FeatureKey = "lyrics_online" | "media" | "windows" | "system_stats" | "notifications" | "media_artwork";
 type PermissionStatus = {
   platform: string;
   local_network: boolean;
@@ -19,6 +20,7 @@ type PermissionStatus = {
 
 const featureRows: { key: FeatureKey; icon: string; fr: string; en: string; descriptionFr: string; descriptionEn: string }[] = [
   { key: "media", icon: "play", fr: "Contrôles multimédias", en: "Media controls", descriptionFr: "Lecture et volume de votre musique.", descriptionEn: "Playback and volume for your music." },
+  { key: "lyrics_online", icon: "music", fr: "Page Paroles", en: "Lyrics page", descriptionFr: "Paroles synchronisées. Envoie le titre, l’artiste, l’album et la durée à LRCLIB pour les rechercher.", descriptionEn: "Synced lyrics. Sends the title, artist, album and duration to LRCLIB to find them." },
   { key: "windows", icon: "app", fr: "Fenêtres ouvertes", en: "Open windows", descriptionFr: "Affichez et sélectionnez vos fenêtres.", descriptionEn: "View and select your windows." },
   { key: "system_stats", icon: "status", fr: "Statistiques système", en: "System statistics", descriptionFr: "CPU, mémoire et stockage sur la console.", descriptionEn: "CPU, memory and storage on the console." },
   { key: "notifications", icon: "bell", fr: "Notifications", en: "Notifications", descriptionFr: "Consultez les alertes récentes du système.", descriptionEn: "See recent system alerts." },
@@ -27,7 +29,11 @@ const featureRows: { key: FeatureKey; icon: string; fr: string; en: string; desc
 
 export function Onboarding({ initialStep, onComplete }: { initialStep: number; onComplete: (value: OnboardingProgress) => void }) {
   const [step, setStep] = useState(Math.max(0, Math.min(3, initialStep)));
-  const [locale, setLocale] = useState<Locale>(initialLocale);
+  const [locale, setLocaleState] = useState<Locale>(initialLocale);
+  const setLocale = (next: Locale) => {
+    setLocaleState(next);
+    saveLocale(next);
+  };
   const [config, setConfig] = useState<DeckConfig | null>(null);
   const [schema, setSchema] = useState<Schema | null>(null);
   const [agent, setAgent] = useState<AgentState | null>(null);
@@ -75,7 +81,15 @@ export function Onboarding({ initialStep, onComplete }: { initialStep: number; o
         const latest = (await agentApi.config()).config;
         const updated = { ...latest, features: { ...latest.features } };
         for (const row of featureRows) updated.features[row.key] = features[row.key] === true;
-        if (!updated.features.media) updated.features.media_artwork = false;
+        if (!updated.features.media) {
+          updated.features.media_artwork = false;
+          updated.features.lyrics_online = false;
+        }
+        if (updated.features.lyrics_online && !updated.pages.some((page) => page.dashboard === "lyrics")) {
+          if (!schema) throw new Error(copy("Le catalogue est encore en cours de chargement.", "The catalog is still loading."));
+          if (updated.pages.length >= 12) throw new Error(copy("Votre configuration contient déjà 12 pages. Libérez une page dans l’éditeur pour ajouter les paroles.", "Your configuration already has 12 pages. Free a page in the editor to add lyrics."));
+          updated.pages = [...updated.pages, pageFromTemplate(updated, schema, "lyrics")];
+        }
         const saved = await agentApi.save(updated);
         setConfig(saved.config);
       }
@@ -124,7 +138,7 @@ export function Onboarding({ initialStep, onComplete }: { initialStep: number; o
     const feature = schema?.features.find((item) => item.key === key);
     if (!feature) return false;
     if (key === "notifications") return platform === "darwin" || (platform === "win32" && permissions?.notifications.access !== "Unavailable");
-    return feature.available && (key !== "media_artwork" || features.media === true);
+    return feature.available && (!["media_artwork", "lyrics_online"].includes(key) || features.media === true);
   };
   const code = agent?.pairing.code || "······";
   const connected = (agent?.clients.length ?? 0) > 0;
@@ -156,9 +170,9 @@ export function Onboarding({ initialStep, onComplete }: { initialStep: number; o
         <div className="onboarding-copy">
           <div className="onboarding-title"><span>2</span><div><h1>{copy("Choisissez vos fonctions", "Choose your features")}</h1><p className="onboarding-lead">{copy("Sélectionnez les informations et contrôles à afficher sur votre console.", "Choose what your console displays and controls.")}</p></div></div>
           <div className="onboarding-feature-list">{featureRows.map((row) => {
-            const enabled = features[row.key] === true;
+            const enabled = features[row.key] === true && (!["media_artwork", "lyrics_online"].includes(row.key) || features.media === true);
             const supported = available(row.key);
-            return <button type="button" role="switch" aria-checked={enabled} aria-label={fr ? row.fr : row.en} disabled={!supported || !config || busy} className={`onboarding-feature${enabled ? " is-selected" : ""}`} key={row.key} onClick={() => setFeatures((previous) => ({ ...previous, [row.key]: !enabled }))}>
+            return <button type="button" role="switch" aria-checked={enabled} aria-label={fr ? row.fr : row.en} disabled={!supported || !config || busy} className={`onboarding-feature${enabled ? " is-selected" : ""}`} key={row.key} onClick={() => setFeatures((previous) => ({ ...previous, [row.key]: !enabled, ...(row.key === "media" && enabled ? { media_artwork: false, lyrics_online: false } : {}) }))}>
               <span className="onboarding-feature-icon"><DeckIcon name={row.icon} size={22} /></span>
               <span className="onboarding-feature-text"><strong>{fr ? row.fr : row.en}</strong><small>{supported ? (fr ? row.descriptionFr : row.descriptionEn) : copy("Indisponible sur cette plateforme", "Unavailable on this platform")}</small></span>
               <span className="onboarding-switch" aria-hidden="true"><i /></span>
@@ -196,7 +210,7 @@ export function Onboarding({ initialStep, onComplete }: { initialStep: number; o
       </div>}
     </main>
     {error && <div className="onboarding-error" role="alert"><DeckIcon name="info" size={18} />{error}</div>}
-    <footer className="onboarding-footer"><button type="button" className="onboarding-secondary" disabled={busy} onClick={step === 0 ? () => void skip() : () => void back()}>{step === 0 ? copy("Plus tard", "Later") : copy("Retour", "Back")}</button>{step === 3 && <button type="button" className="onboarding-later" disabled={busy} onClick={() => void skip()}>{copy("Je connecterai ma console plus tard", "I'll connect my console later")}</button>}<button type="button" className="onboarding-primary" disabled={busy || (step === 1 && !config)} onClick={() => void next()}>{busy ? copy("Un instant…", "One moment…") : step === 0 ? copy("Commencer", "Get started") : step === 3 ? copy("Ouvrir l’éditeur", "Open editor") : copy("Continuer", "Continue")}<DeckIcon name="next" size={19} /></button></footer>
+    <footer className="onboarding-footer"><button type="button" className="onboarding-secondary" disabled={busy} onClick={step === 0 ? () => void skip() : () => void back()}>{step === 0 ? copy("Plus tard", "Later") : copy("Retour", "Back")}</button>{step === 3 && <button type="button" className="onboarding-later" disabled={busy} onClick={() => void skip()}>{copy("Je connecterai ma console plus tard", "I'll connect my console later")}</button>}<button type="button" className="onboarding-primary" disabled={busy || (step === 1 && (!config || !schema))} onClick={() => void next()}>{busy ? copy("Un instant…", "One moment…") : step === 0 ? copy("Commencer", "Get started") : step === 3 ? copy("Ouvrir l’éditeur", "Open editor") : copy("Continuer", "Continue")}<DeckIcon name="next" size={19} /></button></footer>
   </div>;
 }
 

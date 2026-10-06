@@ -19,6 +19,7 @@
 #include <string.h>
 
 #include "artwork.h"
+#include "brand_icons.h"
 #include "draw.h"
 #include "i18n.h"
 #include "icons.h"
@@ -107,42 +108,10 @@ static u32 media_accent(const App *app)
 	return COL_ACCENT;
 }
 
-static void draw_spotify_wave(float cx, float cy, float size, float thickness,
-	                              float z, u32 color)
-{
-	/* Smooth quadratic strokes with round joins, readable at 16 console pixels.
-	 * Keep each band above one pixel instead of subpixel-width broken segments. */
-	thickness = fmaxf(thickness, 1.15f);
-	float previous_x = cx - size * 0.34f;
-	float previous_y = cy + size * 0.015f;
-	for (int step = 1; step <= 8; step++) {
-		const float t = (float)step / 8.0f;
-		const float inverse = 1.0f - t;
-		const float x = cx + size * (-0.34f + 0.68f * t);
-		const float y = cy + size * (inverse * inverse * 0.015f -
-		                            2.0f * inverse * t * 0.16f + t * t * 0.10f);
-		draw_line(previous_x, previous_y, x, y, thickness, z, color);
-		draw_circle(previous_x, previous_y, thickness * 0.5f, z, color);
-		previous_x = x;
-		previous_y = y;
-	}
-	draw_circle(previous_x, previous_y, thickness * 0.5f, z, color);
-}
-
-/** Marques dessinees en vecteurs, sans texture supplementaire. */
 static void draw_media_brand_mark(MediaBrand brand, float cx, float cy,
 	                                  float size, float z)
 {
-	if (brand == MEDIA_BRAND_SPOTIFY) {
-		const u32 green = C2D_Color32(0x1E, 0xD7, 0x60, 0xFF);
-		const u32 ink = C2D_Color32(0x07, 0x13, 0x0B, 0xFF);
-		draw_circle(cx, cy, size * 0.5f, z, green);
-		draw_spotify_wave(cx, cy - size * 0.17f, size, size * 0.075f,
-		                  z + 0.01f, ink);
-		draw_spotify_wave(cx, cy + size * 0.02f, size * 0.88f,
-		                  size * 0.065f, z + 0.01f, ink);
-		draw_spotify_wave(cx, cy + size * 0.20f, size * 0.72f,
-		                  size * 0.055f, z + 0.01f, ink);
+	if (brand == MEDIA_BRAND_SPOTIFY && brand_icons_draw_spotify(cx, cy, z)) {
 		return;
 	}
 
@@ -343,31 +312,53 @@ void ui_top_media_draw(const App *app)
 	}
 }
 
+/* Balance by rendered width, never by byte count (UTF-8 is preserved). */
+static const char *lyric_split(const char *line, float scale)
+{
+	const char *best = NULL;
+	float best_width = INFINITY;
+	char first[LEN_LYRIC_LINE];
+	for (const char *p = line; *p; ++p) {
+		if (*p != ' ' || p == line || !p[1]) continue;
+		const size_t length = (size_t)(p - line);
+		if (length >= sizeof(first)) break;
+		memcpy(first, line, length);
+		first[length] = '\0';
+		const float width = fmaxf(text_width(first, scale), text_width(p + 1, scale));
+		if (width < best_width) { best_width = width; best = p; }
+	}
+	return best;
+}
+
 static void draw_active_lyric(const char *line, float y)
 {
-	if (text_width(line, TEXT_TITLE) <= 352.0f) {
-		text_draw_clipped(200.0f, y, Z_CONTENT, TEXT_TITLE, COL_TEXT,
-		                  ALIGN_CENTER, 352.0f, line);
+	/* A fixed 44 px slot keeps adjacent lyrics still when wrapping changes. */
+	float scale = TEXT_TITLE;
+	if (text_width(line, scale) <= 352.0f) {
+		text_draw(200.0f, y + 12.0f, Z_CONTENT, scale, COL_TEXT, ALIGN_CENTER, line);
 		return;
 	}
-	const size_t length = strlen(line);
-	const char *split = NULL;
-	for (const char *p = line; *p != '\0'; p++) {
-		if (*p == ' ' && (size_t)(p - line) < length * 2 / 3) split = p;
-	}
-	if (split == NULL) {
-		text_draw_clipped(200.0f, y, Z_CONTENT, TEXT_TITLE, COL_TEXT,
-		                  ALIGN_CENTER, 352.0f, line);
-		return;
-	}
+	const char *split = lyric_split(line, scale);
 	char first[LEN_LYRIC_LINE];
-	const size_t first_len = (size_t)(split - line);
-	memcpy(first, line, first_len);
-	first[first_len] = '\0';
-	text_draw_clipped(200.0f, y - 10.0f, Z_CONTENT, TEXT_TITLE, COL_TEXT,
-	                  ALIGN_CENTER, 352.0f, first);
-	text_draw_clipped(200.0f, y + 12.0f, Z_CONTENT, TEXT_TITLE, COL_TEXT,
-	                  ALIGN_CENTER, 352.0f, split + 1);
+	if (split) {
+		size_t length = (size_t)(split - line);
+		memcpy(first, line, length);
+		first[length] = '\0';
+		if (fmaxf(text_width(first, scale), text_width(split + 1, scale)) > 352.0f) {
+			scale = TEXT_LARGE;
+			split = lyric_split(line, scale);
+			length = (size_t)(split - line);
+			memcpy(first, line, length);
+			first[length] = '\0';
+		}
+		text_draw_clipped(200.0f, y, Z_CONTENT, scale, COL_TEXT,
+		                  ALIGN_CENTER, 352.0f, first);
+		text_draw_clipped(200.0f, y + 23.0f, Z_CONTENT, scale, COL_TEXT,
+		                  ALIGN_CENTER, 352.0f, split + 1);
+	} else {
+		text_draw_clipped(200.0f, y + 12.0f, Z_CONTENT, TEXT_LARGE,
+		                  COL_TEXT, ALIGN_CENTER, 352.0f, line);
+	}
 }
 
 void ui_top_lyrics_draw(const App *app)
@@ -375,23 +366,25 @@ void ui_top_lyrics_draw(const App *app)
 	const Page *page = app_current_page(app);
 	const u32 accent = page != NULL && page->accent_custom ? page->accent : media_accent(app);
 	draw_rect_vgrad(0.0f, 0.0f, SCREEN_TOP_W, SCREEN_H, Z_BG,
-	                theme_mix(COL_BG, accent, 0.23f),
-	                theme_mix(COL_BG, accent, 0.035f));
+	                theme_mix(COL_BG, accent, 0.18f),
+	                theme_mix(COL_BG, accent, 0.025f));
 	if (!app->state.media_present) {
 		draw_empty_media(128.0f);
 		return;
 	}
-	text_draw_clipped(20.0f, 38.0f, Z_CONTENT, TEXT_SMALL, COL_TEXT_DIM,
-	                  ALIGN_LEFT, 350.0f, app->state.media_artist);
-	text_draw_clipped(20.0f, 57.0f, Z_CONTENT, TEXT_BODY, COL_TEXT,
-	                  ALIGN_LEFT, 350.0f, app->state.media_title);
+	text_draw_clipped(24.0f, 36.0f, Z_CONTENT, TEXT_LARGE, COL_TEXT,
+	                  ALIGN_LEFT, 352.0f, app->state.media_title);
+	text_draw_clipped(24.0f, 58.0f, Z_CONTENT, TEXT_MICRO, COL_TEXT_DIM,
+	                  ALIGN_LEFT, 352.0f, app->state.media_artist);
+	draw_rect(24.0f, 79.0f, 352.0f, 1.0f, Z_CONTENT, theme_alpha(accent, 0x50));
 	if (app->state.lyrics_count <= 0) {
 		const char *label = tr(STR_LYRICS_UNAVAILABLE);
 		if (strcmp(app->state.lyrics_status, "loading") == 0) label = tr(STR_LYRICS_LOADING);
 		else if (strcmp(app->state.lyrics_status, "disabled") == 0) label = tr(STR_LYRICS_DISABLED);
 		else if (strcmp(app->state.lyrics_status, "instrumental") == 0) label = tr(STR_LYRICS_INSTRUMENTAL);
-		text_draw_clipped(200.0f, 121.0f, Z_CONTENT, TEXT_BODY,
-		                  COL_TEXT_DIM, ALIGN_CENTER, 350.0f, label);
+		icons_draw(ICON_MUSIC, 200.0f, 125.0f, 22.0f, Z_CONTENT, accent);
+		text_draw_clipped(200.0f, 154.0f, Z_CONTENT, TEXT_BODY,
+		                  COL_TEXT_DIM, ALIGN_CENTER, 352.0f, label);
 		return;
 	}
 	const float position_ms = app->top_visual.media_position_display * 1000.0f;
@@ -400,28 +393,28 @@ void ui_top_lyrics_draw(const App *app)
 		if ((float)app->state.lyrics[i].time_ms <= position_ms) active = i;
 		else break;
 	}
-	float shift = 0.0f;
-	if (active >= 0 && active + 1 < app->state.lyrics_count) {
-		const float until = (float)app->state.lyrics[active + 1].time_ms - position_ms;
-		if (until >= 0.0f && until < 220.0f) shift = (1.0f - until / 220.0f) * 42.0f;
-	}
-	const int visible = page != NULL ? page->lyrics_lines : 3;
-	const int before = visible == 5 ? 2 : visible == 2 ? 0 : 1;
-	const int after = visible - before - 1;
-	for (int offset = -before; offset <= after; offset++) {
-		const int index = active + offset;
-		if (index < 0 || index >= app->state.lyrics_count) continue;
-		const float y = 117.0f + (float)offset * 42.0f - shift;
-		if (y < 72.0f || y > 220.0f) continue;
-		const char *line = app->state.lyrics[index].text;
-		if (offset == 0) {
-			draw_active_lyric(line, y);
-		} else {
-			const u32 color = offset < 0 ? theme_mix(COL_TEXT_FAINT, accent, 0.20f)
-			                             : theme_mix(COL_TEXT_DIM, accent, 0.14f);
-			text_draw_clipped(200.0f, y, Z_CONTENT, TEXT_BODY, color,
-				                  ALIGN_CENTER, 350.0f, line);
+	int visible = page != NULL ? page->lyrics_lines : 3;
+	if (visible < 2 || visible > 5) visible = 3;
+	const int before = (visible - 1) / 2;
+	/* All 2–5 rows fit between the header and the bottom edge, including
+	 * a two-line active lyric. Do not slide text into the header. */
+	const float total = 44.0f + (visible - 1) * 23.0f;
+	float y = roundf(84.0f + (146.0f - total) * 0.5f);
+	const int focus = active < 0 ? 0 : active;
+	for (int slot = 0; slot < visible; ++slot) {
+		const int offset = slot - before;
+		const int index = focus + offset;
+		if (index >= 0 && index < app->state.lyrics_count) {
+			const char *line = app->state.lyrics[index].text;
+			if (offset == 0 && active >= 0) {
+				draw_active_lyric(line, y);
+			} else {
+				const u32 color = offset < 0 ? COL_TEXT_FAINT : COL_TEXT_DIM;
+				text_draw_clipped(200.0f, y + (offset == 0 ? 14.0f : 0.0f),
+				                  Z_CONTENT, TEXT_BODY, color, ALIGN_CENTER, 352.0f, line);
+			}
 		}
+		y += offset == 0 ? 52.0f : 23.0f;
 	}
 }
 

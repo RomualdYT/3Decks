@@ -28,6 +28,8 @@
 #include "sound.h"
 #include "stereo.h"
 #include "artwork.h"
+#include "brand_icons.h"
+#include "icons.h"
 #include "net.h"
 #include "discovery.h"
 #include "protocol.h"
@@ -49,6 +51,26 @@
 static App s_app;
 static Setup s_setup;
 static Modal s_modal;
+static C3D_RenderTarget *s_top_screens[2];
+
+/* Present the instructions before the blocking system keyboard captures
+ * the application screens. Both eyes show the same, readable flat image. */
+static void present_pairing_help(const App *app)
+{
+	text_frame_begin();
+	C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
+	for (int eye = 0; eye < 2; ++eye) {
+		stereo_begin_eye(eye, 0.0f);
+		C2D_TargetClear(s_top_screens[eye], COL_BG);
+		C2D_SceneBegin(s_top_screens[eye]);
+		setup_draw_pairing_top(app);
+		stereo_end_eye();
+	}
+	C3D_FrameEnd(0);
+	C3D_FrameSync();
+	gspWaitForVBlank();
+}
+
 static volatile bool s_network_resume_requested = false;
 
 static void apt_status_hook(APT_HookType hook, void *param)
@@ -532,8 +554,11 @@ int main(int argc, char *argv[])
 	C2D_Prepare();
 
 	C3D_RenderTarget *top = C2D_CreateScreenTarget(GFX_TOP, GFX_LEFT);
+	s_top_screens[0] = top;
 	/* Seconde image de l'écran supérieur, pour l'œil droit. */
 	C3D_RenderTarget *top_right = C2D_CreateScreenTarget(GFX_TOP, GFX_RIGHT);
+	s_top_screens[1] = top_right;
+	setup_set_pairing_presenter(present_pairing_help);
 	C3D_RenderTarget *bottom = C2D_CreateScreenTarget(GFX_BOTTOM, GFX_LEFT);
 
 	if (top == NULL || top_right == NULL || bottom == NULL || !text_init()) {
@@ -550,6 +575,8 @@ int main(int argc, char *argv[])
 	 * l'interface se contentera du substitut dessiné.
 	 */
 	artwork_init();
+	brand_icons_init();
+	icons_init();
 
 	/*
 	 * Le retour sonore est facultatif : son absence rend l'application
@@ -749,6 +776,8 @@ int main(int argc, char *argv[])
 	net_exit();
 	ptmuExit();
 	sound_exit();
+	brand_icons_exit();
+	icons_exit();
 	artwork_exit();
 	text_exit();
 	C2D_Fini();

@@ -51,7 +51,7 @@ export function initialLocale(): Locale {
   try {
     const saved = localStorage.getItem("deck3ds.locale");
     if (saved === "fr" || saved === "en") return saved;
-  } catch { /* browser preference */ }
+  } catch { /* Fall back to the system/browser language. */ }
   return navigator.language.toLowerCase().startsWith("fr") ? "fr" : "en";
 }
 
@@ -59,4 +59,9 @@ export function translate(locale: Locale, key: CopyKey, values: Record<string, s
   let text: string = COPY[locale][key];
   for (const [name, value] of Object.entries(values)) text = text.replaceAll(`{${name}}`, String(value));
   return text;
+}
+
+/** Save explicit choices so onboarding and the editor share one preference. */
+export function saveLocale(locale: Locale): void {
+  try { localStorage.setItem("deck3ds.locale", locale); } catch { /* Session-only choice. */ }
 }

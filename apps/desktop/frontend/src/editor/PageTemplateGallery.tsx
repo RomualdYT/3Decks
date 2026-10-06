@@ -16,7 +16,7 @@ const templateDetails: Record<PageTemplateId, { fr: string; en: string }> = {
 
 export function PageTemplateGallery({ open, locale, onChoose, onClose }: Props) {
   const fr = locale === "fr";
-  const templates = PAGE_TEMPLATES.filter((template) => template.id !== "lyrics" || Boolean(window.decksDesktopControls));
+  const templates = PAGE_TEMPLATES;
 
   return <Modal isOpen={open} onOpenChange={(next) => { if (!next) onClose(); }}>
     <Modal.Backdrop><Modal.Container size="lg"><Modal.Dialog className="page-gallery">

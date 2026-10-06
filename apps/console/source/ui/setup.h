@@ -77,3 +77,9 @@ void setup_buttons(Setup *setup, App *app, u32 pressed);
 
 /** Ouvre la saisie du code court demandée par l'agent. */
 void setup_handle_pairing_request(Setup *setup, App *app);
+
+/** Present a complete frame before the system keyboard blocks rendering. */
+void setup_set_pairing_presenter(void (*present)(const App *app));
+
+/** Instructions displayed on the top screen while entering a pairing code. */
+void setup_draw_pairing_top(const App *app);

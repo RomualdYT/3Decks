@@ -25,6 +25,13 @@
 #include "network_policy.h"
 #define PROBE_TIMEOUT (CONNECT_TIMEOUT_SECONDS + HELLO_TIMEOUT_SECONDS + 2.0)
 
+static void (*s_present_pairing)(const App *app);
+
+void setup_set_pairing_presenter(void (*present)(const App *app))
+{
+	s_present_pairing = present;
+}
+
 void setup_begin(Setup *setup, bool first_run)
 {
 	memset(setup, 0, sizeof(*setup));
@@ -100,6 +107,7 @@ bool prompt_text(const char *hint, char *value, size_t size,
 
 bool prompt_pairing_code(App *app)
 {
+	if (s_present_pairing) s_present_pairing(app);
 	char code[8] = {0};
 	if (!prompt_text(tr(STR_SETUP_PAIR_CODE), code, sizeof(code),
 	                 SWKBD_TYPE_NUMPAD, 6)) {
