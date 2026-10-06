@@ -28,7 +28,7 @@ int main(void)
     assert(ui_slot_at(-1, -1) == -1);
     Rect settings = settings_rect();
     assert(ui_settings_at(settings.x + 2, settings.y + 2));
-    assert(ui_tab_at(settings.x + 2, settings.y + 2, MAX_PAGES) == -1);
+    assert(ui_tab_at(settings.x + 2, settings.y + 2, MAX_PAGES, 0) == -1);
     Page *page = &app.config.pages[1]; page->layout = LAYOUT_LIST; page->entry_count = 20;
     assert(ui_list_max_scroll(&app) > 0);
     assert(ui_list_at(&app, 12, SCREEN_H - 10) == -1);

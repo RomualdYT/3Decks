@@ -222,7 +222,7 @@ static bool begin_touch(App *app)
 		setup_open_settings(&s_setup);
 	} else {
 		const int tab = ui_tab_at((float)touch.px, (float)touch.py,
-		                          app->config.page_count);
+		                          app->config.page_count, app->current_page);
 		if (tab >= 0) {
 			app_goto_page(app, tab);
 		}

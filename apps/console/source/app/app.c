@@ -476,7 +476,7 @@ void app_update(App *app, float dt)
 	 * chaque changement de page.
 	 */
 	if (app->enter_anim < 1.0f) {
-		app->enter_anim += dt * 1.5f;
+		app->enter_anim += dt / 0.32f;
 		if (app->enter_anim > 1.0f) {
 			app->enter_anim = 1.0f;
 		}

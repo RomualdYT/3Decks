@@ -62,37 +62,28 @@ Rect waiting_settings_rect(void)
 	return rect;
 }
 
-Rect tab_rect(int index, int page_count)
+/* Geometry is shared by rendering and touch detection. With crowded decks,
+ * use icons only rather than shrinking the other pages to fit a title. */
+Rect tab_rect(int index, int page_count, int current_page)
 {
-	const int count = (page_count < 1) ? 1 : page_count;
-
-	/* La zone des onglets s'arrête avant le bouton des réglages. */
-	const float area_w = SCREEN_BOTTOM_W - GRID_MARGIN_X * 2.0f -
-	                     SETTINGS_TAB_W - 6.0f;
+	const int count = page_count < 1 ? 1 : page_count;
+	const float area = SCREEN_BOTTOM_W - GRID_MARGIN_X * 2.0f - SETTINGS_TAB_W - 6.0f;
 	const float gap = 3.0f;
-	const float tab_w = (area_w - gap * (float)(count - 1)) / (float)count;
-
-	Rect rect;
-	rect.x = GRID_MARGIN_X + (float)index * (tab_w + gap);
-	rect.y = SCREEN_H - GRID_BOTTOM_BAR + 4.0f;
-	rect.w = tab_w;
-	rect.h = TAB_H - 4.0f;
-	return rect;
+	const float inactive = count <= 6 ? 30.0f : (area - gap * (count - 1)) / count;
+	float active = count <= 6 ? area - (inactive + gap) * (count - 1) : inactive;
+	if (active > 88.0f) active = 88.0f;
+	const float width = active + (inactive + gap) * (count - 1);
+	float x = GRID_MARGIN_X + (area - width) * 0.5f;
+	for (int i = 0; i < index; i++) x += (i == current_page ? active : inactive) + gap;
+	return (Rect){x, SCREEN_H - GRID_BOTTOM_BAR + 4.0f,
+	              index == current_page ? active : inactive, TAB_H - 4.0f};
 }
 
-int ui_tab_at(float x, float y, int page_count)
+int ui_tab_at(float x, float y, int page_count, int current_page)
 {
-	if (page_count <= 0) {
-		return -1;
-	}
-
-	/* Bande tactile élargie vers le bas pour rester confortable au doigt. */
 	for (int i = 0; i < page_count; i++) {
-		const Rect rect = tab_rect(i, page_count);
-		if (x >= rect.x && x < rect.x + rect.w && y >= rect.y - 4.0f &&
-		    y < SCREEN_H) {
-			return i;
-		}
+		const Rect rect = tab_rect(i, page_count, current_page);
+		if (x >= rect.x && x < rect.x + rect.w && y >= rect.y - 4.0f && y < SCREEN_H) return i;
 	}
 	return -1;
 }

@@ -44,35 +44,17 @@ static void draw_title_bar(const App *app)
 {
 	const Page *page = app_current_page(app);
 
-	draw_rect_vgrad(0.0f, 0.0f, SCREEN_BOTTOM_W, GRID_TOP - 6.0f, Z_CARD,
-	                theme_alpha(COL_SURFACE, 0xE6),
-	                theme_alpha(COL_SURFACE_LO, 0xB0));
-
-	/*
-	 * Pastille de couleur devant le titre : reprend l'accent de la page
-	 * courante et sert de repère visuel lors des changements de page.
-	 */
-	const u32 accent = (app->link == LINK_ONLINE) ? COL_ACCENT : COL_ERR;
-	draw_round_rect(GRID_MARGIN_X, 11.0f, 3.0f, 13.0f, 1.5f, Z_CONTENT, accent);
 
 	const float indicator_left = draw_page_indicator(
 	    app, page != NULL && page->accent_custom ? page->accent : COL_ACCENT);
-	const float title_x = GRID_MARGIN_X + 9.0f;
+	const float title_x = GRID_MARGIN_X;
 	const char *title = (page != NULL) ? page->title : "3Decks";
 	text_draw_clipped(title_x, 8.0f, Z_CONTENT, TEXT_LARGE, COL_TEXT,
 	                  ALIGN_LEFT, indicator_left - title_x - 10.0f, title);
 
-	/*
-	 * Trait de séparation en dégradé : plus lumineux au centre, il structure
-	 * l'écran sans le cloisonner brutalement.
-	 */
-	const float y = GRID_TOP - 7.0f;
-	const u32 edge = theme_alpha(accent, 0x00);
-	const u32 middle = theme_alpha(accent, 0x88);
-	C2D_DrawRectangle(0.0f, y, Z_CONTENT, SCREEN_BOTTOM_W * 0.5f, 1.0f, edge,
-	                  middle, edge, middle);
-	C2D_DrawRectangle(SCREEN_BOTTOM_W * 0.5f, y, Z_CONTENT,
-	                  SCREEN_BOTTOM_W * 0.5f, 1.0f, middle, edge, middle, edge);
+	draw_rect(GRID_MARGIN_X, GRID_TOP - 7.0f,
+	          SCREEN_BOTTOM_W - GRID_MARGIN_X * 2.0f, 1.0f,
+	          Z_CONTENT, theme_alpha(COL_BORDER, 0x88));
 	if (page != NULL && page->dashboard == DASH_LYRICS &&
 	    app->state.media_seekable && app->state.media_duration > 0) {
 		const float width = SCREEN_BOTTOM_W - GRID_MARGIN_X * 2.0f;
@@ -94,43 +76,37 @@ static void draw_tabs(const App *app)
 		return;
 	}
 
+	const Rect first = tab_rect(0, count, app->current_page);
+	const Rect last = tab_rect(count - 1, count, app->current_page);
+	draw_round_rect(first.x - 3.0f, first.y,
+	                last.x + last.w - first.x + 6.0f, first.h,
+	                10.0f, Z_CARD, COL_SURFACE_LO);
+
 	for (int i = 0; i < count; i++) {
-		const Rect rect = tab_rect(i, count);
+		const Rect rect = tab_rect(i, count, app->current_page);
 		const bool current = (i == app->current_page);
 		const Page *page = model_page_at(&app->config, i);
 
-		const float radius = rect.h * 0.5f;
-
+		const u32 page_accent = page != NULL && page->accent_custom
+		                            ? page->accent : COL_ACCENT;
 		if (current) {
-			/*
-			 * Onglet actif : fond plus dense et contour net, pour qu'il se
-			 * distingue immédiatement des autres.
-			 */
-			draw_round_rect_vgrad(rect.x, rect.y, rect.w, rect.h, radius, Z_CARD,
-			                      theme_alpha(COL_ACCENT, 0x4A),
-			                      theme_alpha(COL_ACCENT, 0x22));
-			draw_round_rect_outline(rect.x, rect.y, rect.w, rect.h, radius, 1.2f,
-			                        Z_CONTENT, theme_alpha(COL_ACCENT, 0xBB));
-		} else {
-			draw_round_rect(rect.x, rect.y, rect.w, rect.h, radius, Z_CARD,
-			                theme_alpha(COL_SURFACE, 0x99));
+			draw_round_rect(rect.x, rect.y, rect.w, rect.h, 8.0f, Z_CONTENT,
+			                theme_mix(COL_BG, page_accent, 0.24f));
 		}
 
 		const char *label = (page != NULL) ? page->title : "";
-		const u32 fg = current ? COL_WHITE : COL_TEXT_DIM;
+		u32 fg = current ? theme_mix(page_accent, COL_WHITE, 0.35f) : COL_TEXT_FAINT;
+		if (current) {
+			float reveal = app->enter_anim * 0.32f / 0.18f;
+			if (reveal > 1.0f) reveal = 1.0f;
+			fg = theme_alpha(fg, (u8)(255.0f * (0.55f + 0.45f * reveal)));
+		}
 
-		/*
-		 * Une icône plutôt qu'un numéro.
-		 *
-		 * Au-delà de cinq pages, un onglet mesure moins de cinquante pixels :
-		 * le titre n'y tient plus, et un numéro n'apprend rien sur le contenu
-		 * de la page. Une icône reste lisible et reconnaissable à cette taille.
-		 * Quand la place le permet, les deux sont affichés ensemble.
-		 */
+		/* Only the selected page uses a label; crowded decks keep icons only. */
 		const IconId icon = (page != NULL) ? page->icon : ICON_PAGE;
 		const float centre_y = rect.y + rect.h * 0.5f;
 
-		if (rect.w >= 74.0f && label[0] != '\0') {
+		if (current && rect.w >= 64.0f && label[0] != '\0') {
 			icons_draw(icon, rect.x + 15.0f, centre_y, 15.0f, Z_OVERLAY, fg);
 			text_draw_clipped(
 			    rect.x + 26.0f,
@@ -153,13 +129,10 @@ static void draw_tabs(const App *app)
 
 	/* Bouton des réglages, à place fixe pour rester toujours repérable. */
 	const Rect settings = settings_rect();
-	const float settings_radius = settings.h * 0.5f;
+	const float settings_radius = 6.0f;
 
 	draw_round_rect(settings.x, settings.y, settings.w, settings.h,
 	                settings_radius, Z_CARD, theme_alpha(COL_SURFACE, 0xBB));
-	draw_round_rect_outline(settings.x, settings.y, settings.w, settings.h,
-	                        settings_radius, 1.0f, Z_CONTENT,
-	                        theme_alpha(COL_BORDER, 0x99));
 	icons_draw(ICON_GEAR, settings.x + settings.w * 0.5f,
 	           settings.y + settings.h * 0.5f, 16.0f, Z_OVERLAY, COL_TEXT_DIM);
 }

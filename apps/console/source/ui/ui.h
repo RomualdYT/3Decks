@@ -24,7 +24,7 @@ void ui_draw_bottom(const App *app);
 int ui_slot_at(float x, float y);
 
 /** Indique si le point touché correspond à l'onglet de page `index`. */
-int ui_tab_at(float x, float y, int page_count);
+int ui_tab_at(float x, float y, int page_count, int current_page);
 
 /** Indique si le point touché correspond au bouton des réglages. */
 bool ui_settings_at(float x, float y);

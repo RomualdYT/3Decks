@@ -76,29 +76,46 @@
 .active-app small, .active-app strong { display: block; }
 .active-app small { color: #758399; font-size: 5px; letter-spacing: .09em; }
 .active-app strong { font-size: clamp(6px,.62vw,9px); margin-top: 2px; }
-.screen-content { height: calc(100% - 17%); overflow: hidden; padding: 4.2% 5% 3%; }
-.console-grid { display: grid; gap: 5%; grid-template-columns: repeat(3, 1fr); height: 100%; }
-.console-grid button { align-items: center; background: rgba(38,38,44,.82); border: 1px dashed #46464f; border-radius: 7px; color: #85858f; cursor: pointer; display: flex; flex-direction: column; gap: 5%; justify-content: center; min-width: 0; overflow: hidden; padding: 5%; position: relative; transition: border-color .15s, transform .15s; }
-.console-grid button:hover { border-color: var(--accent); transform: translateY(-1px); }
-.console-grid button.configured { background: color-mix(in srgb, var(--button-color) 17%, #19191d); border-color: color-mix(in srgb, var(--button-color) 60%, #484850); border-style: solid; color: white; }
-.console-grid button.selected { box-shadow: 0 0 0 2px var(--accent), 0 5px 14px rgba(102,203,16,.15); }
-.console-button-icon { align-items: center; color: var(--button-color, currentColor); display: flex; justify-content: center; }
-.console-grid button.configured .console-button-icon { filter: brightness(1.25); }
-.console-grid strong { font-size: clamp(5px,.55vw,8px); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* Rows retain their content height. Long lists scroll instead of squeezing
-   icons and text outside their borders; navigation stays outside this scroller. */
-.console-list { --list-icon-size: clamp(14px, 7cqw, 21px); display: flex; flex-direction: column; gap: 4px; height: 100%; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: #46464f transparent; }
-.console-list button { align-items: center; background: #1b1b20; border: 1px solid #35353d; border-radius: 5px; color: white; cursor: pointer; display: grid; flex: 0 0 auto; gap: 6px; grid-template-columns: var(--list-icon-size) minmax(0, 1fr) auto; min-width: 0; padding: clamp(3px, 1.7cqw, 5px) 3%; text-align: left; }
-.console-list button > span { align-items: center; background: var(--accent-soft); border-radius: 4px; color: var(--accent); display: flex; height: var(--list-icon-size); justify-content: center; width: var(--list-icon-size); }
-.console-list button > span svg { height: 75%; width: 75%; }
-.console-list strong { font-size: clamp(8px, 3.3cqw, 11px); line-height: 1.2; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.console-list small { color: #718096; font-size: clamp(10px, 4cqw, 13px); line-height: 1; }
-.console-list button:focus-visible { outline: 1px solid var(--accent); outline-offset: -2px; }
-.console-list .list-empty { align-items: center; color: #78879c; display: flex; flex-direction: row; font-size: 7px; gap: 6px; justify-content: center; }
-.console-page-nav { align-items: center; background: rgba(8,8,10,.94); border-top: 1px solid rgba(255,255,255,.1); bottom: 0; display: flex; gap: 2px; height: 17%; inset-inline: 0; justify-content: center; overflow: hidden; padding: 1.8% 3%; position: absolute; }
-.console-page-nav button { align-items: center; background: transparent; border: 0; border-radius: 3px; color: #617087; cursor: pointer; display: flex; flex: 1; flex-direction: column; font-family: var(--font); gap: 1px; height: 100%; justify-content: center; min-width: 0; padding: 1px; }
-.console-page-nav button.active { background: var(--accent-soft); color: #bdf38d; }
-.console-page-nav button span { font-size: clamp(4px,.39vw,6px); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Native 320 × 240 canvas: the SVG scales the entire touch screen together. */
+.console-touch-preview { display: block; width: 100%; height: 100%; }
+.console-touch-canvas { width: 320px; height: 240px; position: relative; background: linear-gradient(#121214, #0d0d0f); color: #f6f6f7; font-family: var(--font); }
+.console-touch-header { position: absolute; left: 10px; right: 10px; top: 8px; height: 26px; display: flex; align-items: flex-start; gap: 6px; border-bottom: 1px solid #34343a88; }
+.console-touch-header strong { font-size: 17px; font-weight: 400; line-height: 20px; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.console-page-dots { display: flex; gap: 4px; margin-top: 7px; margin-left: 4px; }
+.console-page-dots i { width: 4px; height: 4px; border-radius: 2px; background: #8c8c98; }
+.console-page-dots i.active { width: 10px; background: var(--page-accent); }
+.console-seek-preview { position: absolute; top: 32px; left: 10px; width: 300px; height: 4px; border-radius: 2px; overflow: hidden; background: #34343a; }
+.console-seek-preview i { display: block; height: 100%; background: var(--page-accent); }
+.console-touch-canvas .screen-content { position: absolute; top: 40px; left: 10px; width: 300px; height: 164px; padding: 0; overflow: hidden; }
+.console-grid { display: grid; gap: 8px; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); height: 100%; }
+.console-grid button { background: transparent; border: 1px dashed #34343a88; border-radius: 8px; color: #8c8c98; cursor: pointer; min-width: 0; overflow: hidden; padding: 0; position: relative; }
+.console-grid button.configured { animation: console-card-enter 260ms cubic-bezier(.33, 1, .68, 1) var(--slot-delay, 0ms) backwards; background: color-mix(in srgb, var(--button-color) 17%, #19191d); border-color: color-mix(in srgb, var(--button-color) 45%, #34343a); border-style: solid; color: #f6f6f7; }
+.console-grid button.is-active { background: color-mix(in srgb, var(--button-color) 30%, #19191d); border-color: var(--button-color); }
+.console-grid button.selected, .console-grid button:focus-visible { border-color: #fff; outline: 1px solid #fff; outline-offset: -1px; }
+.console-grid button:hover { border-color: #fff; }
+.console-grid button:active { transform: translateY(1px); }
+.console-button-icon { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); display: flex; color: color-mix(in srgb, var(--button-color) 80%, #fff); }
+.console-grid button.is-active .console-button-icon { color: #fff; }
+.console-grid strong { position: absolute; top: 56px; left: 5px; right: 5px; font-size: 14px; line-height: 17px; font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.console-grid button.empty .console-button-icon { color: #8c8c98; }
+.console-grid button.empty strong { font-size: 13px; }
+.console-hold-marker { position: absolute; left: 5px; top: -2px; font-size: 18px; letter-spacing: 1px; color: #b6b6be; }
+.console-active-marker { position: absolute; right: 6px; top: 6px; width: 6px; height: 6px; background: #fff; border-radius: 50%; }
+.console-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: 38px; align-content: start; gap: 4px; height: 100%; overflow: auto; scrollbar-width: thin; scrollbar-color: #46464f transparent; }
+.console-list button { display: flex; align-items: center; gap: 5px; min-width: 0; padding: 0 8px 0 10px; border-radius: 8px; color: #f6f6f7; background: #1a1a1e; border: 1px solid #34343a; text-align: left; cursor: pointer; }
+.console-list button > span { display: flex; flex: none; color: var(--accent); }
+.console-list strong { font-size: 14px; font-weight: 400; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.console-list small { display: none; }
+.console-list button:focus-visible { outline: 1px solid #fff; outline-offset: -2px; }
+.console-list .list-empty { grid-column: 1 / -1; justify-content: center; font-size: 13px; color: #8c8c98; }
+.console-page-nav { position: absolute; top: 208px; left: 10px; right: 10px; height: 24px; display: flex; gap: 6px; }
+.console-page-tabs { display: flex; align-items: center; justify-content: center; gap: 3px; width: 260px; flex: none; position: relative; }
+.console-page-tabs::before { content: ""; position: absolute; top: 0; bottom: 0; left: 50%; transform: translateX(-50%); width: var(--dock-width); border-radius: 10px; background: #151518; z-index: 0; }
+.console-page-nav button { display: flex; align-items: center; justify-content: center; gap: 3px; flex: none; min-width: 0; height: 24px; padding: 0 4px; position: relative; color: #8c8c98; background: transparent; border: 0; border-radius: 8px; cursor: pointer; }
+.console-page-nav button.active { animation: console-dock-select 180ms ease-out; background: color-mix(in srgb, var(--tab-accent) 24%, #0d0d0f); color: color-mix(in srgb, var(--tab-accent) 65%, #fff); }
+.console-page-nav button svg { flex: none; }
+.console-page-nav button span { font-size: 13px; line-height: 16px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.console-settings-icon { display: flex; align-items: center; justify-content: center; width: 34px; flex: none; border-radius: 6px; color: #b6b6be; background: #1a1a1ebb; }
 .dynamic-empty { align-items: center; display: flex; flex-direction: column; height: 100%; justify-content: center; padding: 4%; text-align: center; }
 .dynamic-empty > span { align-items: center; background: var(--accent-soft); border: 1px solid rgba(102,203,16,.2); border-radius: 8px; color: var(--accent); display: flex; height: 36px; justify-content: center; margin-bottom: 4%; width: 36px; }
 .dynamic-empty strong { font-size: clamp(7px,.7vw,10px); }
@@ -268,3 +285,20 @@
 .modifier-options button { background: var(--panel-raised); border: 1px solid var(--border); border-radius: 7px; color: var(--muted); cursor: pointer; font-size: 9px; padding: 5px 7px; }
 .modifier-options button.active { background: var(--accent); color: #0b1604; }
 .hotkey-options select { background: var(--surface-input); border: 1px solid var(--border-strong); border-radius: 8px; color: white; height: 34px; width: 100%; }
+
+/* Match the native entrance, preserving card dimensions. */
+@keyframes console-card-enter {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .console-grid button.configured { animation: none; }
+}
+
+@keyframes console-dock-select {
+  from { opacity: .55; }
+  to { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .console-page-nav button.active { animation: none; }
+}

@@ -17,6 +17,12 @@
 
 #include "ui_bottom_internal.h"
 
+/* Preserve intrinsic alpha while fading all card elements together. */
+static u32 entrance_color(u32 color, float opacity)
+{
+	return theme_alpha(color, (u8)roundf((float)(color >> 24) * opacity));
+}
+
 /** Dessine un bouton de la grille. */
 void draw_button(const App *app, const Button *button, int slot)
 {
@@ -52,63 +58,26 @@ void draw_button(const App *app, const Button *button, int slot)
 	                 : ACTION_FEEDBACK_NONE;
 	const float press = button->press;
 
-	/*
-	 * Animation d'entrée en cascade.
-	 *
-	 * Volontairement discrète : un simple fondu accompagné d'un glissement de
-	 * quelques pixels. Une variation d'échelle attirait trop l'attention et
-	 * donnait une impression d'agitation à chaque changement de page.
-	 *
-	 * Le décalage entre emplacements reste faible : la cascade doit se
-	 * percevoir sans qu'on ait à l'attendre.
-	 */
-	const float stagger = (float)slot * 0.05f;
-	float appear = (app->enter_anim - stagger) / (1.0f - stagger * 0.5f);
-	if (appear < 0.0f) {
-		appear = 0.0f;
-	}
-	if (appear > 1.0f) {
-		appear = 1.0f;
-	}
-
-	/* Amortissement cubique : départ franc, arrivée très douce. */
+	/* 260 ms ease-out with a 20 ms wave across columns and rows.
+	 * Physical pixel positions keep text and icons sharp during movement. */
+	const float delay = (float)(slot % GRID_COLS + slot / GRID_COLS) * 0.02f;
+	float appear = (app->enter_anim * 0.32f - delay) / 0.26f;
+	if (appear < 0.0f) appear = 0.0f;
+	if (appear > 1.0f) appear = 1.0f;
 	const float inv = 1.0f - appear;
 	const float eased = 1.0f - inv * inv * inv;
-
-	if (eased <= 0.01f) {
-		return; /* pas encore apparu */
-	}
-
-	/*
-	 * L'enfoncement réduit légèrement la carte et supprime son ombre : le
-	 * retour visuel est immédiat même sans retour haptique.
-	 */
-	const float shrink = press * 2.5f;
-
-	/*
-	 * Le bouton conserve sa taille et se contente de glisser vers sa place.
-	 * Sans variation d'échelle, l'entrée paraît nettement plus posée.
-	 */
-	const float rise = (1.0f - eased) * 5.0f;
-
-	const float x = rect.x + shrink;
-	const float y = rect.y + shrink + rise;
-	const float w = rect.w - shrink * 2.0f;
-	const float h = rect.h - shrink * 2.0f;
-	const float radius = 11.0f;
+	if (eased <= 0.01f) return;
+	const float rise = roundf((1.0f - eased) * 6.0f);
+	const float x = rect.x;
+	const float y = rect.y + rise + roundf(press);
+	const float w = rect.w;
+	const float h = rect.h;
+	const float radius = 8.0f;
 
 	const u32 accent = unavailable ? COL_TEXT_FAINT : button->color;
 
-	u32 top;
-	u32 bottom;
-	if (active) {
-		/* État actif : la couleur d'accent imprègne toute la carte. */
-		top = theme_mix(COL_SURFACE_HI, accent, 0.50f);
-		bottom = theme_mix(COL_SURFACE_LO, accent, 0.30f);
-	} else {
-		top = COL_SURFACE_HI;
-		bottom = COL_SURFACE_LO;
-	}
+	const u32 base = C2D_Color32(0x19, 0x19, 0x1D, 0xFF);
+	u32 top = theme_mix(base, accent, active ? 0.30f : 0.17f);
 	if (feedback == ACTION_FEEDBACK_PENDING) {
 		top = theme_mix(top, COL_ACCENT, 0.08f);
 	} else if (feedback == ACTION_FEEDBACK_SUCCESS) {
@@ -119,38 +88,15 @@ void draw_button(const App *app, const Button *button, int slot)
 
 	if (press > 0.01f) {
 		top = theme_mix(top, COL_WHITE, press * 0.12f);
-		bottom = theme_mix(bottom, COL_WHITE, press * 0.07f);
 	}
 
-	if (press < 0.5f) {
-		draw_shadow(x, y, w, h, radius, Z_BG);
-	}
-	draw_round_rect_vgrad(x, y, w, h, radius, Z_CARD, top, bottom);
+	draw_round_rect(x, y, w, h, radius, Z_CARD, entrance_color(top, eased));
 
-	/*
-	 * Halo coloré derrière l'icône : apporte de la profondeur et rappelle la
-	 * couleur du bouton même lorsqu'il est au repos.
-	 */
-	/*
-	 * Répartition verticale, calculée depuis le bas.
-	 *
-	 * L'action secondaire ne réserve plus une ligne permanente. Son marqueur
-	 * reste visible dans un coin, et son nom ne remplace le libellé principal
-	 * que pendant le geste de maintien.
-	 */
 	const bool has_hold = button->hold_label[0] != '\0';
-
-	const float label_h = TEXT_LINE_PX(TEXT_BODY);
-	const float text_block = label_h + 5.0f;
-
+	const float text_block = 23.0f;
 	const float cx = x + w * 0.5f;
-	/* L'icône se centre dans l'espace laissé au-dessus du texte. */
-	const float icon_zone = h - text_block;
-	const float icon_cy = y + icon_zone * 0.52f;
-	const float icon_size = icon_zone * 0.62f;
-
-	draw_circle(cx, icon_cy, icon_size * 0.78f, Z_CONTENT,
-	            theme_alpha(accent, active ? 0x3A : 0x1E));
+	const float icon_cy = y + 29.0f;
+	const float icon_size = 28.0f;
 
 	/*
 	 * Contour : il distingue trois états.
@@ -163,14 +109,14 @@ void draw_button(const App *app, const Button *button, int slot)
 	const bool selected = (slot == app->grid_focus);
 
 	float outline = 1.0f;
-	u32 outline_color = theme_alpha(COL_BORDER, 0xAA);
+	u32 outline_color = theme_mix(COL_BORDER, accent, 0.45f);
 
 	if (active) {
-		outline = 1.8f;
+		outline = 1.5f;
 		outline_color = theme_alpha(accent, 0xEE);
 	}
 	if (selected) {
-		outline = 2.2f;
+		outline = 1.5f;
 		outline_color = COL_WHITE;
 	}
 	if (feedback == ACTION_FEEDBACK_PENDING) {
@@ -185,21 +131,10 @@ void draw_button(const App *app, const Button *button, int slot)
 	}
 
 	draw_round_rect_outline(x, y, w, h, radius, outline, Z_CONTENT,
-	                        outline_color);
-
-	/* Halo extérieur : rend la sélection lisible même de biais. */
-	if (selected) {
-		draw_round_rect_outline(x - 2.0f, y - 2.0f, w + 4.0f, h + 4.0f,
-		                        radius + 2.0f, 1.0f, Z_CONTENT,
-		                        theme_alpha(COL_WHITE, 0x55));
-	}
-
-	/* Liseré supérieur : simule une lumière venant du haut. */
-	draw_rect(x + radius, y + 1.0f, w - radius * 2.0f, 1.0f, Z_CONTENT,
-	          theme_alpha(COL_WHITE, active ? 0x38 : 0x16));
+	                        entrance_color(outline_color, eased));
 
 	const u32 icon_color =
-	    active ? COL_WHITE : theme_mix(accent, COL_WHITE, 0.30f);
+	    active ? COL_WHITE : theme_mix(accent, COL_WHITE, 0.20f);
 
 	/*
 	 * L'icône bascule automatiquement lorsque l'état est actif : un bouton
@@ -215,16 +150,16 @@ void draw_button(const App *app, const Button *button, int slot)
 		}
 	}
 
-	icons_draw(icon, cx, icon_cy, icon_size, Z_OVERLAY, icon_color);
+	icons_draw(icon, cx, icon_cy, icon_size, Z_OVERLAY, entrance_color(icon_color, eased));
 
 	/* Anneau qui se remplit autour de l'icône pendant l'appui long. */
 	const float hold_progress = app_hold_progress(app, slot);
 	if (hold_progress > 0.0f) {
 		const float ring_radius = icon_size * 0.80f;
 		draw_ring(cx, icon_cy, ring_radius, 1.3f, Z_OVERLAY,
-		          theme_alpha(COL_ACCENT, 0x3A));
+		          entrance_color(theme_alpha(COL_ACCENT, 0x3A), eased));
 		draw_arc(cx, icon_cy, ring_radius, 2.2f, 0.0f, hold_progress,
-		         Z_OVERLAY, COL_ACCENT);
+		         Z_OVERLAY, entrance_color(COL_ACCENT, eased));
 	}
 
 	/* Le nom secondaire n'apparaît que pendant le geste qui le déclenche. */
@@ -235,13 +170,13 @@ void draw_button(const App *app, const Button *button, int slot)
 
 	/* Si le texte est long (ex: « Navigateur », « Volumes »), on réduit la police
 	 * d'un cran pour éviter de le tronquer avec des points de suspension. */
-	float scale = TEXT_BODY;
-	if (text_width(label, scale) > w - 8.0f) {
-		scale = TEXT_SMALL;
+	float scale = TEXT_SMALL;
+	if (text_width(label, scale) > w - 12.0f) {
+		scale = TEXT_MICRO;
 	}
 
 	text_draw_clipped(cx, label_y, Z_OVERLAY, scale,
-	                  active ? COL_WHITE : COL_TEXT, ALIGN_CENTER, w - 6.0f,
+	                  entrance_color(active ? COL_WHITE : COL_TEXT, eased), ALIGN_CENTER, w - 12.0f,
 	                  label);
 
 	/* Trois points signalent sans texte qu'une action secondaire existe. */
@@ -249,8 +184,8 @@ void draw_button(const App *app, const Button *button, int slot)
 		const u32 marker = active ? theme_alpha(COL_WHITE, 0x8A)
 		                          : theme_alpha(COL_TEXT_DIM, 0xB0);
 		for (int i = 0; i < 3; i++) {
-			draw_circle(x + w - 15.0f + (float)i * 4.0f, y + h - 8.0f,
-			            1.0f, Z_OVERLAY, marker);
+			draw_circle(x + 8.0f + (float)i * 4.0f, y + 9.0f,
+			            1.0f, Z_OVERLAY, entrance_color(marker, eased));
 		}
 	}
 
@@ -258,10 +193,10 @@ void draw_button(const App *app, const Button *button, int slot)
 	 * Pastille d'état : rend l'activation lisible d'un seul coup d'œil, même
 	 * de loin ou de biais.
 	 */
-	if (feedback != ACTION_FEEDBACK_NONE) {
+	if (feedback != ACTION_FEEDBACK_NONE && appear >= 1.0f) {
 		draw_action_feedback(feedback, x + w - 11.0f, y + 11.0f,
 		                     app->uptime);
 	} else if (active) {
-		draw_circle(x + w - 10.0f, y + 10.0f, 3.0f, Z_OVERLAY, COL_WHITE);
+		draw_circle(x + w - 10.0f, y + 10.0f, 3.0f, Z_OVERLAY, entrance_color(COL_WHITE, eased));
 	}
 }

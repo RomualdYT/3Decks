@@ -11,7 +11,7 @@ typedef struct { float x, y, w, h; } Rect;
 Rect slot_rect(int slot);
 Rect settings_rect(void);
 Rect waiting_settings_rect(void);
-Rect tab_rect(int index, int page_count);
+Rect tab_rect(int index, int page_count, int current_page);
 Rect list_item_rect(int index, float scroll);
 int list_visible_rows(void);
 int list_total_rows(int count);
