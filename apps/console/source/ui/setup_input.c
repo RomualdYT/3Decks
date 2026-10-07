@@ -146,6 +146,11 @@ bool setup_touch(Setup *setup, App *app, float x, float y)
 		return false;
 	}
 
+	if (setup->community_open) {
+		if (y >= SCREEN_H - PRIMARY_BUTTON_MARGIN - PRIMARY_BUTTON_H) setup->community_open = false;
+		return true;
+	}
+
 	/* Bouton principal. */
 	float bx;
 	float by;
@@ -154,6 +159,11 @@ bool setup_touch(Setup *setup, App *app, float x, float y)
 	primary_button_bounds(&bx, &by, &bw, &bh);
 
 	if (x >= bx && x < bx + bw && y >= by && y < by + bh) {
+		if (setup->step == SETUP_DONE && !setup->first_run && x >= SETTINGS_COMMUNITY_X) {
+			setup->community_open = true;
+			return true;
+		}
+		if (setup->step == SETUP_DONE && !setup->first_run && x >= 20.0f + SETTINGS_SAVE_W) return true;
 		if (setup->step == SETUP_DONE && !setup->first_run) {
 			if (app_save_settings(app)) {
 				app_notify(app, tr(STR_SETTINGS_SAVED), false);
@@ -260,6 +270,15 @@ bool setup_touch(Setup *setup, App *app, float x, float y)
 void setup_buttons(Setup *setup, App *app, u32 pressed)
 {
 	if (!setup->active) {
+		return;
+	}
+
+	if (setup->community_open) {
+		if (pressed & (KEY_A | KEY_B | KEY_X)) setup->community_open = false;
+		return;
+	}
+	if (setup->step == SETUP_DONE && !setup->first_run && (pressed & KEY_X)) {
+		setup->community_open = true;
 		return;
 	}
 

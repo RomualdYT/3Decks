@@ -15,6 +15,13 @@ static Language s_language = LANG_EN;
  */
 
 static const char *const kEnglish[STR_COUNT] = {
+    [STR_COMMUNITY] = "Community",
+    [STR_COMMUNITY_TITLE] = "Community & help",
+    [STR_COMMUNITY_HELP] = "Need help or found a bug?",
+    [STR_COMMUNITY_UPDATES] = "Chat and follow updates on Discord.",
+    [STR_COMMUNITY_HOMEBREW] = "Discover and share homebrew projects.",
+    [STR_COMMUNITY_SCAN] = "Scan the QR code with your phone.",
+    [STR_COMMUNITY_BACK] = "Back to settings",
     [STR_DECKY_DISCREET] = "Discreet",
     [STR_DECKY_STANDBY] = "Companion idle",
     [STR_DECKY_LISTENING] = "A little music, a little company.",
@@ -122,7 +129,7 @@ static const char *const kEnglish[STR_COUNT] = {
     [STR_PAIRING_SAVED] = "Console paired securely",
     [STR_SETUP_TEST] = "Test connection",
     [STR_SETUP_TESTING] = "Testing...",
-    [STR_SETUP_TEST_OK] = "Connection works",
+    [STR_SETUP_TEST_OK] = "Connection successful",
     [STR_SETUP_TEST_FAIL] = "No answer from this address",
     [STR_SETUP_FINISH] = "Start using 3Decks",
     [STR_SETUP_DONE_TITLE] = "All set",
@@ -160,6 +167,13 @@ static const char *const kEnglish[STR_COUNT] = {
 };
 
 static const char *const kFrench[STR_COUNT] = {
+    [STR_COMMUNITY] = "Communauté",
+    [STR_COMMUNITY_TITLE] = "Communauté & aide",
+    [STR_COMMUNITY_HELP] = "Besoin d’aide ou un bug à signaler ?",
+    [STR_COMMUNITY_UPDATES] = "Échangez et suivez les nouveautés.",
+    [STR_COMMUNITY_HOMEBREW] = "Découvrez et partagez des homebrews.",
+    [STR_COMMUNITY_SCAN] = "Scannez le QR avec votre téléphone.",
+    [STR_COMMUNITY_BACK] = "Retour aux réglages",
     [STR_DECKY_DISCREET] = "Discret",
     [STR_DECKY_STANDBY] = "Veille compagnon",
     [STR_DECKY_LISTENING] = "Un peu de musique, un peu de compagnie.",
@@ -267,7 +281,7 @@ static const char *const kFrench[STR_COUNT] = {
     [STR_PAIRING_SAVED] = "Console appairée en sécurité",
     [STR_SETUP_TEST] = "Tester la connexion",
     [STR_SETUP_TESTING] = "Test en cours...",
-    [STR_SETUP_TEST_OK] = "La connexion fonctionne",
+    [STR_SETUP_TEST_OK] = "Connexion réussie",
     [STR_SETUP_TEST_FAIL] = "Aucune réponse à cette adresse",
     [STR_SETUP_FINISH] = "Commencer",
     [STR_SETUP_DONE_TITLE] = "Tout est prêt",

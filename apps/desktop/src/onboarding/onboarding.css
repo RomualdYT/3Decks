@@ -24,7 +24,12 @@
 .desktop-update-notice{position:fixed;z-index:90;right:20px;bottom:20px;display:flex;align-items:center;gap:13px;max-width:min(430px,calc(100vw - 40px));padding:14px 16px;background:#222923;border:1px solid #6caf46;border-radius:13px;box-shadow:0 18px 45px #0008;color:#f4f4f5}.desktop-update-notice>div{flex:1}.desktop-update-notice strong{font-size:13px}.desktop-update-notice p{font-size:11px;margin-top:4px}.desktop-update-notice button{border:1px solid #719b5a;border-radius:8px;background:#6dcc25;color:#182710;font-size:12px;font-weight:750;padding:8px 10px;cursor:pointer}.desktop-update-notice button:last-child{background:transparent;border:0;color:#becbb9;font-size:20px;padding:0 3px}
 
 /* The macOS traffic lights remain native; the app header supplies the titlebar surface. */
-.desktop-macos .app-header{padding-left:92px;grid-template-columns:176px minmax(0,1fr) auto}
+.desktop-macos .app-header{padding-left:104px;grid-template-columns:164px minmax(0,1fr) auto}
+.desktop-macos .main-nav{align-self:center;justify-self:center;align-items:center;gap:4px;height:40px;padding:3px;border:1px solid var(--border);border-radius:12px;background:#171719}
+.desktop-macos .main-nav button{height:32px;border:0;border-radius:8px;padding-inline:15px;font-size:12px;transition:background-color .16s ease,color .16s ease}
+.desktop-macos .main-nav button.active{background:#2a2d26;color:#e7f9d9}
+.desktop-macos .main-nav button:hover{background:#242426}
+.desktop-macos .main-nav button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .desktop-macos .onboarding-header{padding-left:92px}
 .desktop-macos .app-header,.desktop-macos .onboarding-header{-webkit-user-select:none;user-select:none}
 @media(max-width:1100px){.desktop-macos .app-header{grid-template-columns:62px minmax(0,1fr) auto}.desktop-macos .main-nav button{padding-inline:10px}}

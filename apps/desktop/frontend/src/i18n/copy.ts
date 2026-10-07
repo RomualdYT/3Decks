@@ -22,7 +22,7 @@ const COPY = {
     statusTitle: "État de 3Decks", statusHelp: "Diagnostic local, consoles connectées et derniers événements.", noConsole: "Aucune console", consoles: "{count} console(s)",
     online: "3Decks disponible", offline: "3Decks injoignable", capabilities: "Fonctions disponibles", logs: "Journal récent", version: "Version", platform: "Plateforme", listen: "Écoute", address: "Adresse 3DS",
     saved: "Configuration enregistrée. La console sera mise à jour automatiquement.", loadError: "Chargement impossible : {message}", saveError: "Enregistrement refusé : {message}",
-    detailsHelp: "Les libellés sont traduisibles. Les identifiants techniques restent stables pour que les raccourcis continuent de fonctionner.",
+    appearanceHelp: "Choisissez la langue de l’interface et personnalisez la présence de Decky.",
     actionHelp: "Choisissez une action compréhensible : les champs nécessaires apparaîtront automatiquement.", selected: "Sélectionné", close: "Fermer",
   },
   en: {
@@ -41,7 +41,7 @@ const COPY = {
     statusTitle: "3Decks status", statusHelp: "Local diagnostics, connected consoles and recent events.", noConsole: "No console", consoles: "{count} console(s)", online: "3Decks available", offline: "3Decks unreachable",
     capabilities: "Available features", logs: "Recent log", version: "Version", platform: "Platform", listen: "Listening", address: "3DS address",
     saved: "Configuration saved. The console will update automatically.", loadError: "Could not load: {message}", saveError: "Could not save: {message}",
-    detailsHelp: "Labels can be translated. Technical IDs remain stable so shortcuts keep working.", actionHelp: "Choose a clear action: the required fields will appear automatically.", selected: "Selected", close: "Close",
+    appearanceHelp: "Choose the interface language and customize Decky’s presence.", actionHelp: "Choose a clear action: the required fields will appear automatically.", selected: "Selected", close: "Close",
   },
 } as const;
 

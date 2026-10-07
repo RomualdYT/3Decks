@@ -10,6 +10,7 @@ if (navigator.userAgent.includes("Macintosh")) {
 }
 
 window.decksDesktopControls = {
+  openCommunity: () => invoke<void>("open_community"),
   getAutostart: () => invoke<boolean>("get_autostart"),
   setAutostart: (enabled) => invoke<boolean>("set_autostart", { enabled }),
   getUpdateCapability: () => invoke<{ configured: boolean; version: string }>("get_update_capability"),

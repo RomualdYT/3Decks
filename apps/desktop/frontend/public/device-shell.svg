@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="680" viewBox="0 0 640 680" fill="none">
+  <title>New Nintendo 3DS XL — graphite</title>
+  <desc>Vector reconstruction using the proportions and component positions of Epsiilon2048's New 3DS XL Vector FLA. Screen apertures share the geometry documented in deviceShell.ts.</desc>
+  <style>
+    /* Brief double pulse, followed by a long quiet interval. */
+    #wireless-led { animation: wireless-pulse 24s ease-in-out infinite; }
+    @keyframes wireless-pulse {
+      0%, 20%, 23%, 26%, 100% { fill: #82684b; }
+      21.5%, 24.5% { fill: #e0ad68; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      #wireless-led { animation: none; }
+    }
+  </style>
+  <defs>
+    <linearGradient id="rim" x1="65" y1="40" x2="565" y2="610" gradientUnits="userSpaceOnUse"><stop stop-color="#44494d"/><stop offset="1" stop-color="#292d31"/></linearGradient>
+    <linearGradient id="upper" x1="320" y1="40" x2="320" y2="330" gradientUnits="userSpaceOnUse"><stop stop-color="#262a2e"/><stop offset="1" stop-color="#212529"/></linearGradient>
+    <linearGradient id="lower" x1="85" y1="355" x2="515" y2="610" gradientUnits="userSpaceOnUse"><stop stop-color="#2a2e32"/><stop offset="1" stop-color="#23272b"/></linearGradient>
+    <linearGradient id="hinge" x1="0" y1="320" x2="0" y2="360" gradientUnits="userSpaceOnUse"><stop stop-color="#30353a"/><stop offset=".5" stop-color="#353a3f"/><stop offset="1" stop-color="#24292d"/></linearGradient>
+    <linearGradient id="button" x1="0" y1="-14" x2="0" y2="14" gradientUnits="userSpaceOnUse"><stop stop-color="#3a4045"/><stop offset="1" stop-color="#30363b"/></linearGradient>
+    <radialGradient id="pad" cx=".38" cy=".28" r=".75"><stop stop-color="#a8afb3"/><stop offset="1" stop-color="#939ca2"/></radialGradient>
+    <radialGradient id="lens"><stop stop-color="#1d3d48"/><stop offset=".4" stop-color="#09141a"/><stop offset=".7" stop-color="#101820"/><stop offset="1" stop-color="#030507"/></radialGradient>
+    <g id="key"><circle cy="1" r="14.5" fill="#101315"/><circle r="13" fill="url(#button)" stroke="#585d61" stroke-opacity=".3" stroke-width=".8"/></g>
+    <g id="speaker"><circle r="2.25" fill="#101315" stroke="#484c50" stroke-width=".6"/></g>
+  </defs>
+  <!-- Outer rims remain vector sharp; only the CSS ground shadow is blurred. -->
+  <g id="upper-shell">
+    <path d="M96 58.5H544C566 58.5 577.9 72 577.9 93V303C577.9 318 568 326 551 326H89C72 326 62.1 318 62.1 303V93C62.1 72 74 58.5 96 58.5Z" fill="url(#rim)" stroke="#090b0d" stroke-width="2"/>
+    <path d="M97 61.5H543C563 61.5 575 74 575 94V300C575 313 566 322 552 322H88C74 322 65 313 65 300V94C65 74 77 61.5 97 61.5Z" fill="url(#upper)" stroke="#747a80" stroke-opacity=".18"/>
+
+    <rect x="137.45" y="92.5" width="365.75" height="226.75" rx="13" fill="#111315" stroke="#45494c" stroke-width="1"/>
+    <rect x="141.45" y="96.5" width="357.75" height="218.75" rx="10" fill="#090b0d" stroke="#000" stroke-width="1.5"/>
+    <rect id="top-aperture" x="144.7" y="100.5" width="351.25" height="210.75" rx="4" fill="#0d0d0f"/>
+    <circle cx="319.75" cy="72.8" r="8.4" fill="#14171a" stroke="#52585c" stroke-width="1"/>
+    <circle cx="319.75" cy="72.8" r="5.6" fill="url(#lens)"/><circle cx="317.9" cy="70.8" r="1.1" fill="#8ca6ba" opacity=".35"/>
+    <circle cx="337.1" cy="72.1" r="2.8" fill="#101315" stroke="#484e52" stroke-width=".7"/>
+    <g id="speakers"><use href="#speaker" x="104" y="184"/><use href="#speaker" x="97" y="191"/><use href="#speaker" x="111" y="191"/><use href="#speaker" x="97" y="203"/><use href="#speaker" x="111" y="203"/><use href="#speaker" x="104" y="210"/><use href="#speaker" x="536" y="184"/><use href="#speaker" x="529" y="191"/><use href="#speaker" x="543" y="191"/><use href="#speaker" x="529" y="203"/><use href="#speaker" x="543" y="203"/><use href="#speaker" x="536" y="210"/></g>
+    <g id="sliders" stroke-linecap="round"><path d="M572 190V253M68 190V253" stroke="#101315" stroke-width="4"/><path d="M573 202V217M67 220V235" stroke="#777d81" stroke-width="4"/><path d="M571 203V216M69 221V234" stroke="#34393d" stroke-width="2"/></g>
+    <g fill="#8d949a" opacity=".55" font-family="Arial, sans-serif" font-size="7"><text x="550" y="240">3D</text><text x="76" y="252">VOL</text></g>
+  </g>
+  <g id="lower-shell">
+    <path d="M89 352H551C569 352 577.9 366 577.9 382V580C577.9 606 563 620.5 539 620.5H101C77 620.5 62.1 606 62.1 580V382C62.1 366 71 352 89 352Z" fill="url(#rim)" stroke="#0c0e10" stroke-width="2"/>
+    <path d="M90 355H550C565 355 574.5 367 574.5 383V578C574.5 602 561 616.5 538 616.5H102C79 616.5 65.5 602 65.5 578V383C65.5 367 75 355 90 355Z" fill="url(#lower)" stroke="#747a80" stroke-opacity=".16"/>
+
+    <rect x="169.225" y="364.725" width="302.25" height="230.75" rx="13" fill="#1b1e21" stroke="#4d5357" stroke-opacity=".55"/>
+    <rect x="176.225" y="369.725" width="288.25" height="218.75" rx="8" fill="#090b0d" stroke="#111315" stroke-width="2"/>
+    <rect id="bottom-aperture" x="179.85" y="373.725" width="281" height="210.75" rx="4" fill="#0d0d0f"/>
+  </g>
+  <g id="hinge">
+    <rect x="62" y="321" width="516" height="38" rx="15" fill="url(#hinge)" stroke="#131619"/>
+
+    <path d="M94 322V358M146 322V358M494 322V358M546 322V358" stroke="#111416" stroke-width="2"/>
+
+  </g>
+  <g id="circle-pad" transform="translate(113.05 413.85)">
+    <circle cy="1" r="35.5" fill="#15181b" stroke="#50585e" stroke-width=".8"/><circle r="31.5" fill="#25292d" stroke="#0e1114" stroke-width="2"/>
+    <circle cy="1" r="26.2" fill="#111518"/><circle r="25" fill="url(#pad)" stroke="#b5bdc2" stroke-opacity=".2"/>
+
+  </g>
+  <g id="d-pad" transform="translate(112.8 497.75)">
+    <path d="M-10-28H10V-10H28V10H10V28H-10V10H-28V-10H-10Z" fill="#101315" stroke="#111416" stroke-width="4" stroke-linejoin="round"/>
+    <path d="M-9-27H9V-9H27V9H9V27H-9V9H-27V-9H-9Z" fill="#34393d" stroke="#697177" stroke-width=".8" stroke-linejoin="round"/>
+    <path d="M-5-22H5M-22-5V5M22-5V5M-5 22H5" stroke="#a4adb4" stroke-opacity=".38" stroke-width="1.5" stroke-linecap="round"/>
+  </g>
+  <g id="c-stick" transform="translate(497.95 385.25)"><circle cy="1" r="12" fill="#15191c" stroke="#53595e"/><circle r="9.2" fill="url(#pad)" stroke="#b9bec1" stroke-opacity=".35"/></g>
+  <g id="face-buttons" font-family="Arial, sans-serif" font-size="15" font-weight="500" text-anchor="middle">
+    <g transform="translate(526.45 415.75)"><use href="#key"/><text y="5" fill="#70a8cf">X</text></g><g transform="translate(554.4 442.25)"><use href="#key"/><text y="5" fill="#d17d79">A</text></g><g transform="translate(526.45 469)"><use href="#key"/><text y="5" fill="#d8bb6e">B</text></g><g transform="translate(497.65 442.5)"><use href="#key"/><text y="5" fill="#78b49d">Y</text></g>
+  </g>
+  <g id="start-select" font-family="Arial, sans-serif" font-size="7.5" letter-spacing=".7" fill="#abb2b7">
+    <circle cx="497.7" cy="528.25" r="7.3" fill="#161a1d" stroke="#565e64"/><circle cx="497.7" cy="561" r="7.3" fill="#161a1d" stroke="#565e64"/>
+    <text x="510" y="531">START</text><text x="510" y="564">SELECT</text>
+  </g>
+  <g id="home" transform="translate(319.8 606.05)"><rect x="-19" y="-8" width="38" height="16" rx="8" fill="#171b1e" stroke="#697177" stroke-opacity=".55"/><path d="M-5 1V-2L0-6 5-2V4H1V0H-1V4H-5Z" stroke="#9fa8ae" stroke-width="1" stroke-linejoin="round"/></g>
+  <g id="status-lights"><rect x="516" y="609" width="4" height="7" rx="1" fill="#456783"/><rect id="wireless-led" x="533" y="609" width="4" height="7" rx="1" fill="#82684b"/></g>
+</svg>

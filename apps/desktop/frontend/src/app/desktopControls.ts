@@ -1,5 +1,6 @@
 /** Optional desktop-only controls installed by the Tauri entrypoint. */
 export interface DesktopControls {
+  openCommunity(): Promise<void>;
   getAutostart(): Promise<boolean>;
   setAutostart(enabled: boolean): Promise<boolean>;
   getUpdateCapability(): Promise<{ configured: boolean; version: string }>;

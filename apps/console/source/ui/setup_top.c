@@ -21,6 +21,7 @@
 #include "theme.h"
 
 #include "setup_internal.h"
+#include "community_qr.h"
 #include "platform_label.h"
 #include "ui_companion.h"
 
@@ -156,11 +157,16 @@ static void draw_host_step(const Setup *setup, const App *app)
 		}
 		break;
 	}
-	case PROBE_SUCCESS:
-		icons_draw(ICON_STAR, cx - 60.0f, y + 8.0f, 15.0f, Z_CONTENT, COL_OK);
-		text_draw(cx + 8.0f, y, Z_CONTENT, TEXT_SMALL, COL_OK, ALIGN_CENTER,
-		          tr(STR_SETUP_TEST_OK));
+	case PROBE_SUCCESS: {
+		const char *label = tr(STR_SETUP_TEST_OK);
+		const float left = cx - (text_width(label, TEXT_SMALL) + 24.0f) * 0.5f;
+		draw_line(left + 2.0f, y + 8.0f, left + 6.0f, y + 12.0f,
+		          2.0f, Z_CONTENT, COL_OK);
+		draw_line(left + 6.0f, y + 12.0f, left + 14.0f, y + 4.0f,
+		          2.0f, Z_CONTENT, COL_OK);
+		text_draw(left + 24.0f, y, Z_CONTENT, TEXT_SMALL, COL_OK, ALIGN_LEFT, label);
 		break;
+	}
 	case PROBE_FAILURE:
 		text_draw(cx, y, Z_CONTENT, TEXT_SMALL, COL_ERR, ALIGN_CENTER,
 		          tr(STR_SETUP_TEST_FAIL));
@@ -223,10 +229,39 @@ static void draw_done_step(const Setup *setup, const App *app)
 	}
 }
 
+static void draw_community_qr(void)
+{
+	/* Four physical pixels per module: crisp edges and a full quiet zone. */
+	const float module = 4.0f;
+	const float size = COMMUNITY_QR_SIZE * module;
+	const float left = (SCREEN_TOP_W - size) * 0.5f;
+	const float top = 48.0f;
+	draw_rect(left, top, size, size, Z_CARD, COL_WHITE);
+	for (int row = 0; row < COMMUNITY_QR_SIZE; row++) {
+		for (int col = 0; col < COMMUNITY_QR_SIZE;) {
+			if (!community_qr[row][col]) { col++; continue; }
+			const int first = col;
+			while (col < COMMUNITY_QR_SIZE && community_qr[row][col]) col++;
+			draw_rect(left + first * module, top + row * module,
+			          (col - first) * module, module, Z_CONTENT,
+			          C2D_Color32(0, 0, 0, 255));
+		}
+	}
+	text_draw(SCREEN_TOP_W * 0.5f, 210.0f, Z_CONTENT, TEXT_SMALL,
+	          COL_TEXT_DIM, ALIGN_CENTER, COMMUNITY_URL + 8);
+}
+
 void setup_draw_top(const Setup *setup, const App *app)
 {
 	draw_rect_vgrad(0.0f, 0.0f, SCREEN_TOP_W, SCREEN_H, Z_BG,
 	                theme_mix(COL_BG, COL_ACCENT, 0.10f), COL_BG);
+
+	if (setup->community_open) {
+		text_draw(SCREEN_TOP_W * 0.5f, 14.0f, Z_CONTENT, TEXT_LARGE,
+		          COL_TEXT, ALIGN_CENTER, "3Decks · Discord");
+		draw_community_qr();
+		return;
+	}
 
 	/* Titre de l'application, en tête. */
 	text_draw(SCREEN_TOP_W * 0.5f, 14.0f, Z_CONTENT, TEXT_LARGE, COL_TEXT,

@@ -36,6 +36,7 @@ typedef enum {
 
 typedef struct {
 	bool active;      /**< Vrai si l'assistant ou les réglages sont affichés. */
+	bool community_open; /**< Community QR screen, returning to settings. */
 	bool first_run;   /**< Vrai lors du tout premier démarrage. */
 	SetupStep step;
 	int selection;    /**< Ligne sélectionnée dans les réglages. */

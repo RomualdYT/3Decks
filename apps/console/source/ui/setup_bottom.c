@@ -23,14 +23,9 @@
 #include "setup_internal.h"
 #include "platform_label.h"
 
-static void draw_primary_button(const char *label, u32 accent)
+static void draw_setup_button(const char *label, u32 accent,
+                              float x, float y, float w, float h)
 {
-	float x;
-	float y;
-	float w;
-	float h;
-	primary_button_bounds(&x, &y, &w, &h);
-
 	draw_shadow(x, y, w, h, 10.0f, Z_BG);
 	draw_round_rect_vgrad(x, y, w, h, 10.0f, Z_CARD,
 	                      theme_mix(COL_SURFACE_HI, accent, 0.55f),
@@ -39,6 +34,13 @@ static void draw_primary_button(const char *label, u32 accent)
 	                        theme_alpha(accent, 0xDD));
 	text_draw_clipped(x + w * 0.5f, y + (h - text_height(TEXT_BODY)) * 0.5f,
 	                  Z_OVERLAY, TEXT_BODY, COL_WHITE, ALIGN_CENTER, w - 24.0f, label);
+}
+
+static void draw_primary_button(const char *label, u32 accent)
+{
+	float x, y, w, h;
+	primary_button_bounds(&x, &y, &w, &h);
+	draw_setup_button(label, accent, x, y, w, h);
 }
 
 /** Ligne de réglage : intitulé à gauche, valeur à droite. */
@@ -184,6 +186,23 @@ void setup_draw_bottom(const Setup *setup, const App *app)
 	draw_rect_vgrad(0.0f, 0.0f, SCREEN_BOTTOM_W, SCREEN_H, Z_BG, COL_BG_ALT,
 	                COL_BG);
 
+	if (setup->community_open) {
+		const float cx = SCREEN_BOTTOM_W * 0.5f;
+		icons_draw(ICON_CHAT, cx, 35.0f, 28.0f, Z_CONTENT, COL_ACCENT);
+		text_draw(cx, 62.0f, Z_CONTENT, TEXT_LARGE, COL_TEXT, ALIGN_CENTER,
+		          tr(STR_COMMUNITY_TITLE));
+		text_draw(cx, 98.0f, Z_CONTENT, TEXT_SMALL, COL_TEXT_DIM, ALIGN_CENTER,
+		          tr(STR_COMMUNITY_HELP));
+		text_draw(cx, 121.0f, Z_CONTENT, TEXT_SMALL, COL_TEXT_DIM, ALIGN_CENTER,
+		          tr(STR_COMMUNITY_UPDATES));
+		text_draw(cx, 144.0f, Z_CONTENT, TEXT_SMALL, COL_TEXT_DIM, ALIGN_CENTER,
+		          tr(STR_COMMUNITY_HOMEBREW));
+		text_draw(cx, 169.0f, Z_CONTENT, TEXT_MICRO, COL_TEXT_FAINT, ALIGN_CENTER,
+		          tr(STR_COMMUNITY_SCAN));
+		draw_primary_button(tr(STR_COMMUNITY_BACK), COL_ACCENT);
+		return;
+	}
+
 	if (setup->step == SETUP_LANGUAGE) {
 		draw_language_choice();
 		draw_primary_button(tr(STR_NEXT), COL_ACCENT);
@@ -246,7 +265,14 @@ void setup_draw_bottom(const Setup *setup, const App *app)
 	            app->settings.companion == 1 ? STR_DECKY_DISCREET : STR_DECKY_STANDBY),
 	         setup->selection == ROW_COMPANION);
 
-	draw_primary_button(tr(STR_SETTINGS_SAVE), COL_OK);
+	if (setup->first_run) {
+		draw_primary_button(tr(STR_SETTINGS_SAVE), COL_OK);
+	} else {
+		const float y = SCREEN_H - PRIMARY_BUTTON_MARGIN - PRIMARY_BUTTON_H;
+		draw_setup_button(tr(STR_SETTINGS_SAVE), COL_OK, 20.0f, y, SETTINGS_SAVE_W, PRIMARY_BUTTON_H);
+		draw_setup_button(tr(STR_COMMUNITY), COL_ACCENT, SETTINGS_COMMUNITY_X, y, SETTINGS_COMMUNITY_W, PRIMARY_BUTTON_H);
+	}
+
 }
 
 /* --- Interaction ---------------------------------------------------------- */

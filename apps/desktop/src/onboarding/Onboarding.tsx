@@ -144,7 +144,7 @@ export function Onboarding({ initialStep, onComplete }: { initialStep: number; o
   const connected = (agent?.clients.length ?? 0) > 0;
 
   return <div className="onboarding-shell">
-    <header className="onboarding-header" data-tauri-drag-region>
+    <header className="onboarding-header" data-tauri-drag-region="deep">
       <div className="onboarding-brand"><DeckyLogo /><strong>3Decks</strong></div>
       <div className="onboarding-header-end">
         <div className="onboarding-progress"><span>{copy("Étape", "Step")} {step + 1} {copy("sur", "of")} 4</span><div>{[0, 1, 2, 3].map((index) => <i key={index} className={index <= step ? "is-active" : ""} />)}</div></div>

@@ -12,12 +12,37 @@ import { ConsoleConnectionIcon } from "../components/BrandIcons";
 import { NumberControl, TextControl } from "../components/FormControls";
 import { formatDeviceName } from "../utils/devices";
 import { FeatureSettings } from "./FeatureSettings";
+import { ObsSetupHelp } from "./ObsSetupHelp";
+import { CommunityHelp } from "./CommunityHelp";
 
 type Section = "connection" | "features" | "appearance" | "obs" | "advanced";
 
 const SECTIONS: Array<[Section, string]> = [
   ["connection", "link"], ["features", "sliders"], ["appearance", "language"], ["obs", "video"], ["advanced", "gear"],
 ];
+
+const SECTION_HELP: Record<Section, Record<Locale, string>> = {
+  connection: {
+    en: "Connect your 3DS on the same local network, find its pairing code and manage authorized consoles.",
+    fr: "Connectez votre 3DS sur le même réseau local, retrouvez son code d’appairage et gérez les consoles autorisées.",
+  },
+  features: {
+    en: "Choose the controls and information available on your console, and manage their permissions.",
+    fr: "Choisissez les commandes et les informations disponibles sur votre console, et gérez leurs autorisations.",
+  },
+  appearance: {
+    en: "Choose the interface language and customize Decky’s presence.",
+    fr: "Choisissez la langue de l’interface et personnalisez la présence de Decky.",
+  },
+  obs: {
+    en: "Connect OBS Studio to control scenes and recording from your 3DS.",
+    fr: "Connectez OBS Studio pour piloter les scènes et l’enregistrement depuis votre 3DS.",
+  },
+  advanced: {
+    en: "Adjust network settings, update timing and how 3Decks starts on your computer.",
+    fr: "Ajustez les réglages réseau, la fréquence de mise à jour et le démarrage de 3Decks sur votre ordinateur.",
+  },
+};
 
 function tokenValue(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(24));
@@ -92,7 +117,8 @@ export function SettingsView({ config, schema, status, locale, t, update, onLoca
     <div className="settings-layout">
       <aside className="settings-sidebar">
         <div className="sidebar-heading"><div><span className="eyebrow">3Decks</span><h2>{t("settings")}</h2></div></div>
-        <nav>{SECTIONS.map(([id, icon]) => <button key={id} type="button" aria-label={t(id === "features" ? "features" : id === "appearance" ? "appearance" : id === "obs" ? "obs" : id === "advanced" ? "advanced" : "connection")} className={section === id ? "active" : ""} onClick={() => setSection(id)}><span><DeckIcon name={icon} /></span>{t(id === "features" ? "features" : id === "appearance" ? "appearance" : id === "obs" ? "obs" : id === "advanced" ? "advanced" : "connection")}{id === "obs" && !config.integrations.obs.enabled ? <small>{t("disabled")}</small> : null}</button>)}</nav>
+        <nav>{SECTIONS.map(([id, icon]) => <button key={id} type="button" aria-label={t(id === "features" ? "features" : id === "appearance" ? "appearance" : id === "obs" ? "obs" : id === "advanced" ? "advanced" : "connection")} className={section === id ? "active" : ""} onClick={() => setSection(id)}><span>{id === "connection" ? <ConsoleConnectionIcon connected={Boolean(status?.clients.length)} /> : <DeckIcon name={icon} />}</span>{t(id === "features" ? "features" : id === "appearance" ? "appearance" : id === "obs" ? "obs" : id === "advanced" ? "advanced" : "connection")}{id === "obs" && !config.integrations.obs.enabled ? <small>{t("disabled")}</small> : null}</button>)}</nav>
+        <div className="settings-community"><CommunityHelp locale={locale} /></div>
         <div className="settings-platform"><span className="connection-dot connected" /><div><strong>{platformLabel(status?.platform)}</strong><small>{status ? t("online") : t("offline")}</small></div></div>
       </aside>
       <main className="settings-workspace">
@@ -105,11 +131,11 @@ export function SettingsView({ config, schema, status, locale, t, update, onLoca
           <Card className="address-card manual-address-card" variant="secondary"><Card.Content><div><span className="field-label">{locale === "fr" ? "Configuration manuelle" : "Manual setup"}</span><code>{address}</code><small>{locale === "fr" ? "Adresse de secours si la découverte locale est bloquée par le réseau." : "Fallback address if local discovery is blocked by the network."}</small></div><Button variant="outline" onPress={() => { void navigator.clipboard.writeText(address); setCopied(true); toast.success(locale === "fr" ? "Adresse copiée" : "Address copied"); window.setTimeout(() => setCopied(false), 1600); }}><DeckIcon name="copy" size={16} />{copied ? t("copied") : t("copy")}</Button></Card.Content></Card>
           <section className="settings-card"><div className="setting-row"><div className="setting-icon"><DeckIcon name="lock" /></div><div><h3>{t("security")}</h3><p>{native ? (locale === "fr" ? "Chaque console utilise un jeton individuel après l’appairage par code." : "Each console receives an individual token after code pairing.") : t("tokenHelp")}</p></div>{native ? <span className="pairing-live">{locale === "fr" ? "ACTIF" : "ACTIVE"}</span> : <Switch aria-label={t("security")} isSelected={Boolean(config.server.token)} onChange={(enabled) => update((draft) => { draft.server.token = enabled ? tokenValue() : ""; })}><Switch.Content><Switch.Control><Switch.Thumb /></Switch.Control></Switch.Content></Switch>}</div>{native ? <div className="token-panel"><div><small>{locale === "fr" ? "Protection" : "Protection"}</small><p>{locale === "fr" ? "Le code est obligatoire pour une nouvelle console ; révoquez chaque accès séparément ci-dessus." : "A code is required for a new console; revoke each access separately above."}</p></div></div> : <div className={`token-panel ${config.server.token ? "" : "token-empty"}`}><div><small>{locale === "fr" ? "Secret d’appairage" : "Pairing bootstrap secret"}</small>{config.server.token ? <code aria-label={locale === "fr" ? "Secret masqué" : "Secret hidden"}>••••••••••••</code> : <p>{locale === "fr" ? "Appairage ouvert. Activez la protection pour exiger le code affiché ci-dessus." : "Pairing is open. Enable protection to require the code shown above."}</p>}</div><div>{config.server.token ? <Button size="sm" variant="ghost" onPress={() => update((draft) => { draft.server.token = tokenValue(); })}>{locale === "fr" ? "Régénérer" : "Regenerate"}</Button> : <Button size="sm" variant="outline" onPress={() => update((draft) => { draft.server.token = tokenValue(); })}><DeckIcon name="lock" size={15} />{locale === "fr" ? "Activer et générer" : "Enable and generate"}</Button>}</div></div>}</section>
         </div>}
-        {section === "appearance" && <div className="settings-content"><SettingsHeading icon="language" title={t("appearance")} help={t("detailsHelp")} />
+        {section === "appearance" && <div className="settings-content"><SettingsHeading icon="language" title={t("appearance")} help={t("appearanceHelp")} />
           <DeckySettings locale={locale} />
           <section className="settings-card"><h3>{t("language")}</h3><div className="language-cards"><button type="button" className={locale === "fr" ? "active" : ""} onClick={() => onLocale("fr")}><span>FR</span><strong>{t("french")}</strong>{locale === "fr" && <DeckIcon name="sparkle" />}</button><button type="button" className={locale === "en" ? "active" : ""} onClick={() => onLocale("en")}><span>EN</span><strong>{t("english")}</strong>{locale === "en" && <DeckIcon name="sparkle" />}</button></div></section>
         </div>}
-        {section === "obs" && <div className="settings-content"><SettingsHeading icon="video" title={t("obsTitle")} help={t("obsHelp")} />
+        {section === "obs" && <div className="settings-content"><div className="obs-settings-heading"><SettingsHeading icon="video" title={t("obsTitle")} help={t("obsHelp")} /><ObsSetupHelp locale={locale} /></div>
           <section className="settings-card"><div className="setting-row"><div className="setting-icon"><DeckIcon name="video" /></div><div><h3>{t("obs")}</h3><p>OBS WebSocket 5.x · {config.integrations.obs.host}:{config.integrations.obs.port}</p></div><Switch aria-label={t("obs")} isSelected={config.integrations.obs.enabled} onChange={(enabled) => update((draft) => { draft.integrations.obs.enabled = enabled; })}><Switch.Content><Switch.Control><Switch.Thumb /></Switch.Control></Switch.Content></Switch></div></section>
           <form className="settings-card form-card" onSubmit={(event) => event.preventDefault()}><div className="two-fields"><TextControl label={t("host")} value={config.integrations.obs.host} description={locale === "fr" ? "Laissez localhost si OBS tourne sur cet ordinateur." : "Keep localhost when OBS runs on this computer."} onChange={(value) => update((draft) => { draft.integrations.obs.host = value; })} /><NumberControl label={t("port")} value={config.integrations.obs.port} min={portRange[0]} max={portRange[1]} onChange={(value) => update((draft) => { draft.integrations.obs.port = value; })} /></div><TextControl label={t("password")} type="password" autoComplete="current-password" value={config.integrations.obs.password} description={locale === "fr" ? "Défini dans OBS → Outils → Paramètres du serveur WebSocket." : "Set in OBS → Tools → WebSocket Server Settings."} onChange={(value) => update((draft) => { draft.integrations.obs.password = value; })} /><NumberControl label={t("timeout")} value={config.integrations.obs.timeout} min={obsTimeoutRange[0]} max={obsTimeoutRange[1]} step={0.1} description={locale === "fr" ? "Durée maximale d’attente lors d’une action OBS." : "Maximum wait time for an OBS action."} onChange={(value) => update((draft) => { draft.integrations.obs.timeout = value; })} />
             <div className="obs-actions"><Button variant="primary" isDisabled={testing} onPress={() => { setTesting(true); setObsResult(""); void agentApi.testObs(config.integrations.obs).then((result) => { const nextScenes = result.scenes ?? []; onScenes(nextScenes); setObsResult(`${t("connected")} · ${nextScenes.length} ${t("scenes")}`); }).catch((error: Error) => setObsResult(error.message)).finally(() => setTesting(false)); }}>{testing ? t("testing") : t("test")}</Button>{obsResult && <span className={scenes.length ? "success-text" : "error-text"}>{obsResult}</span>}</div>
@@ -123,7 +149,7 @@ export function SettingsView({ config, schema, status, locale, t, update, onLoca
           {native && <section className="settings-card"><div className="setting-row"><div className="setting-icon"><DeckIcon name="refresh" /></div><div><h3>{locale === "fr" ? "Mises à jour" : "Updates"}</h3><p>{updateCapability?.configured ? (locale === "fr" ? `Version ${updateCapability.version} · mises à jour signées via GitHub Releases.` : `Version ${updateCapability.version} · signed updates via GitHub Releases.`) : (locale === "fr" ? "La signature des mises à jour sera activée dans la distribution publique." : "Signed updates will be enabled in the public release.")}</p></div>{availableUpdate ? <Button variant="primary" isDisabled={installingUpdate} onPress={installAvailableUpdate}>{installingUpdate ? (locale === "fr" ? "Installation…" : "Installing…") : (locale === "fr" ? `Installer ${availableUpdate}` : `Install ${availableUpdate}`)}</Button> : <Button variant="outline" isDisabled={!updateCapability?.configured || checkingUpdates} onPress={checkUpdates}>{checkingUpdates ? (locale === "fr" ? "Recherche…" : "Checking…") : (locale === "fr" ? "Vérifier" : "Check")}</Button>}</div></section>}
         </div>}
       </main>
-      <aside className="settings-context"><div className="context-illustration"><Decky mood="wave" size={92} /><i /><i /><i /></div><h3>{section === "features" ? t("featureTitle") : t("settings")}</h3><p>{section === "features" ? t("setupPermission") : t("detailsHelp")}</p><div className="context-tip"><DeckIcon name="info" /><span>{locale === "fr" ? "Les changements prennent effet après enregistrement, sans relancer l’agent." : "Changes take effect after saving, without restarting the agent."}</span></div></aside>
+      <aside className="settings-context"><div className="context-illustration"><Decky mood="wave" size={92} /><i /><i /><i /></div><h3>{section === "features" ? t("featureTitle") : t("settings")}</h3><p>{SECTION_HELP[section][locale]}</p><div className="context-tip"><DeckIcon name="info" /><span>{locale === "fr" ? "Les changements prennent effet après enregistrement, sans relancer l’agent." : "Changes take effect after saving, without restarting the agent."}</span></div></aside>
     </div>
   );
 }
@@ -148,5 +174,5 @@ function PairedDevices({ devices, locale }: { devices: AgentState["paired_device
 }
 
 function SettingsHeading({ icon, title, help }: { icon: string; title: string; help: string }) {
-  return <div className="settings-title"><span><DeckIcon name={icon} size={24} /></span><div><h1>{title}</h1><p>{help}</p></div></div>;
+  return <div className="settings-title"><span>{icon === "link" ? <ConsoleConnectionIcon connected={false} size={24} /> : <DeckIcon name={icon} size={24} />}</span><div><h1>{title}</h1><p>{help}</p></div></div>;
 }

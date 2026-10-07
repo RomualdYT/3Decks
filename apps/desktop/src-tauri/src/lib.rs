@@ -22,6 +22,26 @@ use tauri_plugin_window_state::{
 const UPDATE_ENDPOINT: &str =
     "https://github.com/RomualdYT/3Decks/releases/latest/download/latest.json";
 
+/// Open the bundled invitation with the system browser, never inside the webview.
+#[tauri::command]
+async fn open_community() -> Result<(), String> {
+    let community: Value = serde_json::from_str(include_str!("../../../../resources/community.json"))
+        .map_err(|error| error.to_string())?;
+    let url = community["invite_url"].as_str().ok_or("Missing community invitation")?;
+    #[cfg(target_os = "windows")]
+    { return platform::windows::shell::open(url).await; }
+    #[cfg(not(target_os = "windows"))]
+    {
+        #[cfg(target_os = "macos")]
+        let program = "/usr/bin/open";
+        #[cfg(not(target_os = "macos"))]
+        let program = "xdg-open";
+        let status = tokio::process::Command::new(program).arg(url).status().await
+            .map_err(|error| error.to_string())?;
+        if status.success() { Ok(()) } else { Err("Unable to open community invitation".into()) }
+    }
+}
+
 #[tauri::command]
 fn get_status(shared: tauri::State<'_, Arc<Shared>>) -> Status {
     shared.snapshot()
@@ -396,6 +416,7 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            open_community,
             get_status,
             get_config,
             get_catalog,
@@ -471,7 +492,9 @@ pub(crate) fn open_editor_at(app: &AppHandle, route: &str) -> tauri::Result<()> 
             builder = builder
                 .title("")
                 .title_bar_style(tauri::TitleBarStyle::Overlay)
-                .traffic_light_position(tauri::LogicalPosition::new(17.0, 20.0));
+                // Wry's vertical inset places the native control centers near y=36,
+                // aligned with the 72 px editor toolbar.
+                .traffic_light_position(tauri::LogicalPosition::new(18.0, 32.0));
         }
         let window = builder.build()?;
         let _ = window.restore_state(StateFlags::all());

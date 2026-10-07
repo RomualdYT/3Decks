@@ -1,1 +1,0 @@
-/Users/romuald/Developer/3Decks/apps/desktop/extension-sdk/target/debug/examples/counter: /Users/romuald/Developer/3Decks/apps/desktop/extension-sdk/examples/counter.rs /Users/romuald/Developer/3Decks/apps/desktop/extension-sdk/src/lib.rs

@@ -142,3 +142,21 @@
 .logs { background: var(--surface-deep); color: #b4b4bd; font: 10px/1.6 "SFMono-Regular", Consolas, monospace; margin: 0; max-height: 330px; overflow: auto; padding: 17px; white-space: pre-wrap; }
 .empty-status { align-items: center; display: flex; flex-direction: column; gap: 12px; justify-content: center; min-height: 65vh; text-align: center; }
 .empty-status svg { color: var(--muted-2); }
+
+.obs-settings-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 28px; flex-wrap: wrap; }
+.obs-settings-heading .settings-title { margin-bottom: 0; flex: 1; min-width: 240px; }
+.obs-settings-heading > button { flex: none; margin-top: 4px; }
+.obs-setup-modal [data-slot="modal-header"] > div { min-width: 0; }
+.obs-setup-modal p { color: var(--muted); font-size: 12px; line-height: 1.6; }
+.obs-setup-tip { padding: 12px 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg-soft); }
+
+.settings-sidebar { display: flex; flex-direction: column; }
+.settings-sidebar .settings-platform { position: static; margin-top: 16px; }
+.settings-community { margin-top: auto; padding-top: 16px; border-top: 1px solid var(--border); }
+.community-help-button { justify-content: flex-start; width: 100%; color: var(--muted); font-size: 12px; }
+.community-modal p { color: var(--muted); font-size: 13px; line-height: 1.65; }
+.community-qr { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 12px 0; }
+.community-qr img { display: block; background: #fff; border-radius: 8px; }
+.community-qr span { color: var(--muted); font-size: 12px; }
+.community-qr a { font-size: 12px; color: var(--text); text-decoration: underline; text-underline-offset: 3px; }
+@media(max-width:920px) { .settings-community { margin-top: 12px; padding-top: 8px; } .community-help-button { width: auto; } }

@@ -18,6 +18,9 @@ enum {
 
 /** Hauteur du bouton principal. */
 #define PRIMARY_BUTTON_H 36.0f
+#define SETTINGS_SAVE_W 156.0f
+#define SETTINGS_COMMUNITY_X 184.0f
+#define SETTINGS_COMMUNITY_W 116.0f
 
 /** Marge sous le bouton principal. */
 #define PRIMARY_BUTTON_MARGIN 10.0f

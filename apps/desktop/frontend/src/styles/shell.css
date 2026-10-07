@@ -1,6 +1,6 @@
 .app-shell { min-height: 100vh; padding-top: 72px; }
 .app-header { align-items: center; backdrop-filter: blur(24px); background: rgba(14, 14, 16, .88); border-bottom: 1px solid var(--border); display: grid; grid-template-columns: 248px 1fr auto; height: 72px; inset: 0 0 auto; padding: 0 20px; position: fixed; z-index: 80; }
-.brand { align-items: center; background: none; border: 0; cursor: pointer; display: flex; font-size: 19px; font-weight: 800; gap: 10px; letter-spacing: -.03em; padding: 4px; }
+.brand { justify-self: start; align-items: center; background: none; border: 0; cursor: pointer; display: flex; font-size: 19px; font-weight: 800; gap: 10px; letter-spacing: -.03em; padding: 4px; }
 .brand img { filter: drop-shadow(0 7px 14px rgba(102, 203, 16, .22)); height: 36px; object-fit: contain; width: 36px; }
 .main-nav { align-self: stretch; display: flex; justify-content: center; }
 .main-nav button { align-items: center; background: none; border: 0; border-bottom: 2px solid transparent; color: var(--muted); cursor: pointer; display: flex; font-size: 13px; font-weight: 700; gap: 7px; padding: 0 20px; }

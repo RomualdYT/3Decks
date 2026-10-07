@@ -8,6 +8,7 @@ import { ComboControl, NumberControl, SelectControl, TextControl } from "../comp
 import { IconPicker } from "../components/IconPicker";
 import { HotkeyInput } from "../components/HotkeyInput";
 import { PathPicker } from "../components/PathPicker";
+import { PageInspector } from "./PageInspector";
 import { ExtensionField } from "../extensions/ExtensionFields";
 
 interface Props {
@@ -30,17 +31,6 @@ interface Props {
 function updateLocalized(value: PageConfig["title"], locale: Locale, text: string) {
   return { ...(typeof value === "string" ? { fr: value, en: value } : value), [locale]: text };
 }
-
-const DASHBOARD_COPY: Record<string, { fr: string; en: string; icon: string; descriptionFr: string; descriptionEn: string }> = {
-  auto: { fr: "Automatique", en: "Automatic", icon: "sparkle", descriptionFr: "Choisit le contenu le plus utile selon l’activité.", descriptionEn: "Chooses the most useful content for the current activity." },
-  media: { fr: "Musique en cours", en: "Now playing", icon: "music", descriptionFr: "Titre, artiste et progression de lecture.", descriptionEn: "Track, artist and playback progress." },
-  lyrics: { fr: "Paroles synchronisées", en: "Synced lyrics", icon: "music", descriptionFr: "Paroles sur l’écran supérieur, avec repli si elles sont indisponibles.", descriptionEn: "Lyrics on the top screen, with a fallback when unavailable." },
-  system: { fr: "État de l’ordinateur", en: "Computer status", icon: "monitor", descriptionFr: "Utilisation du processeur, mémoire et application active.", descriptionEn: "CPU, memory and active application." },
-  apps: { fr: "Applications ouvertes", en: "Open applications", icon: "app", descriptionFr: "Applications actuellement disponibles sur l’ordinateur.", descriptionEn: "Applications currently available on the computer." },
-  audio: { fr: "Sorties audio", en: "Audio outputs", icon: "volume-up", descriptionFr: "Sortie audio active et volume.", descriptionEn: "Current audio output and volume." },
-  frame: { fr: "Pochette plein écran", en: "Full-screen artwork", icon: "square", descriptionFr: "Met en avant la pochette du média en cours.", descriptionEn: "Highlights artwork from the current media." },
-  notifications: { fr: "Notifications", en: "Notifications", icon: "bell", descriptionFr: "Affiche les notifications récentes du système.", descriptionEn: "Shows recent system notifications." },
-};
 
 function argumentCopy(name: string, kind: string, locale: Locale) {
   const fr = locale === "fr";
@@ -76,54 +66,7 @@ function LocalizedFields({ label, frValue, enValue, maxLength, onFrChange, onEnC
 
 export function Inspector({ config, schema, page, button, locale, scenes, apps, t, onUpdatePage, onUpdateButton, onChangeAction, onDeletePage, onDeleteButton, onDeselect }: Props) {
   const fr = locale === "fr";
-  if (!button) {
-    const layoutChoices = [
-      { id: "grid", label: t("grid"), icon: "grid", description: fr ? "6 grandes actions immédiatement accessibles" : "6 large, immediately accessible actions" },
-      { id: "list", label: t("list"), icon: "list", description: fr ? "Des lignes lisibles avec plus de texte" : "Readable rows with more text" },
-    ];
-    const sourceChoices = [
-      { id: "manual", label: fr ? "Mes propres actions" : "My own actions", icon: "plus", description: fr ? "Vous choisissez chaque bouton de la page." : "You choose every button on the page." },
-      { id: "windows", label: fr ? "Fenêtres disponibles" : "Available windows", icon: "app", description: fr ? "Liste automatiquement les fenêtres ouvertes." : "Automatically lists open windows." },
-      ...(schema.extension_sources ?? []).map((source) => ({ id: source.name, label: localized(source.title, locale), icon: source.icon, description: source.supported ? localized(source.description, locale) : (fr ? "À activer dans Extensions." : "Enable in Extensions.") })),
-    ];
-    if (page.source && !sourceChoices.some((choice) => choice.id === page.source)) sourceChoices.push({ id: page.source, label: page.source, icon: "extension", description: fr ? "Extension manquante" : "Missing extension" });
-    const dashboardChoices = schema.dashboards.map((dashboard) => {
-      const copy = DASHBOARD_COPY[dashboard.name];
-      return { id: dashboard.name, label: localized(dashboard.title, locale) || copy?.[locale] || dashboard.name, icon: dashboard.icon || copy?.icon || "extension", description: dashboard.supported ? localized(dashboard.description, locale) || copy?.[fr ? "descriptionFr" : "descriptionEn"] : dashboard.name.startsWith("ext:") ? (fr ? "À activer dans Extensions." : "Enable in Extensions.") : (fr ? "Source désactivée dans Réglages → Fonctionnalités." : "Source disabled in Settings → Features.") };
-    });
-    if (!dashboardChoices.some((choice) => choice.id === page.dashboard)) dashboardChoices.push({ id: page.dashboard, label: page.dashboard, icon: "extension", description: fr ? "Extension manquante" : "Missing extension" });
-    return (
-    <aside className="inspector">
-      <div className="inspector-title"><div><span className="eyebrow">{t("page")}</span><h2>{t("pageSettings")}</h2></div><span className="selection-icon"><DeckIcon name={page.icon || "page"} /></span></div>
-      <div className="inspector-scroll">
-        <SectionTitle icon="edit" title={fr ? "Nom et apparence" : "Name and appearance"} />
-        <LocalizedFields label={fr ? "Titre" : "Title"} frValue={localized(page.title, "fr")} enValue={localized(page.title, "en")} maxLength={schema.limits.label} onFrChange={(value) => onUpdatePage((item) => { item.title = updateLocalized(item.title, "fr", value); })} onEnChange={(value) => onUpdatePage((item) => { item.title = updateLocalized(item.title, "en", value); })} />
-        <IconPicker icons={schema.icons} value={page.icon || "page"} label={t("icon")} onChange={(icon) => onUpdatePage((item) => { item.icon = icon; })} />
-        <div className="form-divider" />
-        <SectionTitle icon="grid" title={fr ? "Organisation" : "Layout"} />
-        <SelectControl label={fr ? "Disposition de l’écran tactile" : "Touch-screen layout"} value={page.layout ?? "grid"} choices={layoutChoices} description={fr ? "La grille 3 × 2 est disponible sur toutes les pages." : "The 3 × 2 grid is available on every page."} onChange={(value) => onUpdatePage((item) => { item.layout = value as PageConfig["layout"]; })} />
-        <div className="form-divider" />
-        <SectionTitle icon="app" title={fr ? "Contenu des boutons" : "Button content"} />
-        <SelectControl label={fr ? "Que doit afficher cette page ?" : "What should this page show?"} value={page.source || "manual"} choices={sourceChoices} onChange={(value) => onUpdatePage((item) => { item.source = value === "manual" ? "" : value; })} />
-        <div className="form-divider" />
-        <SectionTitle icon="monitor" title={fr ? "Écran supérieur" : "Top screen"} />
-        <SelectControl label={fr ? "Informations affichées en haut" : "Information shown on top"} value={page.dashboard || "auto"} choices={dashboardChoices} description={fr ? "L’aperçu de la console se met à jour immédiatement." : "The console preview updates immediately."} onChange={(value) => onUpdatePage((item) => { item.dashboard = value; })} />
-        {page.dashboard === "lyrics" && <>
-          <SectionTitle icon="music" title={fr ? "Affichage des paroles" : "Lyrics display"} description={fr ? "Personnalisez cette page sans modifier les autres pages musicales." : "Customize this page without changing your other music pages."} />
-          <NumberControl label={fr ? "Lignes visibles" : "Visible lines"} value={typeof page.lyrics_lines === "number" ? page.lyrics_lines : 3} min={2} max={5} step={1} onChange={(value) => onUpdatePage((item) => { item.lyrics_lines = value; })} />
-          <SelectControl label={fr ? "Couleur d’ambiance" : "Accent colour"} value={typeof page.accent === "string" && page.accent ? "custom" : "artwork"} choices={[{ id: "artwork", label: fr ? "Selon la pochette" : "From artwork" }, { id: "custom", label: fr ? "Personnalisée" : "Custom" }]} onChange={(value) => onUpdatePage((item) => { item.accent = value === "custom" ? "#66CB10" : ""; })} />
-          {typeof page.accent === "string" && page.accent && <ColorControl label={fr ? "Couleur" : "Colour"} value={page.accent} onChange={(value) => onUpdatePage((item) => { item.accent = value; })} />}
-          <p className="inspector-hint">{fr ? "L’accès à LRCLIB s’active dans Réglages → Fonctionnalités. Le titre et l’artiste quittent alors le PC." : "Enable LRCLIB in Settings → Features. Track title and artist are then sent to the service."}</p>
-        </>}
-        <Disclosure className="advanced-disclosure">
-          <Disclosure.Heading><Disclosure.Trigger><span><DeckIcon name="gear" size={16} />{t("advanced")}</span><Disclosure.Indicator /></Disclosure.Trigger></Disclosure.Heading>
-          <Disclosure.Content><Disclosure.Body><Card variant="secondary" className="technical-help"><Card.Content><DeckIcon name="info" size={16} /><p>{fr ? "L’identifiant relie cette page aux actions de navigation. Ne le changez que si vous savez qu’une intégration externe l’utilise." : "The identifier links this page to navigation actions. Only change it when an external integration relies on it."}</p></Card.Content></Card><TextControl label={t("technicalId")} value={page.id} maxLength={schema.limits.id} onChange={(value) => onUpdatePage((item) => { item.id = value; })} /></Disclosure.Body></Disclosure.Content>
-        </Disclosure>
-      </div>
-      <div className="inspector-footer"><Button fullWidth variant="danger-soft" onPress={onDeletePage}><DeckIcon name="trash" size={17} />{t("delete")}</Button></div>
-    </aside>
-    );
-  }
+  if (!button) return <PageInspector page={page} schema={schema} locale={locale} t={t} onUpdatePage={onUpdatePage} onDeletePage={onDeletePage} />;
 
   const kind = actionKind(button.action);
   const spec = schema.actions.find((action) => action.kind === kind);
@@ -135,7 +78,7 @@ export function Inspector({ config, schema, page, button, locale, scenes, apps, 
       <div className="inspector-scroll">
         <SectionTitle icon="edit" title={fr ? "Texte et apparence" : "Text and appearance"} />
         <LocalizedFields label={fr ? "Libellé" : "Label"} frValue={localized(button.label, "fr")} enValue={localized(button.label, "en")} maxLength={schema.limits.label} onFrChange={(value) => onUpdateButton((item) => { item.label = updateLocalized(item.label, "fr", value); })} onEnChange={(value) => onUpdateButton((item) => { item.label = updateLocalized(item.label, "en", value); })} />
-        <IconPicker icons={schema.icons} value={button.icon} label={t("icon")} onChange={(icon) => onUpdateButton((item) => { item.icon = icon; })} />
+        <IconPicker locale={locale} icons={schema.icons} value={button.icon} label={t("icon")} onChange={(icon) => onUpdateButton((item) => { item.icon = icon; })} />
         <ColorControl label={t("color")} value={button.color} onChange={(color) => onUpdateButton((item) => { item.color = color; })} />
         <div className="form-divider" />
         <SectionTitle icon="workflow" title={t("action")} description={fr ? "Ce que fera le bouton lorsqu’on le touchera sur la console." : "What happens when this button is tapped on the console."} />

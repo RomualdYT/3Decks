@@ -1,8 +1,9 @@
 import { Button, Input, Label, Popover, TextField, Tooltip } from "@heroui/react";
 import { useMemo, useState } from "react";
+import type { Locale } from "../app/types";
 import { DeckIcon } from "./DeckIcon";
 
-export function IconPicker({ icons, value, onChange, label }: { icons: string[]; value: string; onChange: (icon: string) => void; label: string }) {
+export function IconPicker({ icons, value, onChange, label, locale = "en" }: { icons: string[]; value: string; onChange: (icon: string) => void; label: string; locale?: Locale }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const visible = useMemo(() => icons.filter((icon) => icon.toLowerCase().includes(query.toLowerCase())), [icons, query]);
@@ -16,7 +17,7 @@ export function IconPicker({ icons, value, onChange, label }: { icons: string[];
         <Popover.Content className="icon-popover-shell" placement="bottom end">
           <Popover.Dialog>
             <Popover.Heading>{label}</Popover.Heading>
-            <TextField className="icon-search" value={query} onChange={setQuery} aria-label={label}><Label>Rechercher</Label><Input placeholder="Musique, fenêtre, volume…" /></TextField>
+            <TextField className="icon-search" value={query} onChange={setQuery} aria-label={label}><Label>{locale === "fr" ? "Rechercher" : "Search icons"}</Label><Input placeholder={locale === "fr" ? "Musique, fenêtre, volume…" : "Music, window, volume…"} /></TextField>
             <div className="icon-popover" role="listbox" aria-label={label}>
               {visible.map((icon) => (
                 <Tooltip key={icon} delay={250}>

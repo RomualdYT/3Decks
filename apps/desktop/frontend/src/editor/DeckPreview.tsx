@@ -5,6 +5,8 @@ import { localized } from "../utils/config";
 import { DeckIcon } from "../components/DeckIcon";
 import { extensionSource } from "../extensions/ExtensionPreview";
 
+import { ConsoleTouchCanvas } from "./ConsoleTouchCanvas";
+import { deviceShellStyle } from "./deviceShell";
 import { ConsoleTopScreen } from "./ConsoleTopScreen";
 
 interface Props {
@@ -43,17 +45,12 @@ export function DeckPreview({ config, page, pageIndex, locale, selectedSlot, sta
   };
   return (
     <div className="preview-column">
-      <div className="workspace-heading">
-        <div><span className="eyebrow">{t("page")} {pageIndex + 1}</span><h1>{localized(page.title, locale) || page.id}</h1></div>
-      </div>
       <div className="device-stage">
-        <div className="device-shell-wrap">
-          <img className="device-shell-image" src="/device-shell.png" alt="" draggable={false} />
+        <div className="device-shell-wrap" style={deviceShellStyle}>
+          <img className="device-shell-image" src="/device-shell.svg" alt="" draggable={false} />
           <ConsoleTopScreen page={page} status={status} locale={locale} />
           <section className="device-bottom-screen" aria-label={fr ? "Aperçu de l’écran tactile" : "Touch screen preview"}>
-            <svg className="console-touch-preview" viewBox="0 0 320 240" preserveAspectRatio="none">
-            <foreignObject width={320} height={240}>
-            <div className="console-touch-canvas" style={{ "--page-accent": pageAccent } as CSSProperties}>
+            <ConsoleTouchCanvas style={{ "--page-accent": pageAccent } as CSSProperties}>
             <header className="console-touch-header">
               <strong>{localized(page.title, locale) || page.id}</strong>
               {config.pages.length > 1 && <span className="console-page-dots" aria-hidden="true">{config.pages.map((item, index) => <i key={item.id} className={index === pageIndex ? "active" : ""} />)}</span>}
@@ -83,7 +80,7 @@ export function DeckPreview({ config, page, pageIndex, locale, selectedSlot, sta
                         type="button"
                         disabled={dynamic && !button}
                         className={`${button ? "configured" : "empty"} ${selectedSlot === slot ? "selected" : ""} ${dynamicLabel ? "dynamic" : ""} ${active ? "is-active" : ""}`}
-                        style={{ "--button-color": button?.color, "--slot-delay": `${(slot % 3 + Math.floor(slot / 3)) * 20}ms` } as CSSProperties}
+                        style={{ "--button-color": button?.color } as CSSProperties}
                         draggable={Boolean(button) && !dynamic}
                         onDragStart={(event) => event.dataTransfer.setData("text/deck-slot", String(slot))}
                         onDragOver={(event) => { if (event.dataTransfer.types.includes("text/deck-slot")) event.preventDefault(); }}
@@ -106,9 +103,7 @@ export function DeckPreview({ config, page, pageIndex, locale, selectedSlot, sta
               </div>
               <span className="console-settings-icon" role="img" aria-label={fr ? "Réglages sur la console" : "Settings on the console"}><DeckIcon name="gear" size={16} /></span>
             </nav>
-            </div>
-            </foreignObject>
-            </svg>
+            </ConsoleTouchCanvas>
           </section>
         </div>
       </div>
