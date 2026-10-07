@@ -272,7 +272,7 @@ pub fn state(shared: &Shared) -> Result<Value, String> {
         .unwrap_or(""));
     let features = config["features"].clone();
     Ok(json!({
-        "version":"0.1.0", "config_revision":status.config_revision,
+        "version":env!("CARGO_PKG_VERSION"), "config_revision":status.config_revision,
         "platform":platform(), "listen":format!("0.0.0.0:{}", status.tcp_port),
         "hints":address_hints(status.tcp_port),
         "token_set":false,

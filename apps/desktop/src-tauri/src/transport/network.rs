@@ -162,7 +162,7 @@ async fn discovery_loop(socket: UdpSocket, shared: Arc<Shared>, mut stop: watch:
                 let mut reply = json!({
                     "type": "deck3ds.agent", "protocol": 1,
                     "name": "3Decks", "platform": platform_name(),
-                    "port": shared.snapshot().tcp_port, "version": "0.1.0", "pairing_required": true
+                    "port": shared.snapshot().tcp_port, "version": env!("CARGO_PKG_VERSION"), "pairing_required": true
                 });
                 if let Some(nonce) = value.get("nonce").and_then(Value::as_i64) {
                     reply["nonce"] = json!(nonce);
@@ -228,7 +228,7 @@ async fn serve(
         }
     };
     drop(pending_slot);
-    let mut hello_ok = json!({"type":"hello.ok","protocol":1,"agent":"0.1.0","host":"3Decks","platform":platform_name()});
+    let mut hello_ok = json!({"type":"hello.ok","protocol":1,"agent":env!("CARGO_PKG_VERSION"),"host":"3Decks","platform":platform_name()});
     if let Some(token) = issued {
         hello_ok["token"] = json!(token);
     }

@@ -31,7 +31,7 @@ Chaque agent compatible répond directement à l'adresse source :
   "name": "Mac du bureau",
   "platform": "macos",
   "port": 38123,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "pairing_required": true,
   "nonce": 42
 }
@@ -180,7 +180,7 @@ Demande explicite de renvoi de la configuration.
 {
   "type": "hello.ok",
   "protocol": 1,
-  "agent": "0.1.0",
+  "agent": "1.0.0",
   "host": "MacBook-Pro",
   "platform": "darwin",
   "token": "secret individuel, présent uniquement après appairage ou échange du jeton d’amorçage"

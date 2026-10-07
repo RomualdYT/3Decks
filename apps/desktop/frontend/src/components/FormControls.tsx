@@ -2,6 +2,7 @@ import {
   ComboBox,
   Description,
   Input,
+  Header,
   Label,
   ListBox,
   NumberField,
@@ -15,6 +16,7 @@ export interface Choice {
   label: string;
   description?: string;
   icon?: string;
+  group?: string;
 }
 
 interface TextControlProps {
@@ -49,6 +51,14 @@ interface SelectControlProps {
 
 export function SelectControl({ label, value, choices, onChange, description }: SelectControlProps) {
   const hasRichChoices = choices.some((choice) => choice.icon || choice.description);
+  const groups = Array.from(new Set(choices.map((choice) => choice.group ?? "")));
+  const renderChoice = (choice: Choice) => (
+    <ListBox.Item id={choice.id} key={choice.id} textValue={choice.label}>
+      {choice.icon && <span className="choice-icon"><DeckIcon name={choice.icon} size={18} /></span>}
+      <span className="choice-copy"><strong>{choice.label}</strong>{choice.description && <small>{choice.description}</small>}</span>
+      <ListBox.ItemIndicator />
+    </ListBox.Item>
+  );
 
   return (
     <Select className={`ui-field${hasRichChoices ? " ui-rich-select" : ""}`} fullWidth selectedKey={value} onSelectionChange={(key) => key !== null && onChange(String(key))}>
@@ -59,14 +69,13 @@ export function SelectControl({ label, value, choices, onChange, description }: 
       </Select.Trigger>
       {description && <Description>{description}</Description>}
       <Select.Popover className="ui-popover" maxHeight={360}>
-        <ListBox>
-          {choices.map((choice) => (
-            <ListBox.Item id={choice.id} key={choice.id} textValue={choice.label}>
-              {choice.icon && <span className="choice-icon"><DeckIcon name={choice.icon} size={18} /></span>}
-              <span className="choice-copy"><strong>{choice.label}</strong>{choice.description && <small>{choice.description}</small>}</span>
-              <ListBox.ItemIndicator />
-            </ListBox.Item>
-          ))}
+        <ListBox className="ui-choice-list">
+          {choices.some((choice) => choice.group) ? groups.map((group) => (
+            <ListBox.Section key={group} aria-label={group || label}>
+              {group && <Header className="ui-choice-group">{group}</Header>}
+              {choices.filter((choice) => (choice.group ?? "") === group).map(renderChoice)}
+            </ListBox.Section>
+          )) : choices.map(renderChoice)}
         </ListBox>
       </Select.Popover>
     </Select>

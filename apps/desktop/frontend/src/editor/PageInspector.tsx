@@ -7,6 +7,7 @@ import { DeckIcon } from "../components/DeckIcon";
 import { NumberControl, SelectControl, TextControl } from "../components/FormControls";
 import { InspectorDeleteAction, InspectorPreviewNote, InspectorSection, LocalizedInspectorField } from "./InspectorControls";
 import { IconPicker } from "../components/IconPicker";
+import { TopScreenPicker } from "./TopScreenPicker";
 
 interface Props {
   page: PageConfig;
@@ -47,7 +48,7 @@ const DASHBOARD_COPY: Record<string, { fr: string; en: string; icon: string; des
   system: { fr: "État de l’ordinateur", en: "Computer status", icon: "monitor", descriptionFr: "Utilisation du processeur, mémoire et application active.", descriptionEn: "CPU, memory and active application." },
   apps: { fr: "Applications ouvertes", en: "Open applications", icon: "app", descriptionFr: "Applications actuellement disponibles sur l’ordinateur.", descriptionEn: "Applications currently available on the computer." },
   audio: { fr: "Sorties audio", en: "Audio outputs", icon: "volume-up", descriptionFr: "Sortie audio active et volume.", descriptionEn: "Current audio output and volume." },
-  frame: { fr: "Pochette plein écran", en: "Full-screen artwork", icon: "square", descriptionFr: "Met en avant la pochette du média en cours.", descriptionEn: "Highlights artwork from the current media." },
+  frame: { fr: "Pochette plein écran", en: "Full-screen artwork", icon: "artwork", descriptionFr: "Met en avant la pochette du média en cours.", descriptionEn: "Highlights artwork from the current media." },
   notifications: { fr: "Notifications", en: "Notifications", icon: "bell", descriptionFr: "Affiche les notifications récentes du système.", descriptionEn: "Shows recent system notifications." },
 };
 
@@ -62,9 +63,13 @@ export function PageInspector({ page, schema, locale, t, onUpdatePage, onDeleteP
   if (page.source && !sourceChoices.some((choice) => choice.id === page.source)) sourceChoices.push({ id: page.source, label: page.source, icon: "extension", description: fr ? "Extension manquante" : "Missing extension" });
   const dashboardChoices = schema.dashboards.map((dashboard) => {
     const copy = DASHBOARD_COPY[dashboard.name];
-    return { id: dashboard.name, label: localized(dashboard.title, locale) || copy?.[locale] || dashboard.name, icon: dashboard.icon || copy?.icon || "extension", description: dashboard.supported ? localized(dashboard.description, locale) || copy?.[fr ? "descriptionFr" : "descriptionEn"] : dashboard.name.startsWith("ext:") ? (fr ? "À activer dans Extensions." : "Enable in Extensions.") : (fr ? "Source désactivée dans Réglages → Fonctionnalités." : "Source disabled in Settings → Features.") };
+    const extension = dashboard.name.startsWith("ext:");
+    const extensionName = typeof dashboard.extension_name === "string" || (dashboard.extension_name && typeof dashboard.extension_name === "object")
+      ? localized(dashboard.extension_name as string | Record<string, string>, locale) : "";
+    return { group: extension ? "Extensions" : "3Decks", id: dashboard.name, label: localized(dashboard.title, locale) || copy?.[locale] || dashboard.name, icon: dashboard.icon || copy?.icon || "extension", description: dashboard.supported ? (extension ? extensionName || (fr ? "Écran fourni par une extension." : "Screen provided by an extension.") : localized(dashboard.description, locale) || copy?.[fr ? "descriptionFr" : "descriptionEn"]) : dashboard.name.startsWith("ext:") ? (fr ? "À activer dans Extensions." : "Enable in Extensions.") : (fr ? "Source désactivée dans Réglages → Fonctionnalités." : "Source disabled in Settings → Features.") };
   });
-  if (!dashboardChoices.some((choice) => choice.id === page.dashboard)) dashboardChoices.push({ id: page.dashboard, label: page.dashboard, icon: "extension", description: fr ? "Extension manquante" : "Missing extension" });
+  if (!dashboardChoices.some((choice) => choice.id === page.dashboard)) dashboardChoices.push({ group: "Extensions", id: page.dashboard, label: page.dashboard, icon: "extension", description: fr ? "Extension manquante" : "Missing extension" });
+  dashboardChoices.sort((a, b) => Number(b.group === "Extensions") - Number(a.group === "Extensions"));
   return <aside className="inspector inspector-essential page-inspector">
     <div className="inspector-title inspector-heading">
       <span className="selection-icon"><DeckIcon name={page.icon || "page"} /></span>
@@ -87,7 +92,7 @@ export function PageInspector({ page, schema, locale, t, onUpdatePage, onDeleteP
           onChange={(value) => onUpdatePage((item) => { item.source = value === "manual" ? "" : value; })} />
       </InspectorSection>
       <InspectorSection title={fr ? "Écran supérieur" : "Top screen"} icon="monitor">
-        <SelectControl label={fr ? "Informations affichées en haut" : "Information shown on top"} value={page.dashboard || "auto"} choices={dashboardChoices}
+        <TopScreenPicker locale={locale} value={page.dashboard || "auto"} choices={dashboardChoices}
           onChange={(value) => onUpdatePage((item) => { item.dashboard = value; })} />
         {page.dashboard === "lyrics" && <>
           <h4 className="page-lyrics-heading">{fr ? "Affichage des paroles" : "Lyrics display"}</h4>

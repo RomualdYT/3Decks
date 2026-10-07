@@ -462,8 +462,9 @@ fn open_editor(app: &AppHandle) -> tauri::Result<()> {
 }
 
 pub(crate) fn open_editor_at(app: &AppHandle, route: &str) -> tauri::Result<()> {
-    let existing = app.get_webview_window("main").is_some();
-    let window = if let Some(window) = app.get_webview_window("main") {
+    let existing_window = app.get_webview_window("main");
+    let existing = existing_window.is_some();
+    let window = if let Some(window) = existing_window {
         window
     } else {
         let (width, height) = app

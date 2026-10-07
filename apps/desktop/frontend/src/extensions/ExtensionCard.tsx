@@ -6,6 +6,7 @@ import type { ExtensionRequest } from "../api/client";
 import { DeckIcon } from "../components/DeckIcon";
 import { localized } from "../utils/config";
 import { ExtensionField } from "./ExtensionFields";
+import { ExtensionContributions } from "./ExtensionContributions";
 
 const STATUS: Record<string, [string, string]> = {
   ready: ["Active", "Ready"],
@@ -83,11 +84,11 @@ export function ExtensionCard({
         </span>
         <span>
           <strong>{manifest.sources.length}</strong>{" "}
-          {fr ? "contenus" : "sources"}
+          {fr ? "contenus des boutons" : "button content"}
         </span>
         <span>
           <strong>{manifest.dashboards.length}</strong>{" "}
-          {fr ? "écrans" : "screens"}
+          {fr ? "écrans supérieurs" : "top screens"}
         </span>
       </div>
       {item.error && (
@@ -144,39 +145,7 @@ export function ExtensionCard({
           </Disclosure.Content>
         </Disclosure>
       )}
-      <Disclosure className="advanced-disclosure">
-        <Disclosure.Heading>
-          <Disclosure.Trigger>
-            <span>
-              {fr
-                ? "Actions et écrans disponibles"
-                : "Available actions and screens"}
-            </span>
-            <Disclosure.Indicator />
-          </Disclosure.Trigger>
-        </Disclosure.Heading>
-        <Disclosure.Content>
-          <Disclosure.Body>
-            <ul className="extension-catalog-list">
-              {[
-                ...manifest.actions,
-                ...manifest.sources,
-                ...manifest.dashboards,
-              ].map((contribution, index) => (
-                <li key={`${contribution.id}:${index}`}>
-                  <strong>{localized(contribution.title, locale)}</strong>
-                  <small>{localized(contribution.description, locale)}</small>
-                </li>
-              ))}
-            </ul>
-            <p>
-              {fr
-                ? "Éditeur → Ajouter une action → Extensions. Les contenus et écrans se choisissent dans les réglages de chaque page."
-                : "Editor → Add action → Extensions. Select sources and top screens in each page’s settings."}
-            </p>
-          </Disclosure.Body>
-        </Disclosure.Content>
-      </Disclosure>
+      <ExtensionContributions manifest={manifest} locale={locale} ready={item.status === "ready"} />
       <footer>
         {item.enabled && item.status !== "untrusted" ? (
           <Button

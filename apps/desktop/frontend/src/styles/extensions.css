@@ -18,7 +18,7 @@
 .extension-status.error, .extension-status.untrusted { color: var(--warning); }
 .extension-tags { display: flex; flex-wrap: wrap; gap: 7px; margin: 18px 0; }
 .extension-tags > span { display: flex; align-items: center; gap: 4px; font-size: 10px; color: var(--muted); padding: 3px 8px; border: 1px solid var(--border); border-radius: 6px; }
-.extension-contributions { display: flex; gap: 24px; padding: 14px 0; margin-bottom: 10px; border-block: 1px solid var(--border); color: var(--muted); font-size: 12px; }
+.extension-contributions { display: flex; flex-wrap: wrap; gap: 12px 24px; padding: 14px 0; margin-bottom: 10px; border-block: 1px solid var(--border); color: var(--muted); font-size: 12px; }
 .extension-contributions strong { color: var(--text); font-size: 19px; margin-right: 3px; }
 .extension-card footer { display: flex; gap: 8px; padding-top: 20px; }
 .extension-card footer > :last-child { margin-left: auto; }
@@ -27,8 +27,6 @@
 .extension-settings > small, .extension-directory { font-size: 11px; color: var(--muted); line-height: 1.5; }
 .extension-switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .extension-switch p { font-size: 12px; }
-.extension-catalog-list { padding-left: 16px; display: grid; gap: 10px; }
-.extension-catalog-list small { display: block; color: var(--muted); }
 .extension-empty { text-align: center; border: 1px dashed var(--border-strong); border-radius: 24px; padding: 44px 20px; margin-bottom: 20px; }
 .extension-empty > span:not(.decky) { color: var(--accent); display: inline-flex; padding: 20px; background: var(--accent-soft); border-radius: 24px; margin-bottom: 18px; }
 .extension-empty p { max-width: 520px; margin: 12px auto 24px; }
@@ -54,3 +52,23 @@
 .extension-preview-cards progress { width: 100%; height: 3px; accent-color: var(--accent); border: 0; }
 @media (max-width: 1000px) { .extensions-heading { align-items: flex-start; flex-direction: column; gap: 20px; } }
 @media (max-width: 640px) { .extensions-view { padding: 24px 16px 100px; } .extension-toolbar { flex-wrap: wrap; } .extension-developer { grid-template-columns: 1fr; padding: 20px; } .extension-card { padding: 18px; } .extension-card-heading { flex-wrap: wrap; } }
+
+.extension-catalog [data-slot="disclosure-body"] { gap: 20px; padding: 16px; }
+.extension-catalog [data-slot="disclosure-trigger"] > span { font-size: 12px; font-weight: 600; }
+.extension-catalog [data-slot="disclosure-indicator"] { width: 16px; height: 16px; flex: none; }
+.extension-catalog-note { color: var(--muted); font-size: 11px; line-height: 1.5; }
+.extension-catalog-group { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.extension-catalog-group + .extension-catalog-group { padding-top: 18px; border-top: 1px solid var(--border); }
+.extension-catalog-group h3 { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; margin: 0; }
+.extension-catalog-group h3 > svg { color: var(--muted); flex: none; }
+.extension-catalog-group h3 > span { margin-left: auto; color: var(--muted); font-size: 10px; font-weight: 500; }
+.extension-catalog-group ul { display: grid; gap: 6px; list-style: none; padding: 0; margin: 0; }
+.extension-catalog-group li { display: flex; align-items: center; gap: 10px; background: var(--surface-input); border: 1px solid var(--border); border-radius: 9px; padding: 10px; min-width: 0; }
+.extension-catalog-icon { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 8px; background: var(--accent-soft); color: var(--accent); flex: none; }
+.extension-catalog-group li > div { min-width: 0; }
+.extension-catalog-group li strong { display: block; font-size: 12px; line-height: 1.4; overflow-wrap: anywhere; }
+.extension-catalog-group li p { margin: 3px 0 0; color: var(--muted); font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
+.extension-catalog-path { display: flex; flex-wrap: wrap; gap: 4px 6px; color: var(--muted); font-size: 10px; line-height: 1.6; }
+.extension-catalog-path > span { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.extension-catalog-path svg { flex: none; opacity: .6; }
+.extension-catalog-path > span:last-child > span { color: var(--text); }

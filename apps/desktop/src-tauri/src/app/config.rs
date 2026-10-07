@@ -337,13 +337,23 @@ mod tests {
     use super::*;
 
     #[test]
-    fn current_python_document_produces_safe_snapshot() {
+    fn bundled_configuration_produces_safe_snapshot() {
         let source: Value = serde_json::from_str(DEFAULT_CONFIG).unwrap();
         validate(&source).unwrap();
         let snapshot = snapshot(&source, "fr");
-        assert_eq!(snapshot["pages"][0]["title"], "Principal");
-        assert!(snapshot["pages"][0]["buttons"][0].get("action").is_none());
-        assert_eq!(snapshot["pages"][2]["entries"], json!([]));
+        let pages = snapshot["pages"].as_array().unwrap();
+        let main = pages
+            .iter()
+            .find(|page| page["id"] == "main")
+            .expect("bundled configuration must contain the main page");
+        let windows = pages
+            .iter()
+            .find(|page| page["id"] == "windows")
+            .expect("bundled configuration must contain the windows page");
+        assert_eq!(main["title"], "Principal");
+        assert!(main["buttons"][0].get("action").is_none());
+        assert_eq!(windows["layout"], "list");
+        assert_eq!(windows["entries"], json!([]));
     }
 
     #[test]

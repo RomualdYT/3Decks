@@ -41,15 +41,18 @@ pub async fn launch_app(target: &str) -> Result<(), String> {
         let name = NSString::from_str(&target);
         let url = if target.ends_with(".app") || target.starts_with('/') {
             NSURL::fileURLWithPath(&name)
-        } else if let Some(url) = workspace.URLForApplicationWithBundleIdentifier(&name) {
-            url
         } else {
-            // AppKit still exposes name lookup for user configured app names.
-            #[allow(deprecated)]
-            let path = workspace
-                .fullPathForApplication(&name)
-                .ok_or_else(|| format!("Application not found: {target}"))?;
-            NSURL::fileURLWithPath(&path)
+            let bundle_url = workspace.URLForApplicationWithBundleIdentifier(&name);
+            if let Some(url) = bundle_url {
+                url
+            } else {
+                // AppKit still exposes name lookup for user configured app names.
+                #[allow(deprecated)]
+                let path = workspace
+                    .fullPathForApplication(&name)
+                    .ok_or_else(|| format!("Application not found: {target}"))?;
+                NSURL::fileURLWithPath(&path)
+            }
         };
         if workspace.openURL(&url) {
             Ok(())
