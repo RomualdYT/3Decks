@@ -2,7 +2,7 @@
   .editor-layout, .settings-layout { grid-template-columns: 220px minmax(560px, 1fr); }
   .inspector { border-left: 0; border-top: 1px solid var(--border); grid-column: 1 / -1; max-height: none; min-height: auto; position: static; }
   .inspector-scroll { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); overflow: visible; }
-  .inspector-scroll > .form-divider, .inspector-scroll > .advanced-disclosure { grid-column: 1 / -1; }
+  .inspector-scroll > .form-divider, .inspector-scroll > .advanced-disclosure, .inspector-scroll > .inspector-advanced { grid-column: 1 / -1; }
   .inspector-title, .inspector-footer { grid-column: 1 / -1; }
   .settings-context { display: none; }
   .device-shell-wrap { max-width: 610px; }

@@ -1,16 +1,18 @@
-import { Button, Switch, toast } from "@heroui/react";
-import { useCallback, useEffect, useRef, useState } from "react";
-import type { AudioOutput, NotificationPermissionStatus } from "../app/desktopControls";
+import { Switch, toast } from "@heroui/react";
+import { useEffect, useState } from "react";
+import type { NotificationPermissionStatus } from "../app/desktopControls";
 import { agentApi } from "../api/client";
 import type { AgentState, DeckConfig, FeatureSpec, Locale, Schema } from "../app/types";
 import type { CopyKey } from "../i18n/copy";
 import { DeckIcon } from "../components/DeckIcon";
 import { AppleMusicIcon, SpotifyIcon } from "../components/BrandIcons";
+import { AudioOutputSettings } from "./AudioOutputSettings";
+import { FeaturePermissionNotice } from "./FeaturePermissionNotice";
 import { notificationPermissionError } from "../utils/notificationPermission";
 
 const FEATURE_ICONS: Record<string, string> = {
   notifications: "bell", windows: "app", system_stats: "status",
-  audio_output: "volume-up", media_artwork: "square",
+  audio_output: "volume-up", media_artwork: "artwork",
 };
 
 interface FeatureSettingsProps {
@@ -73,7 +75,7 @@ export function FeatureSettings({ config, schema, status, locale, t, update }: F
             const permissionAction = isNotification && enabled && currentNotificationAccess?.available === false ? currentNotificationAccess.settings_action : undefined;
             const icon = FEATURE_ICONS[feature.key] ?? "music";
             return (
-              <div className={`feature-row ${feature.parent ? "nested" : ""} ${!platformAvailable ? "unavailable" : ""}`} key={feature.key}>
+              <div className={`feature-row ${requestNotifications || permissionAction || (native && platformAvailable && enabled && feature.key === "audio_output") ? "has-details" : ""} ${feature.parent ? "nested" : ""} ${!platformAvailable ? "unavailable" : ""}`} key={feature.key}>
                 <div className={`feature-symbol ${feature.key === "spotify" || feature.key === "apple_music" ? "brand" : ""}`}>
                   {feature.key === "spotify" ? <SpotifyIcon /> : feature.key === "apple_music" ? <AppleMusicIcon /> : <DeckIcon name={icon} />}
                 </div>
@@ -81,22 +83,16 @@ export function FeatureSettings({ config, schema, status, locale, t, update }: F
                   <h3>{feature.title[locale]}</h3>
                   <p>{feature.description[locale]}</p>
                   {!platformAvailable && <small>{t("unavailablePlatform")}</small>}
-                  {isNotification && currentNotificationAccess?.error && <small className="feature-detail-note">{notificationPermissionError(currentNotificationAccess.access, currentNotificationAccess.error, locale)}</small>}
-                  {requestNotifications ? (
-                    <div className="feature-permission">
-                      <span><DeckIcon name="lock" size={14} />{locale === "fr" ? "Windows doit autoriser la lecture des notifications." : "Windows must allow notification access."}</span>
-                      <Button size="sm" variant="outline" isDisabled={requestingNotifications} onPress={() => void requestNotificationAccess()}>
-                        <DeckIcon name="lock" size={14} />{requestingNotifications ? t("openingPermissions") : locale === "fr" ? "Autoriser" : "Allow"}
-                      </Button>
-                    </div>
-                  ) : permissionAction ? (
-                    <div className="feature-permission">
-                      <span><DeckIcon name="lock" size={14} />{t("permissionRequired")}</span>
-                      <Button size="sm" variant="outline" isDisabled={openingPermission === permissionAction} onPress={() => openPermission(permissionAction)}>
-                        <DeckIcon name="link" size={14} />{openingPermission === permissionAction ? t("openingPermissions") : t("openPermissions")}
-                      </Button>
-                    </div>
-                  ) : null}
+                  {isNotification && !permissionAction && !requestNotifications && currentNotificationAccess?.error && <small className="feature-detail-note">{notificationPermissionError(currentNotificationAccess.access, currentNotificationAccess.error, locale)}</small>}
+                  {requestNotifications ? <FeaturePermissionNotice
+                    title={locale === "fr" ? "Autorisation nécessaire" : "Permission needed"}
+                    description={locale === "fr" ? "Autorisez 3Decks à lire les notifications Windows pour les afficher sur votre console." : "Allow 3Decks to read Windows notifications and show them on your console."}
+                    action={requestingNotifications ? t("openingPermissions") : locale === "fr" ? "Autoriser" : "Allow access"}
+                    busy={requestingNotifications} onAction={() => void requestNotificationAccess()} /> : permissionAction ? <FeaturePermissionNotice
+                    title={locale === "fr" ? "Accès aux notifications requis" : "Notification access needed"}
+                    description={locale === "fr" ? "Autorisez 3Decks à lire vos notifications dans les réglages système." : "Allow 3Decks to read your notifications in system settings."}
+                    action={openingPermission === permissionAction ? t("openingPermissions") : locale === "fr" ? "Ouvrir les réglages" : "Open settings"}
+                    busy={openingPermission === permissionAction} onAction={() => openPermission(permissionAction)} /> : null}
                   {native && platformAvailable && enabled && feature.key === "audio_output" && (
                     <AudioOutputSettings locale={locale} windows={status?.platform === "win32"} />
                   )}
@@ -114,51 +110,4 @@ export function FeatureSettings({ config, schema, status, locale, t, update }: F
       ))}
     </div>
   );
-}
-
-function AudioOutputSettings({ locale, windows }: { locale: Locale; windows: boolean }) {
-  const [outputs, setOutputs] = useState<AudioOutput[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const requestId = useRef(0);
-  const fr = locale === "fr";
-  const refresh = useCallback(async () => {
-    const controls = window.decksDesktopControls;
-    if (!controls) return;
-    const id = ++requestId.current;
-    setLoading(true);
-    try {
-      const next = await controls.getAudioOutputs();
-      if (id === requestId.current) { setOutputs(next); setError(""); }
-    } catch (reason) {
-      if (id === requestId.current) setError(reason instanceof Error ? reason.message : String(reason));
-    } finally {
-      if (id === requestId.current) setLoading(false);
-    }
-  }, []);
-  useEffect(() => {
-    void refresh();
-    const onFocus = () => { void refresh(); };
-    window.addEventListener("focus", onFocus);
-    return () => { requestId.current++; window.removeEventListener("focus", onFocus); };
-  }, [refresh]);
-  const openSettings = () => {
-    setBusy(true);
-    void window.decksDesktopControls?.openAudioSettings()
-      .catch((error: Error) => toast.danger(error.message))
-      .finally(() => setBusy(false));
-  };
-  const select = (id: string) => {
-    setBusy(true);
-    void window.decksDesktopControls?.selectAudioOutput(id)
-      .then(async () => { await refresh(); toast.success(fr ? "Sortie audio modifiée" : "Audio output changed"); })
-      .catch((error: Error) => toast.danger(error.message))
-      .finally(() => setBusy(false));
-  };
-  return <div className="feature-audio-output">
-    <div className="feature-audio-output-heading"><strong>{fr ? "Sorties disponibles" : "Available outputs"}</strong><div className="feature-audio-output-actions"><Button size="sm" variant="ghost" isDisabled={loading} onPress={() => void refresh()} aria-label={fr ? "Actualiser les sorties audio" : "Refresh audio outputs"}><DeckIcon name="refresh" size={14} /></Button>{windows && <Button size="sm" variant="outline" isDisabled={busy} onPress={openSettings}><DeckIcon name="gear" size={14} />{fr ? "Réglages Son" : "Sound settings"}</Button>}</div></div>
-    {windows && <p className="feature-detail-note">{fr ? "Windows gère la sortie par défaut. Choisissez-la dans les réglages Son." : "Windows manages the default output. Choose it in Sound settings."}</p>}
-    {error ? <small className="feature-audio-output-error" role="alert">{error}</small> : loading ? <small>{fr ? "Recherche des sorties…" : "Looking for outputs…"}</small> : outputs.length === 0 ? <small>{fr ? "Aucune sortie audio disponible." : "No audio outputs are available."}</small> : <div className="feature-audio-output-list">{outputs.map((output) => <div className="feature-audio-output-row" key={output.id}><span><DeckIcon name={output.is_default ? "volume-up" : "volume-down"} size={15} /><span>{output.name}</span></span>{output.is_default ? <small>{fr ? "Par défaut" : "Default"}</small> : windows ? null : <Button size="sm" variant="ghost" isDisabled={busy} onPress={() => select(output.id)}>{fr ? "Utiliser" : "Use"}</Button>}</div>)}</div>}
-  </div>;
 }

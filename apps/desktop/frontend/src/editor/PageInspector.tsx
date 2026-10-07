@@ -1,11 +1,11 @@
-import { AlertDialog, Button, Description, Disclosure, Label, Radio, RadioGroup } from "@heroui/react";
-import { useState, type ReactNode } from "react";
+import { Description, Disclosure, Label, Radio, RadioGroup } from "@heroui/react";
 import type { Locale, PageConfig, Schema } from "../app/types";
 import type { CopyKey } from "../i18n/copy";
 import { localized, setLocalized } from "../utils/config";
 import { ColorControl } from "../components/ColorControl";
 import { DeckIcon } from "../components/DeckIcon";
 import { NumberControl, SelectControl, TextControl } from "../components/FormControls";
+import { InspectorDeleteAction, InspectorPreviewNote, InspectorSection, LocalizedInspectorField } from "./InspectorControls";
 import { IconPicker } from "../components/IconPicker";
 
 interface Props {
@@ -17,19 +17,9 @@ interface Props {
   onDeletePage: () => void;
 }
 
-function PageSection({ title, icon, children }: { title: string; icon?: string; children: ReactNode }) {
-  return <section className="page-inspector-section" aria-label={title}>
-    <h3>{icon && <DeckIcon name={icon} size={16} />}{title}</h3>
-    {children}
-  </section>;
-}
-
 function PageTitleField({ page, locale, maxLength, label, onUpdatePage }: Pick<Props, "page" | "locale" | "onUpdatePage"> & { maxLength: number; label: string }) {
-  return <div className="localized-field">
-    <span className="language-badge">{locale.toUpperCase()}</span>
-    <TextControl label={label} value={typeof page.title === "string" ? page.title : page.title[locale] ?? ""} maxLength={maxLength}
-      onChange={(value) => onUpdatePage((item) => { item.title = setLocalized(item.title, locale, value); })} />
-  </div>;
+  return <LocalizedInspectorField value={page.title} locale={locale} maxLength={maxLength} label={label}
+    onChange={(value) => onUpdatePage((item) => { item.title = setLocalized(item.title, locale, value); })} />;
 }
 
 function TouchLayoutPicker({ value, locale, onChange }: { value: PageConfig["layout"]; locale: Locale; onChange: (layout: "grid" | "list") => void }) {
@@ -43,7 +33,6 @@ function TouchLayoutPicker({ value, locale, onChange }: { value: PageConfig["lay
     {choices.map((choice) => <Radio key={choice.id} value={choice.id} className="page-layout-option">
       <Radio.Content>
         <DeckIcon name={choice.icon} size={20} />
-        <Radio.Control><Radio.Indicator /></Radio.Control>
         <Label>{choice.title}</Label>
       </Radio.Content>
       <Description>{choice.description}</Description>
@@ -65,7 +54,6 @@ const DASHBOARD_COPY: Record<string, { fr: string; en: string; icon: string; des
 export function PageInspector({ page, schema, locale, t, onUpdatePage, onDeletePage }: Props) {
   const fr = locale === "fr";
   const otherLocale = fr ? "en" : "fr";
-  const [deleteOpen, setDeleteOpen] = useState(false);
   const sourceChoices = [
     { id: "manual", label: fr ? "Mes propres actions" : "My own actions", icon: "plus", description: fr ? "Vous choisissez chaque bouton de la page." : "You choose every button on the page." },
     { id: "windows", label: fr ? "Fenêtres disponibles" : "Available windows", icon: "app", description: fr ? "Liste automatiquement les fenêtres ouvertes." : "Automatically lists open windows." },
@@ -77,28 +65,28 @@ export function PageInspector({ page, schema, locale, t, onUpdatePage, onDeleteP
     return { id: dashboard.name, label: localized(dashboard.title, locale) || copy?.[locale] || dashboard.name, icon: dashboard.icon || copy?.icon || "extension", description: dashboard.supported ? localized(dashboard.description, locale) || copy?.[fr ? "descriptionFr" : "descriptionEn"] : dashboard.name.startsWith("ext:") ? (fr ? "À activer dans Extensions." : "Enable in Extensions.") : (fr ? "Source désactivée dans Réglages → Fonctionnalités." : "Source disabled in Settings → Features.") };
   });
   if (!dashboardChoices.some((choice) => choice.id === page.dashboard)) dashboardChoices.push({ id: page.dashboard, label: page.dashboard, icon: "extension", description: fr ? "Extension manquante" : "Missing extension" });
-  return <aside className="inspector page-inspector">
-    <div className="inspector-title page-inspector-heading">
+  return <aside className="inspector inspector-essential page-inspector">
+    <div className="inspector-title inspector-heading">
       <span className="selection-icon"><DeckIcon name={page.icon || "page"} /></span>
-      <div><span className="page-inspector-context">{t("pageSettings")}</span><h2>{localized(page.title, locale) || page.id}</h2></div>
+      <div><span className="inspector-context">{t("pageSettings")}</span><h2>{localized(page.title, locale) || page.id}</h2></div>
     </div>
     <div className="inspector-scroll">
-      <PageSection title={fr ? "Identité" : "Identity"}>
+      <InspectorSection title={fr ? "Identité" : "Identity"}>
         <PageTitleField page={page} locale={locale} maxLength={schema.limits.label} label={fr ? "Nom de la page" : "Page name"} onUpdatePage={onUpdatePage} />
         <IconPicker icons={schema.icons} value={page.icon || "page"} locale={locale} label={t("icon")} onChange={(icon) => onUpdatePage((item) => { item.icon = icon; })} />
-        <Disclosure className="page-translation">
+        <Disclosure className="inspector-translation">
           <Disclosure.Heading><Disclosure.Trigger>{fr ? "Traduction anglaise" : "French translation"}<Disclosure.Indicator /></Disclosure.Trigger></Disclosure.Heading>
           <Disclosure.Content><Disclosure.Body>
             <PageTitleField page={page} locale={otherLocale} maxLength={schema.limits.label} label={fr ? "Nom de la page" : "Page name"} onUpdatePage={onUpdatePage} />
           </Disclosure.Body></Disclosure.Content>
         </Disclosure>
-      </PageSection>
-      <PageSection title={fr ? "Écran tactile" : "Touch screen"} icon="grid">
+      </InspectorSection>
+      <InspectorSection title={fr ? "Écran tactile" : "Touch screen"} icon="grid">
         <TouchLayoutPicker value={page.layout} locale={locale} onChange={(value) => onUpdatePage((item) => { item.layout = value; })} />
         <SelectControl label={fr ? "Contenu des boutons" : "Button content"} value={page.source || "manual"} choices={sourceChoices}
           onChange={(value) => onUpdatePage((item) => { item.source = value === "manual" ? "" : value; })} />
-      </PageSection>
-      <PageSection title={fr ? "Écran supérieur" : "Top screen"} icon="monitor">
+      </InspectorSection>
+      <InspectorSection title={fr ? "Écran supérieur" : "Top screen"} icon="monitor">
         <SelectControl label={fr ? "Informations affichées en haut" : "Information shown on top"} value={page.dashboard || "auto"} choices={dashboardChoices}
           onChange={(value) => onUpdatePage((item) => { item.dashboard = value; })} />
         {page.dashboard === "lyrics" && <>
@@ -108,27 +96,17 @@ export function PageInspector({ page, schema, locale, t, onUpdatePage, onDeleteP
           {typeof page.accent === "string" && page.accent && <ColorControl label={fr ? "Couleur" : "Colour"} value={page.accent} onChange={(value) => onUpdatePage((item) => { item.accent = value; })} />}
           <p className="inspector-hint">{fr ? "L’accès à LRCLIB s’active dans Réglages → Fonctionnalités. Le titre et l’artiste quittent alors le PC." : "Enable LRCLIB in Settings → Features. Track title and artist are then sent to the service."}</p>
         </>}
-      </PageSection>
-      <Disclosure className="advanced-disclosure page-advanced">
+      </InspectorSection>
+      <Disclosure className="inspector-advanced">
         <Disclosure.Heading><Disclosure.Trigger><span><DeckIcon name="gear" size={16} />{fr ? "Avancé et actions de page" : "Advanced & page actions"}</span><Disclosure.Indicator /></Disclosure.Trigger></Disclosure.Heading>
         <Disclosure.Content><Disclosure.Body>
           <TextControl label={t("technicalId")} value={page.id} maxLength={schema.limits.id}
             description={fr ? "Utilisé par les actions qui ouvrent cette page." : "Used by actions that navigate to this page."}
             onChange={(value) => onUpdatePage((item) => { item.id = value; })} />
-          <Button className="page-delete-trigger" variant="ghost" onPress={() => setDeleteOpen(true)}><DeckIcon name="trash" size={16} />{fr ? "Supprimer cette page…" : "Delete this page…"}</Button>
+          <InspectorDeleteAction kind="page" locale={locale} name={localized(page.title, locale) || page.id} onDelete={onDeletePage} />
         </Disclosure.Body></Disclosure.Content>
       </Disclosure>
     </div>
-    <div className="inspector-footer page-preview-note"><DeckIcon name="eye" size={15} />{fr ? "L’aperçu se met à jour immédiatement" : "Changes appear in the preview instantly"}</div>
-    <AlertDialog isOpen={deleteOpen} onOpenChange={setDeleteOpen}>
-      <AlertDialog.Backdrop><AlertDialog.Container size="sm"><AlertDialog.Dialog>
-        <AlertDialog.Header><AlertDialog.Heading>{fr ? "Supprimer cette page ?" : "Delete this page?"}</AlertDialog.Heading></AlertDialog.Header>
-        <AlertDialog.Body><p>{fr ? `La page « ${localized(page.title, locale) || page.id} » et ses boutons seront supprimés.` : `“${localized(page.title, locale) || page.id}” and its buttons will be removed.`}</p></AlertDialog.Body>
-        <AlertDialog.Footer>
-          <Button variant="outline" onPress={() => setDeleteOpen(false)}>{fr ? "Annuler" : "Cancel"}</Button>
-          <Button variant="danger" onPress={() => { setDeleteOpen(false); onDeletePage(); }}>{t("delete")}</Button>
-        </AlertDialog.Footer>
-      </AlertDialog.Dialog></AlertDialog.Container></AlertDialog.Backdrop>
-    </AlertDialog>
+    <InspectorPreviewNote locale={locale} />
   </aside>;
 }

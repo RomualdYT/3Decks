@@ -6,6 +6,8 @@ import { Decky, DeckyLogo } from "../../frontend/src/components/Decky";
 import { initialLocale, saveLocale } from "../../frontend/src/i18n/copy";
 import { notificationPermissionError } from "../../frontend/src/utils/notificationPermission";
 import { pageFromTemplate } from "../../frontend/src/editor/pageTemplates";
+import { ConsoleConnectionPreview } from "./ConsoleConnectionPreview";
+import { ConsoleFeaturePreview } from "./ConsoleFeaturePreview";
 import { agentApi } from "../tauri-api";
 import type { OnboardingProgress } from "../DesktopRoot";
 
@@ -24,7 +26,7 @@ const featureRows: { key: FeatureKey; icon: string; fr: string; en: string; desc
   { key: "windows", icon: "app", fr: "Fenêtres ouvertes", en: "Open windows", descriptionFr: "Affichez et sélectionnez vos fenêtres.", descriptionEn: "View and select your windows." },
   { key: "system_stats", icon: "status", fr: "Statistiques système", en: "System statistics", descriptionFr: "CPU, mémoire et stockage sur la console.", descriptionEn: "CPU, memory and storage on the console." },
   { key: "notifications", icon: "bell", fr: "Notifications", en: "Notifications", descriptionFr: "Consultez les alertes récentes du système.", descriptionEn: "See recent system alerts." },
-  { key: "media_artwork", icon: "music", fr: "Pochettes d’album", en: "Album artwork", descriptionFr: "Affichez la pochette du morceau en cours.", descriptionEn: "Show artwork for the current track." },
+  { key: "media_artwork", icon: "artwork", fr: "Pochettes d’album", en: "Album artwork", descriptionFr: "Affichez la pochette du morceau en cours.", descriptionEn: "Show artwork for the current track." },
 ];
 
 export function Onboarding({ initialStep, onComplete }: { initialStep: number; onComplete: (value: OnboardingProgress) => void }) {
@@ -179,7 +181,7 @@ export function Onboarding({ initialStep, onComplete }: { initialStep: number; o
             </button>;
           })}</div>
         </div>
-        <div className="onboarding-visual onboarding-preview-panel"><div className="onboarding-preview-screen"><div className="onboarding-preview-top"><span>3Decks</span><DeckIcon name="wifi" size={16} /></div><div className="onboarding-preview-grid">{featureRows.filter((row) => features[row.key] && available(row.key)).slice(0, 4).map((row) => <div key={row.key}><DeckIcon name={row.icon} size={24} /><span>{fr ? row.fr : row.en}</span></div>)}</div></div><p>{copy("Vous pourrez modifier ces choix plus tard.", "You can change these choices later.")}</p></div>
+        <div className="onboarding-visual onboarding-preview-panel"><ConsoleFeaturePreview features={featureRows.filter((row) => features[row.key] && available(row.key))} locale={locale} /><p>{copy("Vous pourrez modifier ces choix plus tard.", "You can change these choices later.")}</p></div>
       </div>}
 
       {step === 2 && <div className="onboarding-columns">
@@ -206,7 +208,7 @@ export function Onboarding({ initialStep, onComplete }: { initialStep: number; o
           <div className="onboarding-code-card"><div><small>{copy("Code d’appairage", "Pairing code")}</small><strong aria-live="polite">{code.slice(0, 3)} {code.slice(3, 6)}</strong></div><button type="button" onClick={() => void rotateCode()}><DeckIcon name="refresh" size={16} />{copy("Nouveau code", "New code")}</button></div>
           <div className={`onboarding-connection${connected ? " is-connected" : ""}`}><i /><span>{connected ? copy("Console connectée", "Console connected") : copy("En attente d’une console", "Waiting for a console")}</span></div>
         </div>
-        <div className="onboarding-visual onboarding-connection-panel"><div className="onboarding-device-link"><div className="onboarding-device onboarding-device-console"><DeckIcon name="grid" size={70} /><span>3DS / 2DS</span></div><div className="onboarding-link-dots"><i /><i /><i /><i /><i /></div><div className="onboarding-device onboarding-device-desktop"><Decky mood={connected ? "wave" : "idle"} size={112} /><span>3Decks</span></div></div><strong>{connected ? copy("Votre console est prête.", "Your console is ready.") : copy("En attente de la connexion…", "Waiting for connection…")}</strong><p>{copy("Vous pouvez ouvrir l’éditeur maintenant et connecter la console plus tard.", "You can open the editor now and connect the console later.")}</p></div>
+        <div className="onboarding-visual onboarding-connection-panel"><ConsoleConnectionPreview connected={connected} locale={locale} /><strong>{connected ? copy("Votre console est prête.", "Your console is ready.") : copy("En attente de la connexion…", "Waiting for connection…")}</strong><p>{copy("Vous pouvez ouvrir l’éditeur maintenant et connecter la console plus tard.", "You can open the editor now and connect the console later.")}</p></div>
       </div>}
     </main>
     {error && <div className="onboarding-error" role="alert"><DeckIcon name="info" size={18} />{error}</div>}
