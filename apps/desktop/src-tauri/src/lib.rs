@@ -352,7 +352,13 @@ async fn open_permission_settings(permission: String) -> Result<Value, String> {
 pub fn run() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_window_state::Builder::default().build())
+        .plugin(tauri_plugin_window_state::Builder::default()
+            .with_state_flags(if cfg!(target_os = "windows") {
+                StateFlags::all().difference(StateFlags::DECORATIONS)
+            } else {
+                StateFlags::all()
+            })
+            .build())
         .plugin(tauri_plugin_autostart::init(
             MacosLauncher::LaunchAgent,
             Some(vec!["--tray-only"]),
@@ -504,8 +510,18 @@ pub(crate) fn open_editor_at(app: &AppHandle, route: &str) -> tauri::Result<()> 
                 // aligned with the 72 px editor toolbar.
                 .traffic_light_position(tauri::LogicalPosition::new(18.0, 32.0));
         }
+        #[cfg(target_os = "windows")]
+        {
+            builder = builder.decorations(false).shadow(true);
+        }
         let window = builder.build()?;
-        let _ = window.restore_state(StateFlags::all());
+        let restore_flags = StateFlags::all();
+        #[cfg(target_os = "windows")]
+        let restore_flags = restore_flags.difference(StateFlags::DECORATIONS);
+        let _ = window.restore_state(restore_flags);
+        // Old sessions may have been saved with the native Windows titlebar.
+        #[cfg(target_os = "windows")]
+        window.set_decorations(false)?;
         window
     };
     if existing && !route.is_empty() {

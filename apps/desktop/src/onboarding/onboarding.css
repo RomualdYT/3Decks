@@ -24,6 +24,20 @@
 .desktop-update-notice{position:fixed;z-index:90;right:20px;bottom:20px;display:flex;align-items:center;gap:13px;max-width:min(430px,calc(100vw - 40px));padding:14px 16px;background:#222923;border:1px solid #6caf46;border-radius:13px;box-shadow:0 18px 45px #0008;color:#f4f4f5}.desktop-update-notice>div{flex:1}.desktop-update-notice strong{font-size:13px}.desktop-update-notice p{font-size:11px;margin-top:4px}.desktop-update-notice button{border:1px solid #719b5a;border-radius:8px;background:#6dcc25;color:#182710;font-size:12px;font-weight:750;padding:8px 10px;cursor:pointer}.desktop-update-notice button:last-child{background:transparent;border:0;color:#becbb9;font-size:20px;padding:0 3px}
 
 /* The macOS traffic lights remain native; the app header supplies the titlebar surface. */
+.desktop-windows .app-header{grid-template-columns:180px minmax(0,1fr) auto;padding-right:12px;user-select:none}
+.desktop-windows .onboarding-header{padding-right:12px;user-select:none}
+.desktop-windows .main-nav{align-self:center;justify-self:center;gap:3px;height:40px;padding:3px;border:1px solid var(--border);border-radius:12px;background:#171719}
+.desktop-windows .main-nav button{height:32px;border:0;border-radius:8px;padding-inline:14px;font-size:12px}
+.desktop-windows .main-nav button.active{background:#2a2d26;color:#e7f9d9}
+.desktop-windows .main-nav button:hover{background:#242426}
+.window-controls{position:relative;display:flex;align-items:center;gap:3px;margin-left:12px;padding-left:12px;border-left:1px solid var(--border);flex-shrink:0}
+.window-controls button{display:flex;align-items:center;justify-content:center;width:36px;height:34px;padding:0;border:0;border-radius:8px;background:transparent;color:var(--muted);cursor:pointer;transition:background-color .14s,color .14s}
+.window-controls button:hover{background:var(--accent-soft);color:var(--accent)}
+.window-controls button.window-close:hover{background:#bd394a;color:#fff}
+.window-controls button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.window-control-error{position:absolute;top:44px;right:0;width:260px;padding:10px;border-radius:8px;background:#392025;color:#fff;font-size:11px;z-index:100}
+.bootstrap-titlebar{display:none}.desktop-windows .bootstrap-titlebar{position:fixed;inset:0 0 auto;height:72px;display:flex;align-items:center;justify-content:flex-end;padding-right:12px}
+@media(max-width:1100px){.desktop-windows .app-header{grid-template-columns:90px minmax(0,1fr) auto}.desktop-windows .brand>span:not(.decky-brand-mark){display:none}.desktop-windows .main-nav button{padding-inline:10px}.desktop-windows .console-status span:not(.status-pulse){display:none}.desktop-windows .console-status{min-width:36px!important;padding-inline:8px!important}}
 .desktop-macos .app-header{padding-left:104px;grid-template-columns:164px minmax(0,1fr) auto}
 .desktop-macos .main-nav{align-self:center;justify-self:center;align-items:center;gap:4px;height:40px;padding:3px;border:1px solid var(--border);border-radius:12px;background:#171719}
 .desktop-macos .main-nav button{height:32px;border:0;border-radius:8px;padding-inline:15px;font-size:12px;transition:background-color .16s ease,color .16s ease}

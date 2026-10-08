@@ -9,6 +9,7 @@ import { pageFromTemplate } from "../../frontend/src/editor/pageTemplates";
 import { ConsoleConnectionPreview } from "./ConsoleConnectionPreview";
 import { ConsoleFeaturePreview } from "./ConsoleFeaturePreview";
 import { agentApi } from "../tauri-api";
+import { WindowControls } from "../../frontend/src/components/WindowControls";
 import type { OnboardingProgress } from "../DesktopRoot";
 
 type FeatureKey = "lyrics_online" | "media" | "windows" | "system_stats" | "notifications" | "media_artwork";
@@ -151,6 +152,7 @@ export function Onboarding({ initialStep, onComplete }: { initialStep: number; o
       <div className="onboarding-header-end">
         <div className="onboarding-progress"><span>{copy("Étape", "Step")} {step + 1} {copy("sur", "of")} 4</span><div>{[0, 1, 2, 3].map((index) => <i key={index} className={index <= step ? "is-active" : ""} />)}</div></div>
         <div className="onboarding-language"><button type="button" className={fr ? "is-active" : ""} onClick={() => setLocale("fr")}>FR</button><button type="button" className={!fr ? "is-active" : ""} onClick={() => setLocale("en")}>EN</button></div>
+        <WindowControls locale={locale} />
       </div>
     </header>
 

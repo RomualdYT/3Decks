@@ -1,15 +1,25 @@
 import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useCallback, useEffect, useState } from "react";
 import { App as EditorApp } from "../frontend/src/app/App";
 import { Decky } from "../frontend/src/components/Decky";
+import { WindowControls } from "../frontend/src/components/WindowControls";
 import { Onboarding } from "./onboarding/Onboarding";
 import "./onboarding/onboarding.css";
 
 if (navigator.userAgent.includes("Macintosh")) {
   document.documentElement.classList.add("desktop-macos");
 }
+const windowsDesktop = navigator.userAgent.includes("Windows");
+if (windowsDesktop) document.documentElement.classList.add("desktop-windows");
 
 window.decksDesktopControls = {
+  ...(windowsDesktop ? { windowFrame: {
+    minimize: () => getCurrentWindow().minimize(),
+    toggleMaximize: () => getCurrentWindow().toggleMaximize(),
+    isMaximized: () => getCurrentWindow().isMaximized(),
+    close: () => getCurrentWindow().close(),
+  } } : {}),
   openCommunity: () => invoke<void>("open_community"),
   getAutostart: () => invoke<boolean>("get_autostart"),
   setAutostart: (enabled) => invoke<boolean>("set_autostart", { enabled }),
@@ -42,8 +52,8 @@ export function App() {
     window.addEventListener("decks-open-onboarding", restart);
     return () => window.removeEventListener("decks-open-onboarding", restart);
   }, []);
-  if (error) return <div className="onboarding-load"><Decky mood="confused" size={96} /><strong>3Decks</strong><p>{error}</p><button type="button" onClick={load}>Réessayer</button></div>;
-  if (!progress) return <div className="onboarding-load"><Decky mood="search" size={96} /><strong>3Decks</strong><p>Préparation de 3Decks…</p></div>;
+  if (error) return <div className="onboarding-load"><div className="bootstrap-titlebar" data-tauri-drag-region="deep"><WindowControls locale="fr" /></div><Decky mood="confused" size={96} /><strong>3Decks</strong><p>{error}</p><button type="button" onClick={load}>Réessayer</button></div>;
+  if (!progress) return <div className="onboarding-load"><div className="bootstrap-titlebar" data-tauri-drag-region="deep"><WindowControls locale="fr" /></div><Decky mood="search" size={96} /><strong>3Decks</strong><p>Préparation de 3Decks…</p></div>;
   return progress.completed ? <><EditorApp /><UpdateNotice /></> : <Onboarding initialStep={progress.step} onComplete={setProgress} />;
 }
 

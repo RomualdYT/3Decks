@@ -1,5 +1,11 @@
 /** Optional desktop-only controls installed by the Tauri entrypoint. */
 export interface DesktopControls {
+  windowFrame?: {
+    minimize(): Promise<void>;
+    toggleMaximize(): Promise<void>;
+    isMaximized(): Promise<boolean>;
+    close(): Promise<void>;
+  };
   openCommunity(): Promise<void>;
   getAutostart(): Promise<boolean>;
   setAutostart(enabled: boolean): Promise<boolean>;

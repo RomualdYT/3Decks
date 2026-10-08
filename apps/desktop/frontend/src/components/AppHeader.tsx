@@ -3,6 +3,7 @@ import type { CopyKey } from "../i18n/copy";
 import { ConsoleStatusBadge } from "./ConsoleStatusBadge";
 import { DeckIcon } from "./DeckIcon";
 import { DeckyLogo } from "./Decky";
+import { WindowControls } from "./WindowControls";
 
 interface Props {
   view: View;
@@ -34,6 +35,7 @@ export function AppHeader({ view, locale, status, t, onView, onLocale }: Props) 
           <button type="button" className={locale === "fr" ? "active" : ""} onClick={() => onLocale("fr")}>FR</button>
           <button type="button" className={locale === "en" ? "active" : ""} onClick={() => onLocale("en")}>EN</button>
         </div>
+        <WindowControls locale={locale} />
       </div>
     </header>
   );
