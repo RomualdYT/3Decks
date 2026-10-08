@@ -8,6 +8,11 @@ on:
         required: true
         default: v1.0.0
         type: string
+      release_id:
+        description: Stable ID of the existing draft release
+        required: true
+        default: '407210627'
+        type: string
 
 permissions:
   contents: read
@@ -22,8 +27,6 @@ jobs:
     # GitHub only exposes draft releases to tokens with repository write access.
     permissions:
       contents: write
-    outputs:
-      release_id: ${{ steps.release.outputs.id }}
     steps:
       - uses: actions/checkout@v7
       - name: Check source version and existing draft
@@ -31,6 +34,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.tag }}
+          RELEASE_ID: ${{ inputs.release_id }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           DECKS_UPDATER_PUBKEY: ${{ vars.DECKS_UPDATER_PUBKEY }}
         run: |
@@ -38,15 +42,7 @@ jobs:
           python3 -m unittest discover -s tools -p test_release_configuration.py
           test -n "$TAURI_SIGNING_PRIVATE_KEY"
           test -n "$DECKS_UPDATER_PUBKEY"
-          gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" > release.json
-          python3 - <<'PY'
-          import json, os
-          release = json.load(open('release.json'))
-          if not release['draft']:
-              raise SystemExit('This repair workflow only replaces files in an existing draft')
-          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
-              output.write(f"id={release['id']}\n")
-          PY
+          python3 tools/refresh_macos_release.py validate
 
   build:
     needs: validate
@@ -143,7 +139,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.tag }}
-        run: gh release download "$RELEASE_TAG" --dir original
+          RELEASE_ID: ${{ inputs.release_id }}
+        run: python3 tools/refresh_macos_release.py download original
       - uses: actions/upload-artifact@v7
         with:
           name: original-release-${{ inputs.tag }}
@@ -203,16 +200,16 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.tag }}
+          RELEASE_ID: ${{ inputs.release_id }}
         run: |
-          test "$(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft)" = true
-          gh release upload "$RELEASE_TAG" replacement/* --clobber
-          gh release upload "$RELEASE_TAG" release-assets/latest.json release-assets/SHA256SUMS.txt --clobber
+          python3 tools/refresh_macos_release.py upload replacement release-assets
       - name: Verify uploaded assets and unchanged Windows and console files
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.tag }}
+          RELEASE_ID: ${{ inputs.release_id }}
         run: |
-          gh release download "$RELEASE_TAG" --dir downloaded
+          python3 tools/refresh_macos_release.py download downloaded
           cp downloaded/SHA256SUMS.txt uploaded-SHA256SUMS.txt
           python3 tools/check_release_assets.py downloaded
           cmp downloaded/SHA256SUMS.txt uploaded-SHA256SUMS.txt
@@ -229,15 +226,5 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.tag }}
-        run: |
-          gh release view "$RELEASE_TAG" --json body --jq .body > release-notes.md
-          python3 - <<'PY'
-          import os
-          from pathlib import Path
-          path = Path('release-notes.md')
-          path.write_text(path.read_text() + '\n\n### macOS package refresh\n\n'
-              + f"The Apple Silicon and Intel packages were rebuilt from commit `{os.environ['GITHUB_SHA']}` "
-              + 'to restore media automation and correct notification access diagnostics. '
-              + 'Windows and Nintendo 3DS packages are unchanged.\n')
-          PY
-          gh release edit "$RELEASE_TAG" --notes-file release-notes.md
+          RELEASE_ID: ${{ inputs.release_id }}
+        run: python3 tools/refresh_macos_release.py notes
