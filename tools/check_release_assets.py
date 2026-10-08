@@ -39,10 +39,23 @@ def check(directory: Path) -> None:
             if not entry.get("signature") or not entry.get("url"):
                 raise ValueError(f"Updater manifest has incomplete {target} entry")
             asset = Path(unquote(urlsplit(entry["url"]).path)).name
+            # Draft updater manifests use GitHub asset API URLs ending in an ID.
+            # Resolve those through the matching detached signature, not the ID.
+            if asset not in files and urlsplit(entry["url"]).hostname == "api.github.com":
+                matches = [
+                    name.removesuffix(".sig") for name, path in files.items()
+                    if name.endswith(".sig")
+                    and path.read_text().strip() == entry["signature"].strip()
+                ]
+                if len(matches) != 1:
+                    raise ValueError(f"Cannot resolve updater asset for {target}")
+                asset = matches[0]
             if asset not in files:
                 raise ValueError(f"Updater package missing: {asset}")
             if asset + ".sig" not in files:
                 raise ValueError(f"Updater signature missing: {asset}.sig")
+            if files[asset + ".sig"].read_text().strip() != entry["signature"].strip():
+                raise ValueError(f"Updater signature does not match manifest: {asset}")
     if not any(name.endswith(".dmg") for name in files):
         raise ValueError("Missing macOS DMG")
     if not any(name.endswith((".msi", "-setup.exe")) for name in files):

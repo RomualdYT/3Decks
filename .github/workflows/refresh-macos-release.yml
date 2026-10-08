@@ -1,0 +1,240 @@
+name: Refresh macOS release packages
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing draft release to repair
+        required: true
+        default: v1.0.0
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    outputs:
+      release_id: ${{ steps.release.outputs.id }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Check source version and existing draft
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          DECKS_UPDATER_PUBKEY: ${{ vars.DECKS_UPDATER_PUBKEY }}
+        run: |
+          python3 tools/check_release_version.py "$RELEASE_TAG"
+          python3 -m unittest discover -s tools -p test_release_configuration.py
+          test -n "$TAURI_SIGNING_PRIVATE_KEY"
+          test -n "$DECKS_UPDATER_PUBKEY"
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" > release.json
+          python3 - <<'PY'
+          import json, os
+          release = json.load(open('release.json'))
+          if not release['draft']:
+              raise SystemExit('This repair workflow only replaces files in an existing draft')
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write(f"id={release['id']}\n")
+          PY
+
+  build:
+    needs: validate
+    runs-on: macos-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+            arch: aarch64
+          - target: x86_64-apple-darwin
+            arch: x64
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 11.19.0
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: pnpm
+          cache-dependency-path: apps/desktop/frontend/pnpm-lock.yaml
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri -> target
+      - run: pnpm install --frozen-lockfile
+        working-directory: apps/desktop/frontend
+      - run: npm ci
+        working-directory: apps/desktop
+      - name: Configure updater public key
+        env:
+          DECKS_UPDATER_PUBKEY: ${{ vars.DECKS_UPDATER_PUBKEY }}
+        run: python3 tools/prepare_desktop_release.py
+      - name: Build and sign macOS packages
+        working-directory: apps/desktop
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          DECKS_TWITCH_CLIENT_ID: ${{ vars.DECKS_TWITCH_CLIENT_ID }}
+          TARGET: ${{ matrix.target }}
+        run: npm run tauri -- build --config src-tauri/tauri.release.conf.json --target "$TARGET" --bundles app,dmg --ci
+      - name: Verify signed app and collect packages
+        env:
+          TARGET: ${{ matrix.target }}
+          ARCH: ${{ matrix.arch }}
+        run: |
+          python3 - <<'PY'
+          import json, os, plistlib, shutil, subprocess
+          from pathlib import Path
+          root = Path('apps/desktop/src-tauri')
+          version = json.loads((root / 'tauri.conf.json').read_text())['version']
+          bundle = root / 'target' / os.environ['TARGET'] / 'release/bundle'
+          app = bundle / 'macos/3Decks.app'
+          subprocess.run(['codesign', '--verify', '--strict', str(app)], check=True)
+          entitlements = plistlib.loads(subprocess.check_output(
+              ['codesign', '-d', '--entitlements', ':-', str(app)], stderr=subprocess.DEVNULL))
+          if entitlements.get('com.apple.security.automation.apple-events') is not True:
+              raise SystemExit('Missing media automation entitlement')
+          output = Path('macos-packages')
+          output.mkdir()
+          prefix = f"3Decks_{version}_{os.environ['ARCH']}"
+          for suffix in ('.app.tar.gz', '.app.tar.gz.sig'):
+              shutil.copyfile(bundle / 'macos' / ('3Decks' + suffix), output / (prefix + suffix))
+          dmgs = list((bundle / 'dmg').glob('*.dmg'))
+          if len(dmgs) != 1:
+              raise SystemExit('Expected exactly one DMG')
+          shutil.copyfile(dmgs[0], output / (prefix + '.dmg'))
+          PY
+      - uses: actions/upload-artifact@v7
+        with:
+          name: macos-${{ matrix.arch }}
+          path: macos-packages/*
+          if-no-files-found: error
+
+  replace:
+    needs: [validate, build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: macos-*
+          merge-multiple: true
+          path: replacement
+      - name: Back up existing release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: gh release download "$RELEASE_TAG" --dir original
+      - uses: actions/upload-artifact@v7
+        with:
+          name: original-release-${{ inputs.tag }}
+          path: original/*
+          if-no-files-found: error
+          retention-days: 30
+      - name: Verify updater signatures
+        env:
+          DECKS_UPDATER_PUBKEY: ${{ vars.DECKS_UPDATER_PUBKEY }}
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y minisign
+          python3 - <<'PY'
+          import base64, os, subprocess, tempfile
+          from pathlib import Path
+          with tempfile.TemporaryDirectory() as directory:
+              public = Path(directory) / 'key.pub'
+              public.write_bytes(base64.b64decode(os.environ['DECKS_UPDATER_PUBKEY']))
+              for package in Path('replacement').glob('*.app.tar.gz'):
+                  signature = Path(directory) / (package.name + '.sig')
+                  signature.write_bytes(base64.b64decode(Path(str(package) + '.sig').read_text()))
+                  subprocess.run(['minisign', '-Vm', str(package), '-p', str(public), '-x', str(signature)], check=True)
+          PY
+      - name: Prepare complete release and manifest
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          python3 - <<'PY'
+          import json, os, shutil
+          from pathlib import Path
+          tag = os.environ['RELEASE_TAG']
+          version = tag.removeprefix('v')
+          shutil.copytree('original', 'release-assets')
+          for package in Path('replacement').iterdir():
+              shutil.copyfile(package, Path('release-assets') / package.name)
+          path = Path('release-assets/latest.json')
+          manifest = json.loads(path.read_text())
+          if manifest['version'].removeprefix('v') != version:
+              raise SystemExit('Existing updater version differs from source')
+          windows = {k: v for k, v in manifest['platforms'].items() if k.startswith('windows-')}
+          for platform, arch in [('darwin-aarch64', 'aarch64'), ('darwin-x86_64', 'x64')]:
+              name = f'3Decks_{version}_{arch}.app.tar.gz'
+              signature = (Path('replacement') / (name + '.sig')).read_text().strip()
+              entries = [k for k in manifest['platforms'] if k == platform or k == platform + '-app']
+              if not entries:
+                  raise SystemExit(f'Missing original updater platform: {platform}')
+              for key in entries:
+                  manifest['platforms'][key] = {
+                      'signature': signature,
+                      'url': f'https://github.com/{os.environ["GITHUB_REPOSITORY"]}/releases/download/{tag}/{name}',
+                  }
+          assert windows == {k: v for k, v in manifest['platforms'].items() if k.startswith('windows-')}
+          path.write_text(json.dumps(manifest, indent=2) + '\n')
+          PY
+          python3 tools/check_release_assets.py release-assets
+      - name: Replace macOS packages and updater metadata in draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          test "$(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft)" = true
+          gh release upload "$RELEASE_TAG" replacement/* --clobber
+          gh release upload "$RELEASE_TAG" release-assets/latest.json release-assets/SHA256SUMS.txt --clobber
+      - name: Verify uploaded assets and unchanged Windows and console files
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          gh release download "$RELEASE_TAG" --dir downloaded
+          cp downloaded/SHA256SUMS.txt uploaded-SHA256SUMS.txt
+          python3 tools/check_release_assets.py downloaded
+          cmp downloaded/SHA256SUMS.txt uploaded-SHA256SUMS.txt
+          cmp downloaded/SHA256SUMS.txt release-assets/SHA256SUMS.txt
+          python3 - <<'PY'
+          from pathlib import Path
+          for original in Path('original').iterdir():
+              if original.name.startswith('deck3ds.') or original.name.endswith(('.exe', '.exe.sig', '.msi', '.msi.sig')):
+                  assert original.read_bytes() == (Path('downloaded') / original.name).read_bytes(), original.name
+          for replacement in Path('replacement').iterdir():
+              assert replacement.read_bytes() == (Path('downloaded') / replacement.name).read_bytes(), replacement.name
+          PY
+      - name: Record macOS build provenance
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          gh release view "$RELEASE_TAG" --json body --jq .body > release-notes.md
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          path = Path('release-notes.md')
+          path.write_text(path.read_text() + '\n\n### macOS package refresh\n\n'
+              + f"The Apple Silicon and Intel packages were rebuilt from commit `{os.environ['GITHUB_SHA']}` "
+              + 'to restore media automation and correct notification access diagnostics. '
+              + 'Windows and Nintendo 3DS packages are unchanged.\n')
+          PY
+          gh release edit "$RELEASE_TAG" --notes-file release-notes.md
