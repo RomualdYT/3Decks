@@ -1,0 +1,11 @@
+@import "tailwindcss";
+@import "@heroui/styles";
+@import "./tokens.css";
+@import "./shell.css";
+@import "./editor.css";
+@import "./console-top.css";
+@import "./settings.css";
+@import "./extensions.css";
+@import "./responsive.css";
+@import "./decky.css";
+@import "./page-gallery.css";

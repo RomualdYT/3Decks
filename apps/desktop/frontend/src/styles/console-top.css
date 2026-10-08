@@ -1,0 +1,9 @@
+/* Native 400 × 240 coordinates scale as a unit; lower-screen styles stay intact. */
+.device-top-screen.console-top-faithful { padding: 0; background: #0d0d0f; }
+.console-top-faithful > svg { display: block; }
+.console-top-label { font-family: var(--font); line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.console-top-faithful .console-equalizer.playing rect { animation: console-meter 1.3s ease-in-out infinite alternate; }
+@keyframes console-meter { from { transform: scaleY(.35); } to { transform: scaleY(1); } }
+@media (prefers-reduced-motion: reduce) {
+  .console-top-faithful .console-equalizer.playing rect { animation: none; }
+}

@@ -1,0 +1,1247 @@
+{
+  "actions": [
+    {
+      "kind": "app.launch",
+      "requires": "target",
+      "arguments": [
+        {
+          "name": "target",
+          "type": "text",
+          "required": true,
+          "max_length": 2048
+        }
+      ],
+      "capability": "apps",
+      "supported": false,
+      "category": "essential",
+      "icon": "app",
+      "color": "#4F8DF7",
+      "title": {
+        "fr": "Ouvrir une application",
+        "en": "Open an application"
+      },
+      "description": {
+        "fr": "Lance ou remet au premier plan un programme.",
+        "en": "Launches or focuses a program."
+      }
+    },
+    {
+      "kind": "app.quit",
+      "requires": "target",
+      "arguments": [
+        {
+          "name": "target",
+          "type": "text",
+          "required": true,
+          "max_length": 2048
+        }
+      ],
+      "capability": "apps",
+      "supported": false,
+      "category": "apps",
+      "icon": "power",
+      "color": "#EF6A71",
+      "title": {
+        "fr": "Fermer une application",
+        "en": "Quit an application"
+      },
+      "description": {
+        "fr": "Ferme le programme indiqué.",
+        "en": "Quits the selected program."
+      }
+    },
+    {
+      "kind": "app_volume.down",
+      "requires": null,
+      "arguments": [
+        {
+          "name": "step",
+          "type": "number",
+          "required": false,
+          "min": 1,
+          "max": 50
+        }
+      ],
+      "capability": "app_volume",
+      "supported": false,
+      "category": "audio",
+      "icon": "music",
+      "color": "#8B78EA",
+      "title": {
+        "fr": "Baisser le volume du lecteur",
+        "en": "Player volume down"
+      },
+      "description": {
+        "fr": "Ajuste uniquement le lecteur musical.",
+        "en": "Adjusts only the music player."
+      }
+    },
+    {
+      "kind": "app_volume.set",
+      "requires": "value",
+      "arguments": [
+        {
+          "name": "value",
+          "type": "number",
+          "required": true,
+          "min": 0,
+          "max": 100
+        }
+      ],
+      "capability": "app_volume",
+      "supported": false,
+      "category": "audio",
+      "icon": "music",
+      "color": "#8B78EA",
+      "title": {
+        "fr": "Régler le volume du lecteur",
+        "en": "Set player volume"
+      },
+      "description": {
+        "fr": "Applique un niveau précis au lecteur.",
+        "en": "Sets a precise player volume."
+      }
+    },
+    {
+      "kind": "app_volume.up",
+      "requires": null,
+      "arguments": [
+        {
+          "name": "step",
+          "type": "number",
+          "required": false,
+          "min": 1,
+          "max": 50
+        }
+      ],
+      "capability": "app_volume",
+      "supported": false,
+      "category": "audio",
+      "icon": "music",
+      "color": "#8B78EA",
+      "title": {
+        "fr": "Monter le volume du lecteur",
+        "en": "Player volume up"
+      },
+      "description": {
+        "fr": "Ajuste uniquement le lecteur musical.",
+        "en": "Adjusts only the music player."
+      }
+    },
+    {
+      "kind": "audio_output.cycle",
+      "requires": null,
+      "arguments": [],
+      "capability": "audio_output",
+      "supported": false,
+      "category": "audio",
+      "icon": "volume-up",
+      "color": "#8B78EA",
+      "title": {
+        "fr": "Changer de sortie audio",
+        "en": "Cycle audio output"
+      },
+      "description": {
+        "fr": "Passe au casque, aux enceintes ou à l’écran suivant.",
+        "en": "Cycles headphones, speakers and displays."
+      }
+    },
+    {
+      "kind": "audio_output.set",
+      "requires": "target",
+      "arguments": [
+        {
+          "name": "target",
+          "type": "text",
+          "required": true,
+          "max_length": 2048
+        }
+      ],
+      "capability": "audio_output",
+      "supported": false,
+      "category": "audio",
+      "icon": "volume-up",
+      "color": "#8B78EA",
+      "title": {
+        "fr": "Choisir une sortie audio",
+        "en": "Choose audio output"
+      },
+      "description": {
+        "fr": "Sélectionne une sortie par son nom.",
+        "en": "Selects an output by name."
+      }
+    },
+    {
+      "kind": "frame.toggle",
+      "requires": null,
+      "arguments": [],
+      "capability": null,
+      "supported": true,
+      "category": "navigation",
+      "icon": "video",
+      "color": "#6D88AA",
+      "title": {
+        "fr": "Basculer le plein écran",
+        "en": "Toggle full screen"
+      },
+      "description": {
+        "fr": "Agrandit ou réduit l’affichage supérieur.",
+        "en": "Toggles the top display full screen."
+      }
+    },
+    {
+      "kind": "hotkey",
+      "requires": "keys",
+      "arguments": [
+        {
+          "name": "keys",
+          "type": "hotkey",
+          "required": true,
+          "max_length": 2048
+        }
+      ],
+      "capability": "hotkey",
+      "supported": false,
+      "category": "essential",
+      "icon": "star",
+      "color": "#7C6BF2",
+      "title": {
+        "fr": "Raccourci clavier",
+        "en": "Keyboard shortcut"
+      },
+      "description": {
+        "fr": "Déclenche une combinaison de touches.",
+        "en": "Runs a keyboard shortcut."
+      }
+    },
+    {
+      "kind": "media.next",
+      "requires": null,
+      "arguments": [],
+      "capability": "media",
+      "supported": false,
+      "category": "media",
+      "icon": "next",
+      "color": "#5C8DFF",
+      "title": {
+        "fr": "Piste suivante",
+        "en": "Next track"
+      },
+      "description": {
+        "fr": "Passe au média suivant.",
+        "en": "Skips to the next item."
+      }
+    },
+    {
+      "kind": "media.play_pause",
+      "requires": null,
+      "arguments": [],
+      "capability": "media",
+      "supported": false,
+      "category": "media",
+      "icon": "play",
+      "color": "#5C8DFF",
+      "title": {
+        "fr": "Lecture / pause",
+        "en": "Play / pause"
+      },
+      "description": {
+        "fr": "Pilote la lecture en cours.",
+        "en": "Controls current playback."
+      }
+    },
+    {
+      "kind": "media.previous",
+      "requires": null,
+      "arguments": [],
+      "capability": "media",
+      "supported": false,
+      "category": "media",
+      "icon": "previous",
+      "color": "#5C8DFF",
+      "title": {
+        "fr": "Piste précédente",
+        "en": "Previous track"
+      },
+      "description": {
+        "fr": "Revient au média précédent.",
+        "en": "Returns to the previous item."
+      }
+    },
+    {
+      "kind": "mic.mute",
+      "requires": null,
+      "arguments": [],
+      "capability": "mic",
+      "supported": false,
+      "category": "audio",
+      "icon": "mic-off",
+      "color": "#EF6A71",
+      "title": {
+        "fr": "Couper le micro",
+        "en": "Mute microphone"
+      },
+      "description": {
+        "fr": "Force le microphone en sourdine.",
+        "en": "Forces the microphone off."
+      }
+    },
+    {
+      "kind": "mic.mute_toggle",
+      "requires": null,
+      "arguments": [],
+      "capability": "mic",
+      "supported": false,
+      "category": "audio",
+      "icon": "mic",
+      "color": "#F59E0B",
+      "title": {
+        "fr": "Couper / activer le micro",
+        "en": "Mute / unmute mic"
+      },
+      "description": {
+        "fr": "Bascule le microphone système.",
+        "en": "Toggles the system microphone."
+      }
+    },
+    {
+      "kind": "mic.unmute",
+      "requires": null,
+      "arguments": [],
+      "capability": "mic",
+      "supported": false,
+      "category": "audio",
+      "icon": "mic",
+      "color": "#45C995",
+      "title": {
+        "fr": "Activer le micro",
+        "en": "Unmute microphone"
+      },
+      "description": {
+        "fr": "Force le microphone actif.",
+        "en": "Forces the microphone on."
+      }
+    },
+    {
+      "kind": "modal.volumes",
+      "requires": null,
+      "arguments": [],
+      "capability": null,
+      "supported": true,
+      "category": "navigation",
+      "icon": "volume-up",
+      "color": "#6D88AA",
+      "title": {
+        "fr": "Ouvrir le panneau des volumes",
+        "en": "Open volume panel"
+      },
+      "description": {
+        "fr": "Affiche les volumes sur la console.",
+        "en": "Shows volume controls on the console."
+      }
+    },
+    {
+      "kind": "noop",
+      "requires": null,
+      "arguments": [],
+      "capability": null,
+      "supported": true,
+      "category": "advanced",
+      "icon": "app",
+      "color": "#63758D",
+      "title": {
+        "fr": "Ne rien faire",
+        "en": "Do nothing"
+      },
+      "description": {
+        "fr": "Laisse volontairement le bouton sans effet.",
+        "en": "Intentionally leaves the button inactive."
+      }
+    },
+    {
+      "kind": "obs.record.toggle",
+      "requires": null,
+      "arguments": [],
+      "capability": "obs",
+      "supported": false,
+      "category": "obs",
+      "icon": "record",
+      "color": "#EF6A71",
+      "title": {
+        "fr": "Démarrer / arrêter l’enregistrement",
+        "en": "Start / stop recording"
+      },
+      "description": {
+        "fr": "Bascule l’enregistrement dans OBS.",
+        "en": "Toggles recording in OBS."
+      }
+    },
+    {
+      "kind": "obs.scene.set",
+      "requires": "scene",
+      "arguments": [
+        {
+          "name": "scene",
+          "type": "text",
+          "required": true,
+          "max_length": 2048
+        }
+      ],
+      "capability": "obs",
+      "supported": false,
+      "category": "obs",
+      "icon": "video",
+      "color": "#7D73F1",
+      "title": {
+        "fr": "Changer de scène OBS",
+        "en": "Change OBS scene"
+      },
+      "description": {
+        "fr": "Passe à une scène précise dans OBS Studio.",
+        "en": "Switches to a specific OBS Studio scene."
+      }
+    },
+    {
+      "kind": "obs.source.toggle",
+      "requires": "scene",
+      "arguments": [
+        {
+          "name": "scene",
+          "type": "text",
+          "required": true,
+          "max_length": 2048
+        },
+        {
+          "name": "source",
+          "type": "text",
+          "required": true,
+          "max_length": 2048
+        }
+      ],
+      "capability": "obs",
+      "supported": false,
+      "category": "obs",
+      "icon": "video",
+      "color": "#7D73F1",
+      "title": {
+        "fr": "Afficher / masquer une source",
+        "en": "Show / hide a source"
+      },
+      "description": {
+        "fr": "Bascule la visibilité d’une source dans une scène.",
+        "en": "Toggles a source inside a scene."
+      }
+    },
+    {
+      "kind": "obs.stream.toggle",
+      "requires": null,
+      "arguments": [],
+      "capability": "obs",
+      "supported": false,
+      "category": "obs",
+      "icon": "record",
+      "color": "#EF6A71",
+      "title": {
+        "fr": "Démarrer / arrêter le stream",
+        "en": "Start / stop stream"
+      },
+      "description": {
+        "fr": "Bascule la diffusion en direct dans OBS.",
+        "en": "Toggles live streaming in OBS."
+      }
+    },
+    {
+      "kind": "page.open",
+      "requires": "page",
+      "arguments": [
+        {
+          "name": "page",
+          "type": "page",
+          "required": true,
+          "max_length": 2048
+        }
+      ],
+      "capability": null,
+      "supported": true,
+      "category": "navigation",
+      "icon": "page",
+      "color": "#43A6CF",
+      "title": {
+        "fr": "Ouvrir une autre page",
+        "en": "Open another page"
+      },
+      "description": {
+        "fr": "Affiche une page de boutons sur la 3DS.",
+        "en": "Opens another button page on the 3DS."
+      }
+    },
+    {
+      "kind": "path.open",
+      "requires": "path",
+      "arguments": [
+        {
+          "name": "path",
+          "type": "text",
+          "required": true,
+          "max_length": 2048
+        }
+      ],
+      "capability": "open_path",
+      "supported": false,
+      "category": "essential",
+      "icon": "folder",
+      "color": "#D99B46",
+      "title": {
+        "fr": "Ouvrir un fichier ou dossier",
+        "en": "Open a file or folder"
+      },
+      "description": {
+        "fr": "Ouvre un fichier avec son application habituelle ou affiche un dossier.",
+        "en": "Opens a file with its usual app or displays a folder."
+      }
+    },
+    {
+      "kind": "script.run",
+      "requires": "script",
+      "arguments": [
+        {
+          "name": "script",
+          "type": "script",
+          "required": true,
+          "max_length": 2048
+        }
+      ],
+      "capability": null,
+      "supported": true,
+      "category": "advanced",
+      "icon": "terminal",
+      "color": "#E98D54",
+      "title": {
+        "fr": "Exécuter un script autorisé",
+        "en": "Run an allowed script"
+      },
+      "description": {
+        "fr": "Lance un script déclaré dans config.json.",
+        "en": "Runs a script declared in config.json."
+      }
+    },
+    {
+      "kind": "settings.open",
+      "requires": null,
+      "arguments": [],
+      "capability": null,
+      "supported": true,
+      "category": "navigation",
+      "icon": "gear",
+      "color": "#6D88AA",
+      "title": {
+        "fr": "Ouvrir les réglages 3DS",
+        "en": "Open 3DS settings"
+      },
+      "description": {
+        "fr": "Affiche les réglages directement sur la console.",
+        "en": "Opens settings directly on the console."
+      }
+    },
+    {
+      "kind": "system.lock",
+      "requires": null,
+      "arguments": [],
+      "capability": "lock",
+      "supported": false,
+      "category": "advanced",
+      "icon": "lock",
+      "color": "#E98D54",
+      "title": {
+        "fr": "Verrouiller l’ordinateur",
+        "en": "Lock computer"
+      },
+      "description": {
+        "fr": "Verrouille immédiatement la session.",
+        "en": "Locks the current session."
+      }
+    },
+    {
+      "kind": "url.open",
+      "requires": "url",
+      "arguments": [
+        {
+          "name": "url",
+          "type": "text",
+          "required": true,
+          "max_length": 2048
+        }
+      ],
+      "capability": "open_url",
+      "supported": false,
+      "category": "essential",
+      "icon": "browser",
+      "color": "#36A6D8",
+      "title": {
+        "fr": "Ouvrir un site web",
+        "en": "Open a website"
+      },
+      "description": {
+        "fr": "Ouvre une adresse dans le navigateur.",
+        "en": "Opens an address in the browser."
+      }
+    },
+    {
+      "kind": "volume.down",
+      "requires": null,
+      "arguments": [
+        {
+          "name": "step",
+          "type": "number",
+          "required": false,
+          "min": 1,
+          "max": 50
+        }
+      ],
+      "capability": "volume",
+      "supported": false,
+      "category": "audio",
+      "icon": "volume-down",
+      "color": "#3B82F6",
+      "title": {
+        "fr": "Baisser le volume",
+        "en": "Volume down"
+      },
+      "description": {
+        "fr": "Baisse le volume de l’ordinateur.",
+        "en": "Lowers the computer volume."
+      }
+    },
+    {
+      "kind": "volume.mute_toggle",
+      "requires": null,
+      "arguments": [],
+      "capability": "mute",
+      "supported": false,
+      "category": "audio",
+      "icon": "volume-mute",
+      "color": "#F59E0B",
+      "title": {
+        "fr": "Couper / rétablir le son",
+        "en": "Mute / unmute"
+      },
+      "description": {
+        "fr": "Bascule le son général.",
+        "en": "Toggles system sound."
+      }
+    },
+    {
+      "kind": "volume.set",
+      "requires": "value",
+      "arguments": [
+        {
+          "name": "value",
+          "type": "number",
+          "required": true,
+          "min": 0,
+          "max": 100
+        }
+      ],
+      "capability": "volume",
+      "supported": false,
+      "category": "audio",
+      "icon": "volume-up",
+      "color": "#3B82F6",
+      "title": {
+        "fr": "Régler le volume",
+        "en": "Set volume"
+      },
+      "description": {
+        "fr": "Applique un niveau précis.",
+        "en": "Sets a precise volume level."
+      }
+    },
+    {
+      "kind": "volume.up",
+      "requires": null,
+      "arguments": [
+        {
+          "name": "step",
+          "type": "number",
+          "required": false,
+          "min": 1,
+          "max": 50
+        }
+      ],
+      "capability": "volume",
+      "supported": false,
+      "category": "audio",
+      "icon": "volume-up",
+      "color": "#3B82F6",
+      "title": {
+        "fr": "Monter le volume",
+        "en": "Volume up"
+      },
+      "description": {
+        "fr": "Augmente le volume de l’ordinateur.",
+        "en": "Raises the computer volume."
+      }
+    },
+    {
+      "kind": "window.focus",
+      "requires": "app",
+      "arguments": [
+        {
+          "name": "app",
+          "type": "text",
+          "required": true,
+          "max_length": 2048
+        },
+        {
+          "name": "title",
+          "type": "text",
+          "required": false,
+          "max_length": 2048
+        }
+      ],
+      "capability": "windows",
+      "supported": false,
+      "category": "apps",
+      "icon": "app",
+      "color": "#58B69B",
+      "title": {
+        "fr": "Afficher une fenêtre",
+        "en": "Focus a window"
+      },
+      "description": {
+        "fr": "Ramène une fenêtre ouverte au premier plan.",
+        "en": "Brings an open window to the front."
+      }
+    }
+  ],
+  "dashboards": [
+    {
+      "name": "apps",
+      "capability": "windows",
+      "supported": false
+    },
+    {
+      "name": "audio",
+      "capability": "audio_output",
+      "supported": false
+    },
+    {
+      "name": "auto",
+      "capability": null,
+      "supported": true
+    },
+    {
+      "name": "frame",
+      "capability": "media_artwork",
+      "supported": false
+    },
+    {
+      "name": "lyrics",
+      "capability": "lyrics_online",
+      "supported": false
+    },
+    {
+      "name": "media",
+      "capability": "media",
+      "supported": false
+    },
+    {
+      "name": "notifications",
+      "capability": "notifications",
+      "supported": false
+    },
+    {
+      "name": "system",
+      "capability": "system_stats",
+      "supported": false
+    },
+    {
+      "name": "stream_chat",
+      "capability": "stream_chat",
+      "supported": false,
+      "title": { "en": "Stream chat", "fr": "Chat de stream" },
+      "description": {
+        "en": "Read Twitch chat. Set up your channel in Settings → Streaming.",
+        "fr": "Lisez le chat Twitch. Configurez la chaîne dans Réglages → Streaming."
+      },
+      "icon": "chat"
+    }
+  ],
+  "icons": [
+    "app",
+    "browser",
+    "chat",
+    "folder",
+    "gear",
+    "lock",
+    "mic",
+    "mic-off",
+    "music",
+    "next",
+    "page",
+    "pause",
+    "play",
+    "power",
+    "previous",
+    "record",
+    "star",
+    "terminal",
+    "video",
+    "volume-down",
+    "volume-mute",
+    "volume-up",
+    "bell",
+    "status",
+    "artwork"
+  ],
+  "keys": {
+    "modifiers": [
+      {
+        "name": "cmd",
+        "label": "Cmd",
+        "label_en": "Cmd",
+        "label_fr": "Cmd"
+      },
+      {
+        "name": "ctrl",
+        "label": "Ctrl",
+        "label_en": "Ctrl",
+        "label_fr": "Ctrl"
+      },
+      {
+        "name": "alt",
+        "label": "Alt",
+        "label_en": "Alt",
+        "label_fr": "Alt"
+      },
+      {
+        "name": "shift",
+        "label": "Shift",
+        "label_en": "Shift",
+        "label_fr": "Maj"
+      }
+    ],
+    "groups": [
+      "editing",
+      "navigation",
+      "function"
+    ],
+    "keys": [
+      {
+        "name": "escape",
+        "label": "Escape",
+        "label_en": "Escape",
+        "label_fr": "Échap",
+        "group": "editing"
+      },
+      {
+        "name": "return",
+        "label": "Return",
+        "label_en": "Return",
+        "label_fr": "Entrée",
+        "group": "editing"
+      },
+      {
+        "name": "tab",
+        "label": "Tab",
+        "label_en": "Tab",
+        "label_fr": "Tabulation",
+        "group": "editing"
+      },
+      {
+        "name": "space",
+        "label": "Space",
+        "label_en": "Space",
+        "label_fr": "Espace",
+        "group": "editing"
+      },
+      {
+        "name": "backspace",
+        "label": "Backspace",
+        "label_en": "Backspace",
+        "label_fr": "Retour arrière",
+        "group": "editing"
+      },
+      {
+        "name": "forward_delete",
+        "label": "Delete",
+        "label_en": "Delete",
+        "label_fr": "Suppr",
+        "group": "editing"
+      },
+      {
+        "name": "left",
+        "label": "Left",
+        "label_en": "Left",
+        "label_fr": "Gauche",
+        "group": "navigation"
+      },
+      {
+        "name": "right",
+        "label": "Right",
+        "label_en": "Right",
+        "label_fr": "Droite",
+        "group": "navigation"
+      },
+      {
+        "name": "up",
+        "label": "Up",
+        "label_en": "Up",
+        "label_fr": "Haut",
+        "group": "navigation"
+      },
+      {
+        "name": "down",
+        "label": "Down",
+        "label_en": "Down",
+        "label_fr": "Bas",
+        "group": "navigation"
+      },
+      {
+        "name": "home",
+        "label": "Home",
+        "label_en": "Home",
+        "label_fr": "Début",
+        "group": "navigation"
+      },
+      {
+        "name": "end",
+        "label": "End",
+        "label_en": "End",
+        "label_fr": "Fin",
+        "group": "navigation"
+      },
+      {
+        "name": "pageup",
+        "label": "Page Up",
+        "label_en": "Page Up",
+        "label_fr": "Page préc.",
+        "group": "navigation"
+      },
+      {
+        "name": "pagedown",
+        "label": "Page Down",
+        "label_en": "Page Down",
+        "label_fr": "Page suiv.",
+        "group": "navigation"
+      },
+      {
+        "name": "printscreen",
+        "label": "Print Screen",
+        "label_en": "Print Screen",
+        "label_fr": "Impr. écran",
+        "group": "navigation"
+      },
+      {
+        "name": "f1",
+        "label": "F1",
+        "label_en": "F1",
+        "label_fr": "F1",
+        "group": "function"
+      },
+      {
+        "name": "f2",
+        "label": "F2",
+        "label_en": "F2",
+        "label_fr": "F2",
+        "group": "function"
+      },
+      {
+        "name": "f3",
+        "label": "F3",
+        "label_en": "F3",
+        "label_fr": "F3",
+        "group": "function"
+      },
+      {
+        "name": "f4",
+        "label": "F4",
+        "label_en": "F4",
+        "label_fr": "F4",
+        "group": "function"
+      },
+      {
+        "name": "f5",
+        "label": "F5",
+        "label_en": "F5",
+        "label_fr": "F5",
+        "group": "function"
+      },
+      {
+        "name": "f6",
+        "label": "F6",
+        "label_en": "F6",
+        "label_fr": "F6",
+        "group": "function"
+      },
+      {
+        "name": "f7",
+        "label": "F7",
+        "label_en": "F7",
+        "label_fr": "F7",
+        "group": "function"
+      },
+      {
+        "name": "f8",
+        "label": "F8",
+        "label_en": "F8",
+        "label_fr": "F8",
+        "group": "function"
+      },
+      {
+        "name": "f9",
+        "label": "F9",
+        "label_en": "F9",
+        "label_fr": "F9",
+        "group": "function"
+      },
+      {
+        "name": "f10",
+        "label": "F10",
+        "label_en": "F10",
+        "label_fr": "F10",
+        "group": "function"
+      },
+      {
+        "name": "f11",
+        "label": "F11",
+        "label_en": "F11",
+        "label_fr": "F11",
+        "group": "function"
+      },
+      {
+        "name": "f12",
+        "label": "F12",
+        "label_en": "F12",
+        "label_fr": "F12",
+        "group": "function"
+      }
+    ]
+  },
+  "locales": [
+    "en",
+    "fr"
+  ],
+  "capabilities": {
+    "volume": false,
+    "mute": false,
+    "mic": false,
+    "app_volume": false,
+    "audio_output": false,
+    "media": false,
+    "media_artwork": false,
+    "apps": false,
+    "windows": false,
+    "hotkey": false,
+    "open_url": false,
+    "open_path": false,
+    "lock": false,
+    "notifications": false,
+    "system_stats": false,
+    "obs": false
+  },
+  "features": [
+    {
+      "key": "notifications",
+      "capability": "notifications",
+      "title": {
+        "fr": "Notifications",
+        "en": "Notifications"
+      },
+      "description": {
+        "fr": "Affiche les notifications récentes du système sur la console.",
+        "en": "Shows recent system notifications on the console."
+      },
+      "parent": null,
+      "platforms": [
+        "darwin",
+        "win32"
+      ],
+      "enabled": true,
+      "available": false
+    },
+    {
+      "key": "media",
+      "capability": "media",
+      "title": {
+        "fr": "Lecture multimédia",
+        "en": "Media playback"
+      },
+      "description": {
+        "fr": "Affiche le morceau, l’artiste et la progression de lecture.",
+        "en": "Shows the current track, artist and playback progress."
+      },
+      "parent": null,
+      "platforms": [
+        "darwin",
+        "win32"
+      ],
+      "enabled": true,
+      "available": false
+    },
+    {
+      "key": "lyrics_online",
+      "capability": "lyrics_online",
+      "title": { "fr": "Paroles synchronisées", "en": "Synced lyrics" },
+      "description": { "fr": "Recherche les paroles sur LRCLIB. Le titre, l’artiste, l’album et la durée sont envoyés au service.", "en": "Looks up lyrics on LRCLIB. Track title, artist, album and duration are sent to the service." },
+      "parent": "media",
+      "platforms": ["darwin", "win32"],
+      "enabled": false,
+      "available": false
+    },
+    {
+      "key": "media_artwork",
+      "capability": "media_artwork",
+      "title": {
+        "fr": "Pochette d’album",
+        "en": "Album artwork"
+      },
+      "description": {
+        "fr": "Transmet la pochette et sa couleur dominante à la console.",
+        "en": "Sends album artwork and its dominant colour to the console."
+      },
+      "parent": "media",
+      "platforms": [
+        "darwin",
+        "win32"
+      ],
+      "enabled": true,
+      "available": false
+    },
+    {
+      "key": "windows",
+      "capability": "windows",
+      "title": {
+        "fr": "Fenêtres et applications",
+        "en": "Windows and applications"
+      },
+      "description": {
+        "fr": "Affiche l’application active et alimente les pages de fenêtres.",
+        "en": "Shows the active app and powers dynamic window pages."
+      },
+      "parent": null,
+      "platforms": [
+        "darwin",
+        "win32"
+      ],
+      "enabled": true,
+      "available": false
+    },
+    {
+      "key": "audio_output",
+      "capability": "audio_output",
+      "title": {
+        "fr": "Sorties audio",
+        "en": "Audio outputs"
+      },
+      "description": {
+        "fr": "Affiche et permet de changer le périphérique audio actif.",
+        "en": "Shows and lets you change the active audio device."
+      },
+      "parent": null,
+      "platforms": [
+        "darwin",
+        "win32"
+      ],
+      "enabled": true,
+      "available": false
+    },
+    {
+      "key": "system_stats",
+      "capability": "system_stats",
+      "title": {
+        "fr": "Statistiques système",
+        "en": "System statistics"
+      },
+      "description": {
+        "fr": "Affiche l’utilisation du processeur et de la mémoire.",
+        "en": "Shows processor and memory usage."
+      },
+      "parent": null,
+      "platforms": [
+        "darwin",
+        "win32"
+      ],
+      "enabled": true,
+      "available": false
+    },
+    {
+      "key": "apple_music",
+      "capability": null,
+      "title": {
+        "fr": "Apple Music",
+        "en": "Apple Music"
+      },
+      "description": {
+        "fr": "Autorise la lecture et le contrôle d’Apple Music.",
+        "en": "Allows reading and controlling Apple Music."
+      },
+      "parent": "media",
+      "platforms": [
+        "darwin"
+      ],
+      "enabled": true,
+      "available": true
+    },
+    {
+      "key": "spotify",
+      "capability": null,
+      "title": {
+        "fr": "Spotify",
+        "en": "Spotify"
+      },
+      "description": {
+        "fr": "Autorise la lecture et le contrôle de Spotify.",
+        "en": "Allows reading and controlling Spotify."
+      },
+      "parent": "media",
+      "platforms": [
+        "darwin"
+      ],
+      "enabled": true,
+      "available": true
+    }
+  ],
+  "limits": {
+    "pages": 12,
+    "buttons_per_page": 6,
+    "label": 24,
+    "id": 32,
+    "list_entries": 32,
+    "port": [
+      1,
+      65535
+    ],
+    "poll_interval": [
+      0.2,
+      30.0
+    ],
+    "volume_step": [
+      1,
+      50
+    ],
+    "obs_timeout": [
+      0.2,
+      15.0
+    ]
+  },
+  "defaults": {
+    "host": "0.0.0.0",
+    "port": 38123,
+    "poll_interval": 1.0,
+    "volume_step": 5,
+    "obs_host": "127.0.0.1",
+    "obs_port": 4455,
+    "obs_timeout": 2.0,
+    "button_color": "#3B82F6"
+  },
+  "layouts": [
+    "grid",
+    "list"
+  ],
+  "sources": [
+    "",
+    "windows"
+  ],
+  "extension_sources": []
+}

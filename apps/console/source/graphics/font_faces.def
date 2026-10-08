@@ -1,0 +1,8 @@
+/* Style, native cell height in pixels, mkbcfnt point size.
+ * Shared by the renderer and tools/make-font.sh. Validate after changing TTF. */
+FONT_FACE(MICRO, 13, 7)
+FONT_FACE(SMALL, 14, 8)
+FONT_FACE(BODY, 15, 9)
+FONT_FACE(LARGE, 17, 9.5)
+FONT_FACE(TITLE, 20, 12)
+FONT_FACE(HUGE, 24, 14)

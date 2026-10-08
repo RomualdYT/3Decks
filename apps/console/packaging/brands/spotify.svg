@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none">
+  <!-- Optical 16 px variant: spacing keeps the three arcs distinct. -->
+  <circle cx="8" cy="8" r="7.5" fill="#1ED760"/>
+  <g stroke="#07130b" stroke-linecap="round">
+    <path d="M3.5 6 C6 5 10 5 12.5 6.5" stroke-width="1.25"/>
+    <path d="M4.2 8.6 C6.5 7.8 9.5 7.8 11.8 9" stroke-width="1.1"/>
+    <path d="M5 11 C7 10.4 9 10.4 11 11.4" stroke-width="1"/>
+  </g>
+</svg>

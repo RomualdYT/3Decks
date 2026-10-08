@@ -1,0 +1,141 @@
+name: Release candidate
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  version:
+    name: Verify release version and updater keys
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - run: python3 -m unittest discover -s tools -p test_release_configuration.py
+      - run: python3 tools/check_release_version.py "${GITHUB_REF_NAME}"
+      - name: Check updater keys before starting builds
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          DECKS_UPDATER_PUBKEY: ${{ vars.DECKS_UPDATER_PUBKEY }}
+        run: |
+          missing=0
+          for name in TAURI_SIGNING_PRIVATE_KEY DECKS_UPDATER_PUBKEY; do
+            if [[ -z "${!name}" ]]; then
+              echo "::error::Missing updater configuration: $name"
+              missing=1
+            fi
+          done
+          exit "$missing"
+      - name: Validate updater bundle configuration
+        env:
+          DECKS_UPDATER_PUBKEY: ${{ vars.DECKS_UPDATER_PUBKEY }}
+        run: python3 tools/prepare_desktop_release.py --output "$RUNNER_TEMP/tauri.release.conf.json"
+
+  quality:
+    name: Qualify source and console
+    needs: version
+    uses: ./.github/workflows/quality.yml
+    with:
+      full: true
+
+  desktop:
+    name: Desktop (${{ matrix.name }})
+    needs: quality
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      max-parallel: 1 # each runner merges its platform into the same latest.json
+      matrix:
+        include:
+          - name: macOS Apple Silicon
+            os: macos-latest
+            target: aarch64-apple-darwin
+          - name: macOS Intel
+            os: macos-latest
+            target: x86_64-apple-darwin
+          - name: Windows x64
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 11.19.0
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: pnpm
+          cache-dependency-path: apps/desktop/frontend/pnpm-lock.yaml
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri -> target
+      - run: pnpm install --frozen-lockfile
+        working-directory: apps/desktop/frontend
+      - run: npm ci
+        working-directory: apps/desktop
+      - name: Configure signed updater bundles
+        shell: bash
+        env:
+          DECKS_UPDATER_PUBKEY: ${{ vars.DECKS_UPDATER_PUBKEY }}
+        run: python tools/prepare_desktop_release.py
+      # macOS uses ad-hoc signing; Windows installers have no Authenticode
+      # signature. Tauri updater signatures are mandatory on both platforms.
+      - uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          DECKS_UPDATER_PUBKEY: ${{ vars.DECKS_UPDATER_PUBKEY }}
+          DECKS_TWITCH_CLIENT_ID: ${{ vars.DECKS_TWITCH_CLIENT_ID }}
+        with:
+          projectPath: apps/desktop
+          tagName: ${{ github.ref_name }}
+          releaseName: 3Decks ${{ github.ref_name }}
+          releaseDraft: true
+          generateReleaseNotes: true
+          uploadUpdaterJson: true
+          uploadUpdaterSignatures: true
+          args: --config src-tauri/tauri.release.conf.json --target ${{ matrix.target }}
+
+  attach-console:
+    name: Add console packages and checksums
+    timeout-minutes: 10
+    needs: [quality, desktop]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: homebrew-3ds
+          path: console
+      - name: Upload 3DS packages to draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$GITHUB_REF_NAME" console/deck3ds.3dsx console/deck3ds.cia --clobber
+      - name: Check signed updater manifest and compute checksums
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir release-assets
+          gh release download "$GITHUB_REF_NAME" --dir release-assets
+          python3 tools/check_release_assets.py release-assets
+      - name: Upload checksums
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$GITHUB_REF_NAME" release-assets/SHA256SUMS.txt --clobber

@@ -1,0 +1,25 @@
+# Artefacts de compilation 3DS
+apps/console/build/
+apps/console/*.elf
+apps/console/*.3dsx
+apps/console/*.cia
+apps/console/*.smdh
+apps/console/*.map
+
+# Local tooling
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.python/
+apps/desktop/frontend/node_modules/
+apps/desktop/frontend/coverage/
+apps/desktop/frontend/dist/
+.pytest_cache/
+
+# Configuration locale
+paired-consoles.json
+
+# Systeme
+.DS_Store
+Thumbs.db

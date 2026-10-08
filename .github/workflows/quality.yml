@@ -1,0 +1,220 @@
+name: Quality
+
+on:
+  workflow_call:
+    inputs:
+      full:
+        description: Run native checks and produce all packages
+        type: boolean
+        default: true
+  workflow_dispatch:
+    inputs:
+      full:
+        description: Run native checks and produce all packages
+        type: boolean
+        default: true
+  push:
+    branches: [main]
+    tags-ignore: ["v*"]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+jobs:
+  frontend:
+    needs: docs
+    if: inputs.full || needs.docs.outputs.frontend == 'true'
+    name: Shared editor and desktop webview
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 11.19.0
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: pnpm
+          cache-dependency-path: apps/desktop/frontend/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+        working-directory: apps/desktop/frontend
+      - run: pnpm api:check
+        working-directory: apps/desktop/frontend
+      - run: pnpm typecheck
+        working-directory: apps/desktop/frontend
+      - run: pnpm test:frontend
+        working-directory: apps/desktop/frontend
+      - run: npm ci
+        working-directory: apps/desktop
+      - run: npm run build
+        working-directory: apps/desktop
+
+  rust:
+    if: inputs.full
+    name: Native desktop (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 11.19.0
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: pnpm
+          cache-dependency-path: apps/desktop/frontend/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+        working-directory: apps/desktop/frontend
+      - run: npm ci
+        working-directory: apps/desktop
+      - run: npm run build
+        working-directory: apps/desktop
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri -> target
+      - run: cargo test --locked --manifest-path apps/desktop/src-tauri/Cargo.toml
+
+  extensions:
+    if: inputs.full
+    name: Focus extension (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: examples/extensions/focus -> target
+      - run: python examples/extensions/focus/package.py
+      - uses: actions/upload-artifact@v7
+        with:
+          name: focus-${{ matrix.os }}
+          retention-days: 7
+          path: examples/extensions/focus/dist/*.3deckext
+          if-no-files-found: error
+
+  console-tests:
+    needs: docs
+    if: inputs.full || needs.docs.outputs.console == 'true'
+    name: 3DS host tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ${{ fromJSON(inputs.full && '["ubuntu-latest", "macos-latest"]' || '["ubuntu-latest"]') }}
+    steps:
+      - uses: actions/checkout@v7
+      - run: bash tools/test_console.sh
+
+  console-build:
+    if: inputs.full
+    name: Nintendo 3DS package
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: apps/console/packaging/Dockerfile
+          tags: 3decks-console-packaging:local
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Encode console version from release tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: python3 apps/console/packaging/package_version.py "$GITHUB_REF_NAME" >> "$GITHUB_ENV"
+      - run: ./build.sh all
+      - name: Verify HOME artwork and CIA structure
+        run: |
+          docker run --rm -v "$PWD":/repo -w /repo 3decks-console-packaging:local bash apps/console/packaging/generate_artwork.sh --check
+          python3 -m unittest discover -s tools -p test_console_package.py
+      - uses: actions/upload-artifact@v7
+        with:
+          name: homebrew-3ds
+          retention-days: 7
+          path: |
+            apps/console/deck3ds.3dsx
+            apps/console/deck3ds.cia
+          if-no-files-found: error
+
+  docs:
+    name: Repository documentation
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      frontend: ${{ steps.changes.outputs.frontend }}
+      console: ${{ steps.changes.outputs.console }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Select lightweight checks from changed files
+        id: changes
+        if: ${{ !inputs.full }}
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          IS_PULL_REQUEST: ${{ github.event_name == 'pull_request' }}
+        run: |
+          python3 - <<'PYTHON'
+          import os
+          import subprocess
+
+          base = os.environ["BASE_SHA"]
+          # New branches or unavailable history conservatively run both checks.
+          available = base and set(base) != {"0"} and subprocess.run(
+              ["git", "cat-file", "-e", f"{base}^{{commit}}"],
+              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+          ).returncode == 0
+          if available:
+              if os.environ["IS_PULL_REQUEST"] == "true":
+                  base = subprocess.check_output(["git", "merge-base", base, "HEAD"], text=True).strip()
+              files = subprocess.check_output(
+                  ["git", "diff", "--name-only", "--no-renames", "-z", base, "HEAD"], text=True,
+              ).split("\0")
+              files = [path for path in files if path and not path.endswith(".md")]
+              shared = any(path.startswith((".github/workflows/", "tools/")) for path in files)
+              frontend = shared or any(
+                  path.startswith(("apps/desktop/frontend/", "apps/desktop/shell/", "resources/"))
+                  or path in {
+                      "apps/desktop/package.json", "apps/desktop/package-lock.json",
+                      "apps/desktop/tsconfig.json", "apps/desktop/vite.config.ts",
+                      "apps/desktop/catalog.json", "apps/desktop/default-config.json",
+                  }
+                  for path in files
+              )
+              console = shared or any(
+                  path.startswith(("apps/console/", "resources/")) or path == "build.sh"
+                  for path in files
+              )
+          else:
+              frontend = console = True
+          with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+              output.write(f"frontend={str(frontend).lower()}\nconsole={str(console).lower()}\n")
+          PYTHON
+      - run: python3 tools/check_docs.py
+      - run: python3 -m unittest discover -s tools -p test_check_docs.py

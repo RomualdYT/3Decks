@@ -1,0 +1,12 @@
+node_modules/
+node_modules
+node_modules.dataless/
+dist/
+src-tauri/target/
+src-tauri/gen/
+src-tauri/icons/android/
+src-tauri/icons/ios/
+.DS_Store
+
+# Native extension SDK build output
+extension-sdk/target/

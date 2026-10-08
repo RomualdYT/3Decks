@@ -1,0 +1,147 @@
+/*
+ * Deck3DS — Copyright (C) 2026 Romuald (@RomualdYT)
+ * Free software under the GNU GPL v3. See LICENSE for details.
+ */
+
+#include "model.h"
+
+#include <string.h>
+
+void model_config_clear(Config *config)
+{
+	memset(config, 0, sizeof(*config));
+	config->revision = -1;
+	config->page_count = 0;
+}
+
+void model_state_clear(PcState *state)
+{
+	memset(state, 0, sizeof(*state));
+	state->volume = -1;
+	state->app_volume = -1;
+	state->cpu = -1;
+	state->memory = -1;
+	state->memory_used_mb = -1;
+	state->memory_total_mb = -1;
+	state->disk = -1;
+	state->disk_free_mb = -1;
+	state->disk_total_mb = -1;
+	state->network_down_kbps = -1;
+	state->network_up_kbps = -1;
+	state->top_process_cpu = -1;
+	state->gpu = -1;
+	state->temperature = -1;
+	state->mic_known = false;
+	state->media_present = false;
+	state->media_seekable = false;
+	state->media_art = 0;
+	state->media_accent_known = false;
+	state->media_position = -1;
+	state->media_duration = -1;
+	state->lyrics_count = 0;
+	strcpy(state->lyrics_status, "idle");
+	strcpy(state->chat_status, "disabled");
+}
+
+/* Table nom -> icône, alignée sur la liste documentée dans PROTOCOL.md. */
+static const struct {
+	const char *name;
+	IconId id;
+} kIconNames[] = {
+#define ICON_ASSET(id, name) {#name, ICON_##id},
+#include "../graphics/icon_assets.def"
+#undef ICON_ASSET
+};
+
+IconId model_icon_from_name(const char *name)
+{
+	if (name == NULL || name[0] == '\0') {
+		return ICON_NONE;
+	}
+
+	const size_t count = sizeof(kIconNames) / sizeof(kIconNames[0]);
+	for (size_t i = 0; i < count; i++) {
+		if (strcmp(name, kIconNames[i].name) == 0) {
+			return kIconNames[i].id;
+		}
+	}
+	return ICON_APP; /* icône générique plutôt qu'un bouton vide */
+}
+
+DashboardMode model_dashboard_from_name(const char *name)
+{
+	if (name == NULL || name[0] == '\0') {
+		return DASH_AUTO;
+	}
+	if (strcmp(name, "media") == 0) {
+		return DASH_MEDIA;
+	}
+	if (strcmp(name, "stream_chat") == 0) return DASH_STREAM_CHAT;
+	if (strcmp(name, "lyrics") == 0) {
+		return DASH_LYRICS;
+	}
+	if (strcmp(name, "system") == 0) {
+		return DASH_SYSTEM;
+	}
+	if (strcmp(name, "apps") == 0) {
+		return DASH_APPS;
+	}
+	if (strcmp(name, "audio") == 0) {
+		return DASH_AUDIO;
+	}
+	if (strcmp(name, "frame") == 0) {
+		return DASH_FRAME;
+	}
+	if (strcmp(name, "notifications") == 0) {
+		return DASH_NOTIFICATIONS;
+	}
+	if (strcmp(name, "extension") == 0) {
+		return DASH_EXTENSION;
+	}
+	return DASH_AUTO;
+}
+
+const Page *model_page_at(const Config *config, int index)
+{
+	if (index < 0 || index >= config->page_count) {
+		return NULL;
+	}
+	if (!config->pages[index].used) {
+		return NULL;
+	}
+	return &config->pages[index];
+}
+
+int model_find_page(const Config *config, const char *id)
+{
+	if (id == NULL || id[0] == '\0') {
+		return -1;
+	}
+	for (int i = 0; i < config->page_count; i++) {
+		if (config->pages[i].used &&
+		    strcmp(config->pages[i].id, id) == 0) {
+			return i;
+		}
+	}
+	return -1;
+}
+
+bool model_toggle_active(const PcState *state, const char *key)
+{
+	if (key == NULL || key[0] == '\0') {
+		return false;
+	}
+	if (strcmp(key, "mic_muted") == 0) {
+		return state->mic_muted;
+	}
+	if (strcmp(key, "muted") == 0) {
+		return state->muted;
+	}
+	if (strcmp(key, "playing") == 0) {
+		return state->media_playing;
+	}
+	if (strcmp(key, "media_present") == 0) {
+		return state->media_present;
+	}
+	return false;
+}

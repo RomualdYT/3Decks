@@ -1,0 +1,11 @@
+/* Native atlas dimensions shared by the renderer and asset generator. */
+ICON_SIZE(12)
+ICON_SIZE(16)
+ICON_SIZE(20)
+ICON_SIZE(24)
+ICON_SIZE(28)
+ICON_SIZE(32)
+ICON_SIZE(36)
+ICON_SIZE(40)
+ICON_SIZE(48)
+ICON_SIZE(52)
