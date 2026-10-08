@@ -39,6 +39,13 @@ uniquement l'application ; ne désactivez pas Gatekeeper globalement. Voir les
 Les identifiants Twitch sont conservés dans le Trousseau. macOS peut redemander
 l'accès après une mise à jour, car les signatures ad hoc changent entre les builds.
 
+Une mise à jour ou une réinstallation peut aussi invalider les autorisations
+système existantes. Pour l'Accès complet au disque ou l'Accessibilité, retirez
+l'ancienne entrée 3Decks, ajoutez l'application installée puis relancez-la si
+l'accès ne fonctionne plus malgré un interrupteur activé. Lire les notifications
+des autres applications exige l'**Accès complet au disque** ; autoriser 3Decks
+à envoyer ses propres notifications ne donne pas ce droit.
+
 ### Premier lancement sur Windows
 
 Les installateurs Windows ne portent pas de signature Authenticode. Windows

@@ -91,6 +91,18 @@ impl NotificationReader {
         self.status["available"].as_bool() == Some(true)
     }
 
+    #[cfg(target_os = "macos")]
+    fn read_failed(&mut self, error: &str, permission_required: bool) {
+        if self.status["error"].as_str() != Some(error) {
+            crate::app::logging::append(&format!("Notification reader unavailable: {error}"));
+        }
+        self.status = status(true, false, error);
+        if permission_required {
+            self.status["access"] = json!("Denied");
+            self.status["settings_action"] = json!("notifications");
+        }
+    }
+
     pub fn read(&mut self, enabled: bool) -> NotificationUpdate {
         let empty = || NotificationUpdate {
             notifications: Vec::new(),
@@ -126,12 +138,25 @@ impl NotificationReader {
         }
         #[cfg(target_os = "macos")]
         {
-            if !self.path.is_file() {
-                self.status = status(true, false, "Centre de notifications introuvable");
-                return empty();
+            match self.path.try_exists() {
+                Ok(true) => {}
+                Ok(false) => {
+                    self.read_failed("Notification database not found", false);
+                    return empty();
+                }
+                Err(error) => {
+                    self.read_failed(
+                        &error.to_string(),
+                        error.kind() == std::io::ErrorKind::PermissionDenied,
+                    );
+                    return empty();
+                }
             }
             match macos_reader::read(&self.path) {
                 Ok(items) => {
+                    if self.status["error"].as_str().is_some_and(|error| !error.is_empty()) {
+                        crate::app::logging::append("Notification reader access restored");
+                    }
                     self.status = status(true, true, "");
                     let newest = items.first().and_then(|(key, payload)| {
                         let previous = self.last_key.replace(key.clone());
@@ -148,7 +173,15 @@ impl NotificationReader {
                     }
                 }
                 Err(error) => {
-                    self.status = status(true, false, &error);
+                    let permission_required = matches!(
+                        &error,
+                        rusqlite::Error::SqliteFailure(code, _)
+                            if matches!(code.code,
+                                rusqlite::ErrorCode::CannotOpen
+                                    | rusqlite::ErrorCode::PermissionDenied
+                                    | rusqlite::ErrorCode::AuthorizationForStatementDenied)
+                    );
+                    self.read_failed(&error.to_string(), permission_required);
                     empty()
                 }
             }
@@ -202,6 +235,6 @@ fn status(enabled: bool, available: bool, error: &str) -> Value {
         "available": available,
         "access": if !enabled { "Disabled" } else if available { "Allowed" } else { "Unavailable" },
         "error": error,
-        "settings_action": if enabled && !available && cfg!(target_os = "macos") { "notifications" } else { "" },
+        "settings_action": "",
     })
 }

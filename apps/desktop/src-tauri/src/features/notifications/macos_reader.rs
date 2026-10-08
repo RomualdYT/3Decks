@@ -14,23 +14,19 @@ use std::{
 const APPLE_EPOCH: f64 = 978_307_200.0;
 const MAX_AGE: f64 = 6.0 * 60.0 * 60.0;
 
-pub(super) fn read(path: &Path) -> Result<Vec<(String, Value)>, String> {
+pub(super) fn read(path: &Path) -> Result<Vec<(String, Value)>, rusqlite::Error> {
     let connection = Connection::open_with_flags(
         path,
         OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
-    )
-    .map_err(|error| error.to_string())?;
-    connection
-        .busy_timeout(Duration::from_millis(500))
-        .map_err(|error| error.to_string())?;
+    )?;
+    connection.busy_timeout(Duration::from_millis(500))?;
     let mut query = connection
         .prepare(
             "SELECT rec.delivered_date, app.identifier, rec.data \
          FROM record rec JOIN app ON rec.app_id = app.app_id \
          WHERE rec.delivered_date IS NOT NULL \
          ORDER BY rec.delivered_date DESC LIMIT 40",
-        )
-        .map_err(|error| error.to_string())?;
+        )?;
     let rows = query
         .query_map([], |row| {
             Ok((
@@ -38,8 +34,7 @@ pub(super) fn read(path: &Path) -> Result<Vec<(String, Value)>, String> {
                 row.get::<_, Option<String>>(1)?.unwrap_or_default(),
                 row.get::<_, Option<Vec<u8>>>(2)?.unwrap_or_default(),
             ))
-        })
-        .map_err(|error| error.to_string())?;
+        })?;
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
@@ -47,7 +42,7 @@ pub(super) fn read(path: &Path) -> Result<Vec<(String, Value)>, String> {
     let mut seen = HashSet::new();
     let mut result = Vec::new();
     for row in rows {
-        let (delivered, bundle, data) = row.map_err(|error| error.to_string())?;
+        let (delivered, bundle, data) = row?;
         if let Some((key, payload)) = decode(delivered, &bundle, &data, now) {
             if seen.insert(key.clone()) {
                 result.push((key, payload));
@@ -174,6 +169,31 @@ mod tests {
         assert_eq!(payload["body"], "Alice — Message");
         assert!(decode(100_000.0, "com.apple.mail", &bytes, now + MAX_AGE + 1.0).is_none());
         assert!(decode(100_000.0, "com.apple.mail", b"invalid", now).is_none());
+    }
+
+    #[test]
+    fn schema_failure_does_not_request_full_disk_access() {
+        let path = std::env::temp_dir().join(format!(
+            "3decks-notification-schema-{}-{}.db",
+            std::process::id(),
+            SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos()
+        ));
+        let connection = Connection::open(&path).unwrap();
+        connection.execute_batch("CREATE TABLE unrelated(value TEXT);").unwrap();
+        drop(connection);
+        let mut reader = NotificationReader {
+            path: path.clone(),
+            last_key: None,
+            status: status(false, true, ""),
+        };
+        assert_eq!(reader.read(true).count, 0);
+        let failure = reader.status();
+        assert_eq!(failure["access"], "Unavailable");
+        assert_eq!(failure["settings_action"], "");
+        assert!(failure["error"].as_str().unwrap().contains("no such table"));
+        std::fs::remove_file(path).unwrap();
+        assert_eq!(reader.read(true).count, 0);
+        assert_eq!(reader.status()["settings_action"], "");
     }
 
     #[test]

@@ -89,10 +89,17 @@ export function FeatureSettings({ config, schema, status, locale, t, update }: F
                     description={locale === "fr" ? "Autorisez 3Decks à lire les notifications Windows pour les afficher sur votre console." : "Allow 3Decks to read Windows notifications and show them on your console."}
                     action={requestingNotifications ? t("openingPermissions") : locale === "fr" ? "Autoriser" : "Allow access"}
                     busy={requestingNotifications} onAction={() => void requestNotificationAccess()} /> : permissionAction ? <FeaturePermissionNotice
-                    title={locale === "fr" ? "Accès aux notifications requis" : "Notification access needed"}
-                    description={locale === "fr" ? "Autorisez 3Decks à lire vos notifications dans les réglages système." : "Allow 3Decks to read your notifications in system settings."}
+                    title={status?.platform === "darwin"
+                      ? (locale === "fr" ? "Accès complet au disque requis" : "Full Disk Access needed")
+                      : (locale === "fr" ? "Accès aux notifications requis" : "Notification access needed")}
+                    description={status?.platform === "darwin"
+                      ? (locale === "fr"
+                        ? "Ajoutez 3Decks dans Confidentialité et sécurité → Accès complet au disque pour lire les notifications des autres apps. Si l’app est déjà autorisée après une réinstallation, retirez-la puis ajoutez la version installée et relancez 3Decks."
+                        : "Add 3Decks in Privacy & Security → Full Disk Access to read other apps’ notifications. If it is already allowed after reinstalling, remove it, add the installed version again, and restart 3Decks.")
+                      : (locale === "fr" ? "Autorisez 3Decks à lire vos notifications dans les réglages système." : "Allow 3Decks to read your notifications in system settings.")}
                     action={openingPermission === permissionAction ? t("openingPermissions") : locale === "fr" ? "Ouvrir les réglages" : "Open settings"}
                     busy={openingPermission === permissionAction} onAction={() => openPermission(permissionAction)} /> : null}
+                  {permissionAction && currentNotificationAccess?.error && <small className="feature-detail-note">{currentNotificationAccess.error}</small>}
                   {native && platformAvailable && enabled && feature.key === "audio_output" && (
                     <AudioOutputSettings locale={locale} windows={status?.platform === "win32"} />
                   )}

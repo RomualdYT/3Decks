@@ -38,6 +38,12 @@ this app; do not disable Gatekeeper globally. See
 Twitch credentials are stored in Keychain. macOS may request access again after
 an app update because ad-hoc signatures change between builds.
 
+Updates and reinstalls can also invalidate existing system permissions. For
+Full Disk Access or Accessibility, remove the old 3Decks entry, add the installed
+app again, then restart it if access stops working despite an enabled toggle.
+Reading other apps' notifications requires **Full Disk Access**; allowing
+3Decks to send its own notifications does not grant that access.
+
 ### First launch on Windows
 
 Windows installers have no Authenticode signature. Windows may display an
