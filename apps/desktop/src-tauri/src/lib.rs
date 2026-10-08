@@ -105,11 +105,7 @@ async fn manage_extension(
     }
     let mut host = shared.extensions.lock().await;
     let result = host.manage(request).await?;
-    *shared.extension_catalog.write().unwrap() = host.catalog();
-    *shared.extension_snapshots.write().unwrap() = host.snapshots();
-    let _ = shared
-        .config_updates
-        .send(shared.snapshot().config_revision);
+    shared.publish_extensions(host.catalog(), host.snapshots());
     Ok(result)
 }
 

@@ -1,0 +1,21 @@
+[package]
+name = "three-decks-focus"
+version = "1.0.0"
+edition = "2024"
+license = "GPL-3.0-or-later"
+publish = false
+description = "A persistent bilingual Pomodoro extension for 3Decks"
+
+[[bin]]
+name = "focus"
+path = "src/main.rs"
+
+[dependencies]
+three-decks-extension-sdk = { path = "../../../apps/desktop/extension-sdk" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+
+[profile.release]
+strip = true
+lto = "thin"

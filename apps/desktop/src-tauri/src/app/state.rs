@@ -41,6 +41,25 @@ fn extension_text(value: &Value, locale: &str, max_bytes: usize) -> String {
     output
 }
 
+/// Resolve extension text per connected console, preserving bilingual data in
+/// the shared desktop snapshot. Limits match the console's UTF-8 buffers.
+pub fn console_state(state: &Value, locale: &str) -> Value {
+    let mut state = state.clone();
+    if let Some(panels) = state["extension_panels"].as_array_mut() {
+        for panel in panels {
+            panel["title"] = Value::String(extension_text(&panel["title"], locale, 64));
+            if let Some(cards) = panel["cards"].as_array_mut() {
+                for card in cards {
+                    for (field, limit) in [("label", 24), ("detail", 64)] {
+                        card[field] = Value::String(extension_text(&card[field], locale, limit));
+                    }
+                }
+            }
+        }
+    }
+    state
+}
+
 #[derive(Clone, Serialize)]
 pub struct Status {
     pub running: bool,
@@ -134,6 +153,7 @@ pub struct Shared {
     pub onboarding: OnboardingStore,
     pub extensions: Arc<tokio::sync::Mutex<ExtensionHost>>,
     pub extension_catalog: RwLock<Value>,
+    pub catalog_revision: AtomicU64,
     pub extension_snapshots: RwLock<Value>,
     pub config_updates: watch::Sender<u64>,
     pub state_updates: broadcast::Sender<Value>,
@@ -250,6 +270,7 @@ impl Shared {
             credentials_path,
             extensions: Arc::new(tokio::sync::Mutex::new(extension_host)),
             extension_catalog: RwLock::new(extension_catalog),
+            catalog_revision: AtomicU64::new(1),
             extension_snapshots: RwLock::new(serde_json::json!({})),
             config,
             windows: RwLock::new(Vec::new()),
@@ -271,6 +292,24 @@ impl Shared {
             controls_pause: Mutex::new(ControlsPause::Off),
             stop,
         })
+    }
+
+    pub fn publish_extensions(&self, catalog: Value, snapshots: Value) {
+        let catalog_changed = {
+            let mut current = self.extension_catalog.write().unwrap();
+            if *current == catalog { false } else {
+                *current = catalog;
+                self.catalog_revision.fetch_add(1, Ordering::SeqCst);
+                true
+            }
+        };
+        let snapshots_changed = {
+            let mut current = self.extension_snapshots.write().unwrap();
+            if *current == snapshots { false } else { *current = snapshots; true }
+        };
+        if catalog_changed || snapshots_changed {
+            let _ = self.config_updates.send(self.snapshot().config_revision);
+        }
     }
 
     pub fn snapshot(&self) -> Status {

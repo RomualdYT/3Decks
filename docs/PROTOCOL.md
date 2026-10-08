@@ -17,7 +17,7 @@ Before connecting, the console broadcasts to UDP **38122**:
 The agent replies to the sender:
 
 ```json
-{"type":"deck3ds.agent","protocol":1,"name":"Office Mac","platform":"macos","port":38123,"version":"0.2.0","pairing_required":true,"nonce":42}
+{"type":"deck3ds.agent","protocol":1,"name":"Office Mac","platform":"macos","port":38123,"version":"1.0.0","pairing_required":true,"nonce":42}
 ```
 
 Use the datagram's source address, not an IP embedded in JSON. Manual address/port setup remains available when broadcasts are filtered.
@@ -43,12 +43,12 @@ For pairing, use `pair_code` with the six-digit code shown locally instead of a 
 A valid code is consumed once. The response supplies a new individual credential for the console to store:
 
 ```json
-{"type":"hello.ok","protocol":1,"agent":"0.2.0","host":"Office Mac","platform":"darwin","token":"new-individual-credential"}
+{"type":"hello.ok","protocol":1,"agent":"1.0.0","host":"Office Mac","platform":"macos","token":"new-individual-credential"}
 ```
 
-`token` is included after pairing or bootstrap-token exchange, not on every normal handshake. The agent keeps only the credential's SHA-256 digest in `paired-consoles.json`. Individual revocation closes matching connections.
+`token` is included after pairing, not on a normal credential-based handshake. The agent keeps only the credential's SHA-256 digest in `paired-consoles.json`. Individual revocation closes matching connections.
 
-One absolute five-second deadline covers the entire handshake, including fragments. Admissions are capped at 16 pending and eight authenticated clients; overload can return `hello.error` with `server_busy`. Pair-code failures are limited to five per source and 30 globally per one-minute window.
+One absolute five-second deadline covers the entire handshake, including fragments. Admissions are capped at 16 pending and eight authenticated clients; overload can return `hello.error` with `server_busy`. Pair-code failures are limited to five per source and 30 globally per one-minute window; excess attempts return `pairing_rate_limited`.
 
 ## Client requests
 
@@ -88,12 +88,17 @@ The full snapshot rebuilds the console layout. It contains display metadata and 
 | Page field | Meaning |
 |---|---|
 | `id`, `title`, `icon` | Identity and tab display; localized text resolved by agent |
-| `dashboard` | `auto`, `media`, `system`, `apps`, `audio`, `frame`, or `extension` |
+| `dashboard` | `auto`, `media`, `lyrics`, `system`, `apps`, `audio`, `frame`, `notifications`, or `extension` |
 | `layout` | `grid` (default) or `list` |
 | `buttons` | Up to six grid positions, `slot` 0–5 |
 | `entries` | Up to 32 ordered list items |
 
-Button fields include `id`, `slot`, `label`, vector `icon`, `color` in `#RRGGBB`, optional `toggle` state key and `hold_label`. List items use `id`, `label`, `detail`, `icon`, `color` and `active`; presses use the same message as buttons. Limits include 12 pages, short 24-character labels and 32-character identifiers; native buffers also impose UTF-8 byte limits. Keep strings short. Generated lists may be reduced to fit the global frame budget.
+Button fields include `id`, `slot`, `label`, vector `icon`, `color` in `#RRGGBB`, optional `toggle` state key and `hold_label`. List items use `id`, `label`, `detail`, `icon`, `color` and `active`; presses use the same message as buttons. Limits include 12 pages, 24-byte labels, 40-byte list details and 32-byte identifiers, all measured in UTF-8 bytes. Resolved extension text is truncated on character boundaries; keep strings short. Generated lists may be reduced to fit the global frame budget.
+
+Console icon names: `mic`, `mic-off`, `volume-up`, `volume-down`, `volume-mute`,
+`play`, `pause`, `next`, `previous`, `app`, `browser`, `terminal`, `folder`,
+`music`, `chat`, `video`, `record`, `lock`, `page`, `power`, `gear`, `star`.
+Unknown names use the generic application icon.
 
 ### State updates
 
@@ -102,6 +107,18 @@ Button fields include `id`, `slot`, `label`, vector `icon`, `color` in `#RRGGBB`
 Audio state carries `audio_output` (active display name), `audio_output_mode` (`direct`, `host_only` or `unavailable`), `audio_output_count` (total available) and `audio_output_options` (up to 12 objects with `id`, `name` and `active`). IDs are opaque 32-character tokens for the current device identity. The console sends the selected token through `audio.output.select`; the agent resolves it against a fresh device list before changing the output. Windows reports `host_only`: its active output is shown, but the console does not offer remote selection.
 
 Performance keys include `cpu`, `memory`, `memory_used_mb`, `memory_total_mb`, `disk`, `disk_free_mb`, `disk_total_mb`, `network_down_kbps`, `network_up_kbps`, `top_process`, `top_process_cpu`, optional `gpu` and `temperature`. Memory/storage units are MiB, network rates kilobits/second and temperature Celsius. Missing metrics are unavailable, not invented zeros. Time/date are resolved by the agent; the console can fall back to its own clock.
+
+### Synchronized lyrics
+
+```json
+{"type":"media.lyrics","status":"ready","track":"Example track","artist":"Example artist","duration_ms":180000,"lines":[{"t":1200,"text":"First line"}]}
+```
+
+`t` and `duration_ms` are milliseconds. A message replaces the previous song's
+lyrics; empty `lines` clears them. Status values include `idle`, `loading`,
+`ready`, `disabled`, `unavailable`, `unsynced`, `instrumental`, `error` and
+`too_large`. Limits: 256 lines, 120 UTF-8 bytes per line, within the global
+frame limit. Playback position/playing state comes from `state.update`.
 
 ### Action result and pong
 
@@ -135,4 +152,4 @@ Older clients ignore unknown fields but need updated homebrew to render new exte
 
 ## Trust boundary
 
-A network observer can see pairing traffic and bearer credentials. Monotonic IDs, rate limits and allow-lists do not secure a hostile LAN. A future encrypted protocol would require a negotiated, audited construction on both PC and 3DS; no homegrown cryptography is claimed. See [Security](SECURITY.md).
+A network observer can see pairing traffic and bearer credentials. Monotonic IDs, rate limits and allow-lists do not secure a hostile LAN. See [Security](SECURITY.md).

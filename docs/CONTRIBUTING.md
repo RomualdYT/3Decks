@@ -1,6 +1,16 @@
 # Build and contribute
 
-Install Rust stable, Node.js 24, pnpm 11 and the [Tauri 2 prerequisites](https://v2.tauri.app/start/prerequisites/) for your OS. A 3DS package additionally needs Docker or devkitPro.
+[Documentation](README.md)
+
+## Prerequisites
+
+- Rust stable (edition 2024 for the desktop and extension SDK).
+- Node.js 24 and pnpm 11; the frontend lockfile specifies its package-manager version.
+- [Tauri platform prerequisites](https://v2.tauri.app/start/prerequisites/) for the desktop.
+- Docker for console packaging, or a local devkitPro toolchain.
+- Python 3 for documentation and packaging tools; Focus's builder needs Python 3.9+.
+
+From the repository root:
 
 ```sh
 cd apps/desktop/frontend
@@ -15,8 +25,38 @@ cargo test --locked --manifest-path src-tauri/Cargo.toml
 npm run tauri -- dev
 ```
 
-From the repository root, `bash tools/test_console.sh` runs host C tests, and `./build.sh all` builds `.3dsx` and `.cia` with the packaging container. `python3 tools/check_docs.py` validates maintained Markdown links. Quality CI performs these checks and compiles the native backend on macOS and Windows.
+## Other checks and builds
 
-Two desktop servers cannot use the default UDP/TCP ports simultaneously. For a separate local test, set `DECKS_TCP_PORT` and `DECKS_DISCOVERY_PORT`; automatic 3DS discovery still targets the default port.
+From the repository root:
 
-Keep OS-specific code in `apps/desktop/src-tauri/src/platform/`. Shared domain logic belongs in `features/`, network framing in `transport/`, and desktop lifecycle and persistence in `app/`. Update [the Windows test plan](../apps/desktop/docs/WINDOWS_TEST_PLAN.md) when changing a Windows adapter.
+```sh
+bash tools/test_console.sh
+./build.sh all
+python3 tools/check_docs.py
+python3 examples/extensions/focus/package.py
+```
+
+The console tests use a local C compiler; `build.sh` needs Docker running.
+[Quality CI](../.github/workflows/quality.yml) runs lightweight Linux checks on
+pushes and pull requests: Markdown links always, frontend checks and console host
+tests when their files change. Native desktop tests and package builds run for
+release tags, or manually through **Quality** with `full` enabled. See the
+[release process](RELEASE.md#ci-and-build-consumption) for the full CI policy.
+Tests/builds do not replace runtime checks on each platform.
+
+## Change boundaries
+
+- OS-specific Rust calls belong in `apps/desktop/src-tauri/src/platform/`.
+- Shared integrations belong in `features/`, network/session code in `transport/`,
+  and lifecycle/configuration in `app/`.
+- React components use the typed editor API boundary. Regenerate OpenAPI types
+  with `pnpm api:types` after changing its contract.
+- Update English/French text and user guides for visible behaviour changes.
+- Follow [shared asset instructions](../resources/README.md) for generated images/icons.
+- Keep stable page/action/contribution IDs; labels can change independently.
+
+Only one server can bind the default UDP/TCP ports. Development overrides are
+listed in the [desktop README](../apps/desktop/README.md#development-environment-variables).
+See [Windows runtime checks](../apps/desktop/docs/WINDOWS_TEST_PLAN.md),
+[macOS checks](../apps/desktop/docs/MACOS_TRAY_AND_SHORTCUTS_TEST.md) and
+[release qualification](QUALIFICATION.md) when changing native integrations.

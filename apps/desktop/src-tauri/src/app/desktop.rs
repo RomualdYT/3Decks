@@ -273,6 +273,7 @@ pub fn state(shared: &Shared) -> Result<Value, String> {
     let features = config["features"].clone();
     Ok(json!({
         "version":env!("CARGO_PKG_VERSION"), "config_revision":status.config_revision,
+        "catalog_revision":shared.catalog_revision.load(std::sync::atomic::Ordering::SeqCst),
         "platform":platform(), "listen":format!("0.0.0.0:{}", status.tcp_port),
         "hints":address_hints(status.tcp_port),
         "token_set":false,

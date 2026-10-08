@@ -22,7 +22,7 @@ The editor calls a typed boundary in `apps/desktop/frontend/src/api/client.ts`. 
 
 1. The desktop starts Tokio tasks for UDP discovery on port 38122 and the TCP listener on port 38123. Neither runs on the WebView thread.
 2. The console discovers the computer or uses a manually entered address. TCP messages contain a four-byte big-endian JSON length followed by the JSON payload. The [protocol guide](PROTOCOL.md) defines limits and message types.
-3. A new console pairs with the six-digit code shown in the app. The desktop stores a per-console credential in its application data directory; a known console reconnects with its credential.
+3. A new console pairs with the six-digit code shown in the app. The desktop stores a digest of the per-console credential in its configuration directory; a known console reconnects with its credential.
 4. The desktop validates actions, invokes the relevant feature or platform adapter, and sends state and results back to the console. Saving a page increments the configuration revision and broadcasts the new layout to connected consoles.
 
 The network is intended for a trusted LAN. The transport is not encrypted; see [Security](SECURITY.md). The application config and onboarding progress are stored separately. The setup assistant resumes its saved step after a restart.
@@ -33,6 +33,12 @@ Shared control flow belongs in `features/` or `platform/system.rs`; platform-spe
 
 Native extensions are approved packages with a bounded JSON Lines protocol. The [extension SDK](../apps/desktop/extension-sdk/README.md) describes the manifest and lifecycle. They run with the current user's permissions.
 
+Each extension owns its worker task and bounded command queue. Polls publish
+cached snapshots, and native action handling releases the global action permit
+before awaiting a worker. The extension catalog has its own revision so changes
+can refresh editor choices without replacing unsaved page edits. See the
+[SDK lifecycle](../apps/desktop/extension-sdk/README.md#protocol-and-lifecycle).
+
 ## Builds and updates
 
-The [quality workflow](../.github/workflows/quality.yml) checks the shared editor, native backend, documentation and console. A version tag starts the [release candidate workflow](../.github/workflows/release.yml): it builds signed desktop packages and console packages into a draft GitHub Release. A separate, manually dispatched [publish workflow](../.github/workflows/publish-release.yml) makes that draft public after asset checks; repository owners should configure required reviewers on its `production` environment. The in-app updater checks GitHub's `latest.json` when the user requests it in Settings, verifies a signed update, installs it and restarts. A release build needs the updater public key at compile time. See [Release process](RELEASE.md) for setup and remaining validation.
+The [quality workflow](../.github/workflows/quality.yml) checks the shared editor, native backend, documentation and console. A version tag starts the [release candidate workflow](../.github/workflows/release.yml): it builds signed desktop packages and console packages into a draft GitHub Release. A separate, manually dispatched [publish workflow](../.github/workflows/publish-release.yml) makes that draft public after asset checks; repository owners should configure required reviewers on its `production` environment. With an embedded public key, the editor checks GitHub's `latest.json` after opening or on request in Settings. Installation is user-triggered, verifies the update signature and restarts the app. A release build needs the updater public key at compile time. See [Release process](RELEASE.md) for setup and remaining validation.

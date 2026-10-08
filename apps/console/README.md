@@ -33,10 +33,8 @@ text cache keys include both label and font face. Missing or mismatched assets
 fall back to the legacy font, then the system font. Arbitrary scales retain
 legacy smooth filtering.
 
-The native family adds approximately 3 MiB of textures and bundled resources.
 Host tests cover sizes, alignment, font changes in the cache, fallback and
-resource cleanup. Final readability still needs assessment on physical screens,
-especially small labels and secondary information under reflections.
+resource cleanup. Check typography changes on physical screens as well as the desktop preview.
 
 ## Brand icons
 
@@ -58,7 +56,7 @@ A generic music icon is used if loading fails.
 ## Console button icons
 
 The 22 console icons use the same Lucide components and 1.9 px stroke as
-`frontend/src/components/DeckIcon.tsx`. `source/graphics/icon_assets.def` maps
+`apps/desktop/frontend/src/components/DeckIcon.tsx`. `source/graphics/icon_assets.def` maps
 console IDs to desktop names and fixes atlas order. Six RGBA atlases cover native
 sizes from 12 to 52 pixels; Citro2D applies each button's live color and state.
 The old primitives remain a fallback if an atlas cannot load.

@@ -35,12 +35,26 @@ To remove it, use the console's **System Settings → Data Management → Ninten
 3DS → Software**. Shared settings under `sdmc:/3ds/deck3ds/` remain on the SD card;
 removing those settings separately also removes the console's stored pairing.
 
+## Send a development build over Wi-Fi
+
+Open Homebrew Launcher and put its network loader into listening mode. From the
+repository root, send the built 3DSX with the dependency-free Python helper:
+
+```sh
+python3 tools/send3ds.py
+# If discovery fails, supply the console's address:
+python3 tools/send3ds.py -a 192.168.1.100
+```
+
+The transfer uses port **17491**, separate from 3Decks's control ports. It launches
+a 3DSX for the current session; use the SD/CIA instructions above for installation.
+
 ## Build
 
 From the repository root, with Docker running:
 
 ```sh
-./build.sh          # 3DSX, as before
+./build.sh          # Homebrew Launcher format
 ./build.sh cia      # CIA and 3DSX
 ./build.sh all      # both formats
 ```
@@ -64,7 +78,7 @@ update the package checker. Never overwrite another installed title using this I
 
 Releases encode `vMAJOR.MINOR.PATCH` as `major × 1024 + minor × 16 + patch`.
 Limits are 63, 63 and 15 respectively; invalid or prerelease tags fail explicitly.
-For local builds, `APP_VERSION=16 ./build.sh cia` overrides the default value 1.
+For local builds, `APP_VERSION=1024 ./build.sh cia` encodes version 1.0.0 instead of the local default value 1.
 The release workflow derives it automatically from the tag.
 
 ## Artwork and verification

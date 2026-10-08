@@ -4,112 +4,110 @@
 
 ## Premier démarrage
 
-L’assistant permet de choisir les fonctions de la console, de vérifier les accès nécessaires et d’appairer une 3DS ou 2DS. Vous pouvez terminer sans console et l’appairer plus tard. La progression est enregistrée après chaque étape, y compris si macOS demande de quitter et rouvrir l’application. Sur Windows, les médias, l’audio et les raccourcis utilisent les API natives ; le pare-feu peut demander l’accès au réseau local. La lecture de l’historique des notifications d’autres applications exige en plus un paquet compatible et votre consentement : l’installateur direct actuel ne la propose pas. L’assistant se rouvre dans **Réglages → Avancé**.
+L'assistant permet de choisir les fonctions, consulter leurs permissions et
+appairer la console. Vous pouvez terminer sans console et la connecter ensuite.
+La progression est sauvegardée. Rouvrez l'assistant dans **Réglages → Avancé**.
 
-Les builds publics signés proposent **Réglages → Avancé → Mises à jour → Vérifier**. La recherche se fait lorsque vous appuyez sur le bouton ; elle n’est pas encore lancée en arrière-plan. Un build local non signé ne contient pas la clé de mise à jour et désactive ce contrôle.
+L'ordinateur utilise votre choix de langue enregistré, sinon la langue du
+système/navigateur : français pour un système français, anglais sinon. La langue
+console est indépendante et commence en anglais. Chaque application conserve
+votre choix.
 
-## Première page
+Fermer l'éditeur laisse l'application active dans le menu système. Ce menu
+permet de rouvrir l'éditeur, suspendre les commandes ou quitter l'application.
 
-1. Ouvrez l’éditeur depuis le menu système de 3Decks.
-2. Ajoutez une page à gauche et donnez-lui un nom court.
-3. Choisissez **Mes propres actions**, puis un emplacement vide.
-4. Sélectionnez une action, par exemple lecture/pause, et complétez ses champs.
-5. Choisissez une icône et une couleur ; enregistrez avec la barre inférieure.
+## Créer une page
+
+1. Dans **Éditeur**, choisissez **Ajouter une page**, puis une page vierge ou un modèle.
+2. Donnez-lui un nom court et une icône ; choisissez **Grille** ou **Liste**.
+3. Dans **Contenu des boutons**, choisissez **Mes propres actions** pour des boutons éditables.
+4. Sélectionnez un emplacement vide, choisissez une action et remplissez ses champs.
+5. Réglez son libellé, son icône et sa couleur ; enregistrez avec la barre inférieure.
 6. Touchez le bouton sur la console connectée.
 
-L’enregistrement applique et diffuse la configuration sans redémarrage. En cas de conflit avec un autre éditeur, rechargez puis réconciliez vos changements.
+L'enregistrement applique et diffuse la configuration sans redémarrage. Les
+modifications non enregistrées apparaissent d'abord dans l'aperçu. Si un autre
+éditeur a enregistré une révision plus récente, rechargez puis réconciliez les
+changements avant d'enregistrer.
 
-## Organisation
+Glissez les pages ou les boutons pour les réordonner. Le menu contextuel d'une
+page propose d'autres opérations. Un modèle crée une page éditable ; il n'active
+pas de service et n'accorde pas de permission.
 
-Glissez les pages dans la colonne gauche pour les réordonner ; le clic droit ouvre leurs actions contextuelles. Les boutons peuvent aussi être déplacés.
+## Boutons générés
 
-La **grille 3 × 2** propose six emplacements sur toutes les pages. La **liste** convient aux contenus plus longs. **Mes propres actions** désigne vos boutons ; **Fenêtres disponibles** est une liste produite par 3Decks pour afficher une fenêtre de l’ordinateur. Une extension peut aussi fournir du contenu.
+**Fenêtres disponibles** affiche les fenêtres de l'ordinateur. Une source
+d'extension affiche les éléments fournis par celle-ci. Ces éléments ne sont pas
+édités individuellement. La grille montre les six premiers ; une liste peut en
+contenir jusqu'à 32. L'aperçu ordinateur est interactif, pas une vidéo de la console.
 
-Le contenu généré n’est pas une copie éditable de vos boutons. La grille affiche les six premiers éléments ; préférez la liste pour en afficher davantage. Le visualiseur est un aperçu de l’éditeur, pas une retransmission vidéo de la console.
+## Écran du haut
 
-## Écran supérieur
+Cliquez sur le choix actuel pour ouvrir le sélecteur avec recherche. Les écrans
+d'extension sont regroupés séparément des écrans intégrés.
 
-| Mode | Informations |
-|---|---|
-| Automatique | Médias disponibles, sinon applications |
-| Musique en cours | Titre, artiste, pochette, progression |
-| Audio | Volumes, sortie et activité musicale |
-| Pochette plein écran | Grande image de l’album |
-| Applications | Application active et applications ouvertes |
-| Système | Mesures de performances disponibles |
-| Extension | Cartes produites par une extension activée |
+| Écran | Contenu |
+| --- | --- |
+| Automatique | Média disponible, sinon applications ouvertes |
+| Musique en cours | Titre, artiste, pochette et progression |
+| Paroles synchronisées | Paroles horodatées, avec un repli si elles sont absentes |
+| Pochette plein écran | Grande image de l'album |
+| Applications ouvertes | Application active et applications ouvertes |
+| Sorties audio | Sortie actuelle et volume |
+| État de l'ordinateur | CPU, mémoire, réseau et stockage disponibles |
+| Notifications | Notifications récentes lorsque la source est active et disponible |
+| Écran d'extension | Tableau de bord fourni par une extension activée |
 
-Une mesure GPU/température indisponible n’est pas une valeur zéro. L’animation musicale est un retour visuel, pas une promesse d’analyse spectrale en temps réel.
+**Paroles :** activez les médias et les paroles en ligne dans les réglages ou
+choisissez cette fonction pendant l'assistant. Les nouvelles configurations
+comprennent une page musique/paroles. La recherche en ligne reste désactivée
+jusqu'à votre choix et transmet les métadonnées du morceau à LRCLIB. Les fichiers
+LRC locaux fonctionnent hors ligne ; voir les [détails](../apps/desktop/docs/LYRICS_AND_PAGE_TEMPLATES.md).
 
-## Choisir les actions
+## Actions et intégrations
 
-**Ouvrir un fichier/dossier** : utilisez le bouton de sélection natif. Le champ contient le chemin, pas le contenu du fichier. Annuler n’est pas une erreur ; si l’élément est déplacé, sélectionnez-le à nouveau.
+- **Fichiers/dossiers :** utilisez le sélecteur natif ; sélectionnez de nouveau un élément déplacé.
+- **Applications :** utilisez les suggestions disponibles ; noms et chemins dépendent du système.
+- **Raccourcis clavier :** utilisez la capture. Le raccourci agit dans l'application au premier plan.
+- **OBS :** activez son serveur WebSocket, recopiez hôte/port/mot de passe dans les
+  réglages, activez l'intégration et testez la connexion. L'aide intégrée explique
+  les étapes. Connexion par défaut : `127.0.0.1:4455`. Choisissez ensuite les scènes retournées.
+- **Appui long :** un bouton de grille peut proposer une action secondaire.
 
-**Ouvrir une application** : utilisez les suggestions lorsqu’elles sont disponibles. Les noms et identifiants diffèrent entre Mac et Windows.
+N'activez que les fonctions utiles. Une mesure absente est indiquée indisponible.
+L'animation musicale est décorative, pas une analyse spectrale mesurée.
 
-**Raccourci clavier** : activez la capture et pressez la combinaison. Elle agit dans l’application au premier plan ; testez-la dans un contexte sans risque.
-
-**OBS** : activez l’intégration, saisissez les réglages WebSocket et testez la connexion. Utilisez les scènes retournées. Les commandes de streaming/enregistrement peuvent agir sur une session en direct : testez-les hors diffusion.
-
-Les actions d’appui long sont facultatives. Le retour attente/succès/erreur permet de suivre leur traitement par l’ordinateur.
-
-## Touches de la console
+## Commandes console
 
 | Geste/touche | Effet |
-|---|---|
-| Toucher | Exécuter le bouton ou l’élément |
-| Maintenir un bouton de grille configuré | Action secondaire |
-| Sortir du bouton avant relâchement | Annuler |
-| Onglets inférieurs ou L/R | Changer de page |
-| Croix directionnelle | Déplacer la sélection |
-| A | Valider ; sans sélection dans la grille, sélectionner le premier emplacement |
+| --- | --- |
+| Toucher / maintenir | Action principale / secondaire configurée |
+| Sortir avant relâchement | Annuler le toucher |
+| Dock inférieur ou L/R | Changer de page |
+| Croix directionnelle | Déplacer la sélection dans la grille ou la liste |
+| A | Valider ; sans sélection de grille, sélectionner le premier emplacement |
 | B | Effacer/revenir sur la sélection |
 | X/Y dans la grille | Activer les emplacements 2/3 |
-| L + SELECT | Réglages |
+| Roue dentée ou L + SELECT | Réglages |
 | SELECT seul | Demander le dernier agencement |
 | START | Quitter |
 
-Les réglages restent accessibles pendant la connexion. Langue, connexion, son et atténuation sont enregistrés dans `sdmc:/3ds/deck3ds/settings.cfg`. Ce fichier peut contenir un secret : ne le publiez pas.
+Les réglages console couvrent langue, connexion, son, délai de veille et Decky.
+Decky peut être désactivé, discret ou affiché pendant la veille. Le choix
+ordinateur est indépendant. Les préférences et l'appairage sont sauvegardés dans
+`sdmc:/3ds/deck3ds/settings.cfg` : gardez ce fichier privé.
 
-## Le compagnon Decky
+## Extensions, mises à jour et aide
 
-Au lancement, Decky se réveille et salue pendant une courte animation de
-1,2 seconde, tandis que la recherche/connexion réseau continue. Un bouton ou
-un toucher permet de la passer (START quitte toujours l’application). Elle ne
-rejoue pas après une reconnexion ou un réveil et est désactivée lorsque Decky
-est masqué dans les réglages de la console.
+[Importez et activez les extensions](EXTENSIONS.fr.md), puis choisissez leurs
+actions, sources de boutons et écrans dans l'éditeur.
+[Focus](../examples/extensions/focus/README.fr.md) fournit un exemple Pomodoro complet.
 
-Sur la **3DS**, ouvre les réglages (roue dentée ou L + SELECT), puis sélectionne
-**Decky**. Un toucher ou A fait défiler trois choix :
+Avec une clé publique intégrée au build, l'éditeur recherche une mise à jour après
+son ouverture. **Réglages → Avancé → Mises à jour → Vérifier** permet aussi une
+recherche manuelle. L'installation nécessite un clic et redémarre l'application.
+Un build sans clé désactive l'updater.
 
-- **Désactivé** : aucune apparition du compagnon.
-- **Discret** (par défaut) : accueil et connexion, puis sommeil pendant la veille
-  lorsqu’aucun titre musical n’est disponible. La pochette existante reste prioritaire.
-- **Veille compagnon** : Decky occupe l’écran supérieur pendant la veille
-  automatique. Il écoute avec son casque pendant la lecture et se repose sinon.
-  L’écran inférieur conserve ses informations ; un toucher réveille l’application.
-
-La ligne sélectionnée affiche un aperçu des six expressions sur l’écran du haut.
-Enregistre pour conserver ton choix sur la SD. Le délai de veille existant
-s’applique aussi à Decky ; « Jamais » désactive la veille automatique. Le mode
-pochette choisi manuellement ne change pas. Les animations sont décoratives et
-silencieuses, sans requête réseau, permission supplémentaire ou pénalité d’absence.
-Ce réglage propre à la console n’est pas encore reproduit dans l’aperçu PC.
-
-Sur PC, Decky apparaît dans la fenêtre de connexion, pendant le chargement,
-si l’application de bureau est indisponible et dans la page des extensions vide. **Réglages →
-Langue & apparence** permet de découvrir ses expressions ou de masquer ces
-apparitions. Ce choix est immédiat et propre au navigateur, indépendant de la 3DS.
-Le logo reste visible : il cligne brièvement des yeux toutes les huit secondes et
-salue une fois au survol ou au focus clavier. Masquer Decky ou activer la réduction
-des mouvements du système le laisse immobile.
-
-Le dessin portable se trouve dans `apps/console/source/graphics/decky.c`. L’outil
-`tools/render_decky.c` exporte les six poses depuis le même code ; les tests sont
-lancés avec `bash tools/test_console.sh`.
-
-## Intégrations
-
-N’activez que ce qui vous sert. Couper le groupe médias conserve les préférences de lecteurs/pochettes. Certaines autorisations nécessitent un redémarrage ; voir le [dépannage](TROUBLESHOOTING.fr.md).
-
-Importez une extension depuis son onglet, puis examinez ses accès et approuvez son empreinte avant activation. L’import seul n’exécute rien. Consultez la [sécurité](SECURITY.fr.md).
+**Communauté & aide** dans les réglages ouvre Discord ou son QR code. La console
+propose aussi un bouton Communauté. Consultez le [dépannage](TROUBLESHOOTING.fr.md)
+pour les problèmes de connexion, de permissions et de fonctions.

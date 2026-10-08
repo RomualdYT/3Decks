@@ -317,6 +317,8 @@ export interface components {
             };
             /** Clients */
             clients: components["schemas"]["ClientSummary"][];
+            /** Catalog Revision */
+            catalog_revision?: number;
             /** Config Revision */
             config_revision: number;
             /** Counters */

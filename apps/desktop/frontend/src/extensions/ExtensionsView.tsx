@@ -1,5 +1,5 @@
 import { Button, Spinner, toast } from "@heroui/react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { agentApi, type ExtensionRequest } from "../api/client";
 import type { ExtensionCatalog, Locale } from "../app/types";
 import { DeckIcon } from "../components/DeckIcon";
@@ -22,19 +22,42 @@ export function ExtensionsView({
     useState<ExtensionConfirmation | null>(null);
   const fr = locale === "fr";
   const nativeDesktop = Boolean(window.decksDesktopControls);
+  const refreshId = useRef(0);
+  const refreshing = useRef(false);
+  const active = useRef(false);
+  const catalogSignature = useRef("");
   const refresh = useCallback(async () => {
+    const id = ++refreshId.current;
+    refreshing.current = true;
     try {
-      setCatalog(await agentApi.extensions());
+      const next = await agentApi.extensions();
+      if (!active.current || id !== refreshId.current) return;
+      setCatalog(next);
       setError("");
-      await onChanged();
+      const signature = JSON.stringify(next.extensions.map((item) => [item.manifest, item.digest, item.status]));
+      if (signature !== catalogSignature.current) {
+        await onChanged();
+        if (active.current && id === refreshId.current) catalogSignature.current = signature;
+      }
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : String(reason));
+      if (active.current && id === refreshId.current) setError(reason instanceof Error ? reason.message : String(reason));
+    } finally {
+      if (id === refreshId.current) refreshing.current = false;
     }
   }, [onChanged]);
   useEffect(() => {
-    void refresh();
-    const timer = window.setInterval(() => void refresh(), 4000);
-    return () => window.clearInterval(timer);
+    active.current = true;
+    const poll = () => { if (!document.hidden && !refreshing.current) void refresh(); };
+    poll();
+    const timer = window.setInterval(poll, 4000);
+    document.addEventListener("visibilitychange", poll);
+    return () => {
+      active.current = false;
+      refreshId.current += 1;
+      refreshing.current = false;
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", poll);
+    };
   }, [refresh]);
   const operate = async (request: ExtensionRequest) => {
     setBusy(true);

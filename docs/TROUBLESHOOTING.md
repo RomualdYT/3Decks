@@ -1,7 +1,19 @@
 # Troubleshooting
 
-- **No computer appears on the console:** check that both devices share the same trusted Wi-Fi network; guest isolation, VPNs and firewalls can block UDP discovery. Try the console's manual IP/port setting. The default ports are UDP 38122 and TCP 38123.
-- **Desktop startup says a port is in use:** close the other 3Decks instance or process using UDP 38122/TCP 38123, then relaunch the desktop app.
-- **A control needs permission:** revisit the setup assistant from Advanced settings and grant the OS permission requested for that feature. macOS may require quitting and reopening 3Decks.
-- **Windows notifications unavailable:** the current direct installer has no package identity. Other Windows integrations should be checked with the [test plan](../apps/desktop/docs/WINDOWS_TEST_PLAN.md).
-- **Update unavailable:** development builds have no embedded updater key. Public updates require a signed published Release and `latest.json`.
+[Documentation](README.md) · [Français](TROUBLESHOOTING.fr.md)
+
+| Problem | What to check |
+| --- | --- |
+| Computer not found | Same LAN, guest-network isolation, VPN and firewall. Try manual IPv4/TCP setup. Defaults: UDP 38122, TCP 38123. |
+| Port already in use | Quit the other desktop instance or the process using that port, then reopen 3Decks. |
+| Pairing fails | Use the current six-digit code shown by the computer. A successful pairing replaces it. Revoke/re-pair if a saved credential no longer works. |
+| Permission-dependent action unavailable | Review the feature in Settings or reopen setup under Advanced. macOS permission changes may require quitting and reopening the app. |
+| Windows audio output cannot be changed remotely | The direct installer shows the output and opens Windows Sound settings; selection happens on the computer. |
+| Windows notifications unavailable | The direct installer lacks the package identity required by the Windows notification listener. |
+| Lyrics missing | Enable media and online lyrics, check the track/artist metadata and try a track with synchronized lyrics. Not every track has a result. |
+| Extension screen missing | Enable the extension, select its dashboard in the page's Top screen chooser, and select its source separately for generated buttons. Check the extension's error message. |
+| Update unavailable | The build needs an embedded updater public key and a published signed update. Local builds without a key cannot use the updater. |
+
+For help, use [Discord](https://discord.gg/EmdnneHeus) or open a GitHub issue.
+Include app version, OS, console model, steps to reproduce and the displayed
+error. Remove private paths, credentials and personal content from logs/screenshots.

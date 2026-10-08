@@ -1,5 +1,8 @@
 //! Native extension API 1. Packages are inert until the user approves their
 //! fingerprint; target-specific executables speak bounded JSON-lines stdio.
+mod runtime;
+use runtime::Runtime;
+pub use runtime::ActionRequest;
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use std::{
@@ -8,7 +11,7 @@ use std::{
     io::{Read, Write},
     path::{Component, Path, PathBuf},
     process::Stdio,
-    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt, BufReader},
@@ -85,10 +88,21 @@ struct Package {
     status: String,
     error: String,
     settings: Value,
-    worker: Option<Worker>,
+    worker: Option<Runtime>,
     snapshot: Value,
-    next_poll: Instant,
     updated_at: f64,
+}
+
+impl Package {
+    fn status(&self) -> String {
+        self.worker.as_ref().map(Runtime::status).unwrap_or_else(|| self.status.clone())
+    }
+    fn view(&self) -> runtime::View {
+        self.worker.as_ref().map(Runtime::view).unwrap_or_else(|| runtime::View {
+            status: self.status.clone(), error: self.error.clone(),
+            snapshot: self.snapshot.clone(), updated_at: self.updated_at,
+        })
+    }
 }
 
 pub struct ExtensionHost {
@@ -117,13 +131,14 @@ impl ExtensionHost {
         let mut packages: Vec<_> = self.packages.values().collect();
         packages.sort_by_key(|package| package.manifest["id"].as_str().unwrap_or("").to_owned());
         let extensions: Vec<Value> = packages.into_iter().map(|package| {
+            let view = package.view();
             let secret_names: HashSet<_> = package.manifest["settings"].as_array().into_iter().flatten()
                 .filter(|field| field["type"] == "password").filter_map(|field| field["name"].as_str()).collect();
             let public_settings: serde_json::Map<String, Value> = package.settings.as_object().into_iter().flat_map(|settings| settings.iter())
                 .filter(|(name, _)| !secret_names.contains(name.as_str())).map(|(name, value)| (name.clone(), value.clone())).collect();
             let secret_fields_set: Vec<&str> = secret_names.into_iter().filter(|name| package.settings[*name].as_str().is_some_and(|value| !value.is_empty())).collect();
-            json!({"manifest":package.manifest,"digest":package.digest,"enabled":package.enabled,"status":package.status,
-                "error":package.error,"updated_at":package.updated_at,"settings":public_settings,"secret_fields_set":secret_fields_set})
+            json!({"manifest":package.manifest,"digest":package.digest,"enabled":package.enabled,"status":view.status,
+                "error":view.error,"updated_at":view.updated_at,"settings":public_settings,"secret_fields_set":secret_fields_set})
         }).collect();
         json!({"api_version":1,"directory":self.root,"extensions":extensions,"errors":self.errors})
     }
@@ -135,6 +150,7 @@ impl ExtensionHost {
         for package in self.packages.values() {
             let manifest = &package.manifest;
             let id = manifest["id"].as_str().unwrap_or("");
+            let supported = package.status() == "ready";
             for (group, output) in [
                 ("actions", &mut actions),
                 ("sources", &mut sources),
@@ -149,7 +165,7 @@ impl ExtensionHost {
                         let key = format!("ext:{id}/{name}");
                         entry["extension"] = json!(id);
                         entry["extension_name"] = manifest["name"].clone();
-                        entry["supported"] = json!(package.status == "ready");
+                        entry["supported"] = json!(supported);
                         entry["capability"] = Value::Null;
                         if group == "actions" {
                             entry["kind"] = json!(key);
@@ -168,8 +184,9 @@ impl ExtensionHost {
     pub fn snapshots(&self) -> Value {
         let mut out = serde_json::Map::new();
         for (id, package) in &self.packages {
-            if package.status == "ready" {
-                out.insert(id.clone(), package.snapshot.clone());
+            let view = package.view();
+            if view.status == "ready" {
+                out.insert(id.clone(), view.snapshot);
             }
         }
         Value::Object(out)
@@ -234,7 +251,6 @@ impl ExtensionHost {
                     settings,
                     worker: None,
                     snapshot: json!({}),
-                    next_poll: Instant::now(),
                     updated_at: 0.0,
                 })
             })();
@@ -282,7 +298,7 @@ impl ExtensionHost {
                 package.status = "starting".into();
                 package.error.clear();
                 self.save_registry(id)?;
-                self.start(id).await?;
+                self.start(id)?;
             }
             "disable" | "restart" => {
                 let package = self.packages.get_mut(id).ok_or("Extension not installed")?;
@@ -291,7 +307,9 @@ impl ExtensionHost {
                 {
                     return Err("Approve and enable the extension first".into());
                 }
-                package.worker = None;
+                if let Some(runtime) = package.worker.take() {
+                    runtime.stop().await;
+                }
                 package.snapshot = json!({});
                 package.updated_at = 0.0;
                 package.status = if operation == "restart" {
@@ -304,7 +322,7 @@ impl ExtensionHost {
                     package.enabled = false;
                     self.save_registry(id)?;
                 } else {
-                    self.start(id).await?;
+                    self.start(id)?;
                 }
             }
             "configure" => {
@@ -329,18 +347,23 @@ impl ExtensionHost {
                 let path = self.root.join("data").join(id).join("settings.json");
                 write_private_json(&path, &merged)?;
                 package.settings = merged;
-                package.worker = None;
+                if let Some(runtime) = package.worker.take() {
+                    runtime.stop().await;
+                }
                 package.snapshot = json!({});
                 if package.enabled {
                     package.status = "starting".into();
-                    self.start(id).await?;
+                    self.start(id)?;
                 }
             }
             "remove" => {
                 if request["confirm"] != true {
                     return Err("Confirm removal first".into());
                 }
-                let package = self.packages.remove(id).ok_or("Extension not installed")?;
+                let mut package = self.packages.remove(id).ok_or("Extension not installed")?;
+                if let Some(runtime) = package.worker.take() {
+                    runtime.stop().await;
+                }
                 fs::create_dir_all(self.root.join("trash")).map_err(|e| e.to_string())?;
                 let target =
                     self.root
@@ -363,7 +386,7 @@ impl ExtensionHost {
         write_private_json(&self.root.join("registry.json"), &self.registry)
     }
 
-    async fn start(&mut self, id: &str) -> Result<(), String> {
+    fn start(&mut self, id: &str) -> Result<(), String> {
         let package = self.packages.get_mut(id).ok_or("Extension not installed")?;
         if package.worker.is_some() {
             return Ok(());
@@ -391,7 +414,7 @@ impl ExtensionHost {
             .map_err(|e| format!("Extension runtime could not start: {e}"))?;
         let stdin = child.stdin.take().ok_or("Extension stdin unavailable")?;
         let stdout = child.stdout.take().ok_or("Extension stdout unavailable")?;
-        let mut worker = Worker {
+        let worker = Worker {
             child,
             stdin,
             stdout: BufReader::new(stdout),
@@ -400,100 +423,52 @@ impl ExtensionHost {
         let data_dir = self.root.join("data").join(id).join("storage");
         fs::create_dir_all(&data_dir).map_err(|e| e.to_string())?;
         let settings = validate_values(&package.manifest["settings"], &package.settings)?;
-        let result = worker.call("initialize", json!({"api_version":1,"extension_id":id,"settings":settings,"data_dir":data_dir,"platform":platform()})).await?;
-        if result["api_version"] != 1 {
-            return Err("Extension returned incompatible API version".into());
-        }
-        package.worker = Some(worker);
-        package.status = "ready".into();
-        package.error.clear();
+        package.worker = Some(Runtime::spawn(worker, package.manifest.clone(), json!({"api_version":1,"extension_id":id,"settings":settings,"data_dir":data_dir,"platform":platform()})));
         Ok(())
     }
 
-    pub async fn poll_all(&mut self) {
-        let ids: Vec<String> = self.packages.keys().cloned().collect();
+    /// Start due runtimes without waiting for any extension process.
+    pub fn refresh(&mut self) {
+        let ids: Vec<_> = self.packages.iter()
+            .filter(|(_, package)| package.enabled && package.worker.is_none() && package.status == "starting")
+            .map(|(id, _)| id.clone()).collect();
         for id in ids {
-            let due = self.packages.get(&id).is_some_and(|item| {
-                item.enabled
-                    && (item.status == "starting" || item.status == "ready")
-                    && item.next_poll <= Instant::now()
-            });
-            if !due {
-                continue;
-            }
-            let outcome = async {
-                self.start(&id).await?;
-                let item = self.packages.get_mut(&id).ok_or("Extension missing")?;
-                let snapshot = item
-                    .worker
-                    .as_mut()
-                    .ok_or("Worker missing")?
-                    .call("poll", json!({}))
-                    .await?;
-                validate_snapshot(&item.manifest, &snapshot)?;
-                item.snapshot = snapshot;
-                item.updated_at = now();
-                item.next_poll = Instant::now()
-                    + Duration::from_secs_f64(
-                        item.manifest["poll_interval"].as_f64().unwrap_or(2.0),
-                    );
-                Ok::<(), String>(())
-            }
-            .await;
-            if let Err(error) = outcome {
-                if let Some(item) = self.packages.get_mut(&id) {
-                    item.worker = None;
-                    item.status = "error".into();
-                    item.error = error;
+            if let Err(error) = self.start(&id) {
+                if let Some(package) = self.packages.get_mut(&id) {
+                    package.status = "error".into();
+                    package.error = error;
                 }
             }
         }
     }
 
-    pub async fn execute(&mut self, reference: &str, arguments: &Value) -> Result<String, String> {
-        let (id, action) =
-            parse_reference(reference).ok_or("Invalid extension action reference")?;
-        let item = self.packages.get_mut(id).ok_or("Extension missing")?;
-        if item.status != "ready" {
+    pub fn prepare_action(&self, reference: &str, arguments: &Value) -> Result<ActionRequest, String> {
+        let (id, action) = parse_reference(reference).ok_or("Invalid extension action reference")?;
+        let item = self.packages.get(id).ok_or("Extension missing")?;
+        if !item.enabled || !matches!(item.status().as_str(), "starting" | "ready") {
             return Err("Extension unavailable; check Extensions".into());
         }
-        let spec = item.manifest["actions"]
-            .as_array()
+        let spec = item.manifest["actions"].as_array()
             .and_then(|actions| actions.iter().find(|entry| entry["id"] == action))
             .ok_or("Extension action not declared")?;
         let checked = validate_values(&spec["arguments"], arguments)?;
-        let response = item
-            .worker
-            .as_mut()
-            .ok_or("Extension worker unavailable")?
-            .call("action", json!({"action":action,"arguments":checked}))
-            .await;
-        match response {
-            Ok(result) => {
-                if result["ok"].as_bool() != Some(true) {
-                    return Err(result["message"]
-                        .as_str()
-                        .unwrap_or("Extension action failed")
-                        .chars()
-                        .take(63)
-                        .collect());
-                }
-                item.next_poll = Instant::now();
-                Ok(result["message"]
-                    .as_str()
-                    .unwrap_or("Extension action complete")
-                    .chars()
-                    .take(63)
-                    .collect())
-            }
-            Err(error) => {
-                item.worker = None;
-                item.status = "error".into();
-                item.error = error.clone();
-                Err(error)
-            }
+        Ok(item.worker.as_ref().ok_or("Extension worker unavailable")?
+            .action(json!({"action":action,"arguments":checked})))
+    }
+
+    #[cfg(test)]
+    pub async fn poll_all(&mut self) {
+        self.refresh();
+        for package in self.packages.values() {
+            if let Some(runtime) = &package.worker { let _ = runtime.poll().await; }
         }
     }
+
+    #[cfg(test)]
+    pub async fn execute(&self, reference: &str, arguments: &Value) -> Result<String, String> {
+        self.prepare_action(reference, arguments)?.run().await
+    }
+
 }
 
 fn platform() -> &'static str {

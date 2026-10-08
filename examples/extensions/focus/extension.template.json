@@ -1,0 +1,47 @@
+{
+  "api_version": 1,
+  "id": "org.3decks.focus",
+  "version": "1.0.0",
+  "name": { "en": "Focus", "fr": "Focus" },
+  "description": {
+    "en": "Find your rhythm with focus sessions, restorative breaks and a daily goal. Works offline and remembers your timer.",
+    "fr": "Trouvez votre rythme avec des sessions de travail, des pauses et un objectif quotidien. Fonctionne hors ligne et conserve votre minuteur."
+  },
+  "author": "3Decks",
+  "runtime": "native",
+  "permissions": ["filesystem"],
+  "poll_interval": 1,
+  "actions": [
+    { "id": "toggle", "title": { "en": "Start / pause", "fr": "Démarrer / suspendre" }, "description": { "en": "Start, pause or resume the current timer.", "fr": "Lancer, suspendre ou reprendre le minuteur." }, "icon": "play", "color": "#66CB10", "arguments": [] },
+    { "id": "reset", "title": { "en": "Reset timer", "fr": "Réinitialiser le minuteur" }, "description": { "en": "Reset this phase without clearing your statistics.", "fr": "Repartir au début de la phase sans effacer les statistiques." }, "icon": "previous", "color": "#94A3B8", "arguments": [] },
+    { "id": "skip", "title": { "en": "Skip phase", "fr": "Passer la phase" }, "description": { "en": "Prepare the next phase without crediting a session.", "fr": "Préparer la phase suivante sans compter de session." }, "icon": "next", "color": "#94A3B8", "arguments": [] },
+    { "id": "work", "title": { "en": "Choose focus timer", "fr": "Choisir le travail" }, "description": { "en": "Prepare a focus timer. Pause before changing phases.", "fr": "Préparer une session de travail. Suspendre avant de changer de phase." }, "icon": "star", "color": "#29A3FF", "arguments": [] },
+    { "id": "short_break", "title": { "en": "Choose short break", "fr": "Choisir une pause courte" }, "description": { "en": "Prepare a short break. Pause before changing phases.", "fr": "Préparer une pause courte. Suspendre avant de changer de phase." }, "icon": "pause", "color": "#14B8A6", "arguments": [] },
+    { "id": "long_break", "title": { "en": "Choose long break", "fr": "Choisir une pause longue" }, "description": { "en": "Prepare a long break. Pause before changing phases.", "fr": "Préparer une pause longue. Suspendre avant de changer de phase." }, "icon": "power", "color": "#A78BFA", "arguments": [] }
+  ],
+  "sources": [
+    {
+      "id": "controls",
+      "title": { "en": "Focus controls", "fr": "Commandes Focus" },
+      "description": { "en": "Six live controls for your timer. Use the grid layout on the touch screen.", "fr": "Six commandes dynamiques pour le minuteur. Choisissez la grille sur l'écran tactile." },
+      "icon": "star", "color": "#29A3FF"
+    }
+  ],
+  "dashboards": [
+    {
+      "id": "overview",
+      "title": { "en": "Focus overview", "fr": "Suivi Focus" },
+      "description": { "en": "Remaining time, daily goal, completed focus time and the next phase.", "fr": "Temps restant, objectif du jour, travail terminé et prochaine phase." },
+      "icon": "status", "color": "#66CB10"
+    }
+  ],
+  "settings": [
+    { "name": "work_minutes", "type": "number", "label": { "en": "Focus duration (minutes)", "fr": "Durée de travail (minutes)" }, "description": { "en": "Applies to new timers; a timer already in progress keeps its duration.", "fr": "S'applique aux nouveaux minuteurs ; la durée d'une session en cours est conservée." }, "default": 25, "min": 1, "max": 120 },
+    { "name": "short_break_minutes", "type": "number", "label": { "en": "Short break (minutes)", "fr": "Pause courte (minutes)" }, "default": 5, "min": 1, "max": 60 },
+    { "name": "long_break_minutes", "type": "number", "label": { "en": "Long break (minutes)", "fr": "Pause longue (minutes)" }, "default": 15, "min": 1, "max": 120 },
+    { "name": "sessions_per_cycle", "type": "number", "label": { "en": "Sessions before a long break", "fr": "Sessions avant une pause longue" }, "description": { "en": "Completed focus sessions in each cycle.", "fr": "Nombre de sessions de travail terminées par cycle." }, "default": 4, "min": 1, "max": 12 },
+    { "name": "daily_goal", "type": "number", "label": { "en": "Daily session goal", "fr": "Objectif de sessions par jour" }, "default": 4, "min": 1, "max": 24 },
+    { "name": "auto_start_breaks", "type": "boolean", "label": { "en": "Start breaks automatically", "fr": "Démarrer les pauses automatiquement" }, "description": { "en": "Start a break when a focus session finishes.", "fr": "Lancer une pause à la fin d'une session de travail." }, "default": false },
+    { "name": "auto_start_work", "type": "boolean", "label": { "en": "Start focus automatically", "fr": "Démarrer le travail automatiquement" }, "description": { "en": "Start the next focus session when a break finishes.", "fr": "Lancer la session de travail suivante à la fin d'une pause." }, "default": false }
+  ]
+}

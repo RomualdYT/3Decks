@@ -36,12 +36,26 @@ données → Nintendo 3DS → Logiciels**. Les réglages partagés du dossier
 `sdmc:/3ds/deck3ds/` restent sur la SD ; les supprimer séparément efface aussi
 l’appairage enregistré côté console.
 
+## Envoyer un build de développement par Wi-Fi
+
+Ouvrez Homebrew Launcher et mettez son chargeur réseau en attente. Depuis la
+racine, envoyez le 3DSX compilé avec l'outil Python sans dépendance :
+
+```sh
+python3 tools/send3ds.py
+# Si la découverte échoue, indiquez l'adresse de la console :
+python3 tools/send3ds.py -a 192.168.1.100
+```
+
+Le transfert utilise le port **17491**, distinct des ports de contrôle 3Decks.
+Il lance le 3DSX pour la session ; utilisez la SD ou le CIA pour l'installation.
+
 ## Compiler
 
 Depuis la racine, avec Docker lancé :
 
 ```sh
-./build.sh          # 3DSX, comme avant
+./build.sh          # Format Homebrew Launcher
 ./build.sh cia      # CIA et 3DSX
 ./build.sh all      # les deux formats
 ```
@@ -66,7 +80,7 @@ vérificateur. N’écrasez jamais un autre logiciel portant cet identifiant.
 La version CIA encode `vMAJOR.MINOR.PATCH` en `major × 1024 + minor × 16 + patch`.
 Les limites sont respectivement 63, 63 et 15 ; les tags invalides ou de préversion
 sont refusés. Le workflow de Release calcule la valeur automatiquement. En local,
-`APP_VERSION=16 ./build.sh cia` remplace la valeur par défaut 1.
+`APP_VERSION=1024 ./build.sh cia` encode la version 1.0.0 au lieu de la valeur locale par défaut 1.
 
 ## Visuels et vérifications
 

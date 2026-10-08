@@ -15,6 +15,7 @@ export function useDeckConfig() {
   const [notice, setNotice] = useState("");
   const dirtyRef = useRef(false);
   const revisionRef = useRef<number | null>(null);
+  const catalogRevisionRef = useRef<number | null>(null);
   const editEpoch = useRef(0);
 
   const load = useCallback(async () => {
@@ -33,6 +34,7 @@ export function useDeckConfig() {
       setSaved(clone(result.config));
       revisionRef.current = result.config.revision;
       setStatus(nextStatus);
+      catalogRevisionRef.current = nextStatus?.catalog_revision ?? null;
       setApps(nextApps.apps);
     } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
     finally { setLoading(false); }
@@ -53,14 +55,22 @@ export function useDeckConfig() {
         const nextStatus = await agentApi.state();
         if (disposed) return;
         setStatus(nextStatus);
-        if (!dirtyRef.current && nextStatus.config_revision !== revisionRef.current && epoch === editEpoch.current) {
-          const [nextSchema, result] = await Promise.all([agentApi.schema(), agentApi.config()]);
-          if (disposed || dirtyRef.current || epoch !== editEpoch.current || revision !== revisionRef.current) return;
-          result.config.features ||= Object.fromEntries(nextSchema.features.map((feature) => [feature.key, feature.enabled]));
-          revisionRef.current = result.config.revision;
+        const catalogRevision = nextStatus.catalog_revision ?? null;
+        const catalogChanged = catalogRevision !== catalogRevisionRef.current;
+        const configChanged = !dirtyRef.current && nextStatus.config_revision !== revisionRef.current && epoch === editEpoch.current;
+        if (catalogChanged || configChanged) {
+          const [nextSchema, result] = await Promise.all([
+            agentApi.schema(), configChanged ? agentApi.config() : Promise.resolve(null),
+          ]);
+          if (disposed) return;
           setSchema(nextSchema);
-          setConfig(clone(result.config));
-          setSaved(clone(result.config));
+          catalogRevisionRef.current = catalogRevision;
+          if (result && !dirtyRef.current && epoch === editEpoch.current && revision === revisionRef.current) {
+            result.config.features ||= Object.fromEntries(nextSchema.features.map((feature) => [feature.key, feature.enabled]));
+            revisionRef.current = result.config.revision;
+            setConfig(clone(result.config));
+            setSaved(clone(result.config));
+          }
         }
       } catch {
         if (!disposed) setStatus(null);

@@ -1,9 +1,42 @@
-# Sécurité
+# Sécurité et confidentialité
 
-Chaque console est appairée par code puis reçoit un jeton individuel. La découverte UDP et le protocole TCP sont conçus pour un réseau local de confiance ; ils ne sont pas chiffrés. N’exposez pas les ports 38122 et 38123 sur Internet. Limitez l’accès par pare-feu si le réseau est partagé.
+[Documentation](README.fr.md) · [English](SECURITY.md)
 
-Les extensions natives s’exécutent avec les droits de l’utilisateur après approbation explicite. La mise à jour vérifie les paquets avec une clé publique embarquée ; la clé privée reste dans l’infrastructure de publication. Voir le [guide de publication](RELEASE.fr.md).
+## Réseau local
 
-## Dépendance amont suivie
+La découverte et les commandes console utilisent UDP/TCP sans chiffrement.
+L'appairage fournit un identifiant individuel : l'ordinateur conserve son
+empreinte SHA-256, et la console le stocke sur sa carte SD. Révoquez une console
+dans les réglages ordinateur pour lui retirer l'accès.
 
-La pile GTK 3/WebKit de Tauri 2 pour Linux dépend de `glib` 0.18, concerné par [GHSA-wrw7-89jp-8q8g](https://github.com/advisories/GHSA-wrw7-89jp-8q8g). La version corrigée 0.20 ne peut pas remplacer directement la version imposée par les liaisons GTK de cette pile. Cette dépendance ne figure pas dans les graphes macOS et Windows. Aucun paquet Linux n’est prévu pour la première publication ; il faudra réévaluer l’alerte avant de distribuer sur Linux. L’alerte Dependabot reste ouverte jusqu’à une correction compatible en amont.
+Utilisez un réseau local de confiance. N'exposez pas les ports 38122 et 38123 sur
+Internet. Une personne capable d'inspecter le trafic peut observer les codes
+d'appairage et les identifiants.
+
+## Données locales et services facultatifs
+
+La configuration peut contenir des chemins de fichiers, des identifiants OBS et
+des réglages d'extension. Ne publiez pas votre configuration personnelle,
+`paired-consoles.json`, le fichier console `settings.cfg` ou un journal contenant
+des informations privées dans un signalement de bug.
+
+Les paroles en ligne sont facultatives et désactivées par défaut. Leur activation
+envoie le titre, l'artiste et les métadonnées album/durée disponibles à LRCLIB.
+La console ne contacte pas ce service. Les recherches de mise à jour contactent
+GitHub lorsqu'une clé publique est configurée. Voir les
+[paroles](../apps/desktop/docs/LYRICS_AND_PAGE_TEMPLATES.md) et les [signatures](RELEASE.fr.md).
+
+## Extensions
+
+Importer un paquet ne l'exécute pas. L'activation exige l'approbation de son
+empreinte SHA-256 ; modifier le paquet exige une nouvelle approbation.
+Les extensions natives s'exécutent avec les droits de votre compte, dans un
+processus séparé sans sandbox. Les permissions déclarées décrivent les accès
+prévus, sans les restreindre techniquement. N'activez que du code de confiance.
+
+## Signalement
+
+Signalez les bugs ordinaires dans les issues GitHub ou sur
+[Discord](https://discord.gg/EmdnneHeus). Pour une faille de sécurité, utilisez le
+signalement privé du dépôt s'il est disponible. Ne publiez pas d'identifiants
+ni de détails d'exploitation dans un ticket public.

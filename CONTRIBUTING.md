@@ -1,5 +1,11 @@
 # Contributing
 
-The desktop app is in [`apps/desktop/`](apps/desktop/README.md); its shared editor is in [`apps/desktop/frontend/`](apps/desktop/frontend/README.md); the 3DS client is in [`apps/console/`](apps/console/). Start with the [build guide](docs/CONTRIBUTING.md), [architecture](docs/ARCHITECTURE.md) and [Windows validation plan](apps/desktop/docs/WINDOWS_TEST_PLAN.md).
+Start with the [build and contribution guide](docs/CONTRIBUTING.md), then the
+[architecture](docs/ARCHITECTURE.md) for the area you want to change.
+User instructions live in [docs](docs/README.md); implementation references live
+alongside the desktop, console and extension sources.
 
-Keep platform-specific Rust adapters isolated, update user-facing documentation with behavior changes, and run the relevant frontend, Rust and C checks before a pull request. Do not commit signing keys, personal configuration or pairing data.
+Keep changes focused, update documentation and localized text with behaviour
+changes, and run the relevant checks before opening a pull request. Include the
+OS, build mode and hardware used for runtime checks. Never commit personal
+configuration, pairing data, credentials, dependency caches or build outputs.

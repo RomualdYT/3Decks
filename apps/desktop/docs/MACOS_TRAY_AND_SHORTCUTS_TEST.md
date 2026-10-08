@@ -1,32 +1,33 @@
-# Vérification macOS : menu et raccourcis
+# macOS tray and shortcut checks
 
-Le build local est non signé. Après l'installation, fermer l'ancienne instance
-avant de lancer la nouvelle, puis autoriser Accessibilité pour ce bundle si
-macOS le demande.
+Maintainer checklist for a built macOS application. Record macOS version,
+architecture, keyboard layout, build mode and console/emulator used. Quit an old
+instance before opening a newly installed bundle. Grant Accessibility to the
+bundle being checked when requested.
 
-## Raccourcis depuis une 3DS ou l'émulateur
+## Keyboard shortcuts
 
-- Tester une lettre et un chiffre avec Cmd, Ctrl, Option et Maj sur AZERTY.
-- Tester Échap, Entrée, Tab, Espace et Retour arrière.
-- Tester Suppr avant, les quatre flèches, Début, Fin, Page préc./suiv.
-- Tester F1 à F12. Sur un clavier Apple, le comportement des touches de fonction
-  peut dépendre du réglage système « utiliser F1, F2… comme touches standard ».
-- Tester un alias historique (`esc`, `enter`, `delete`) et vérifier qu'une touche
-  inconnue produit une erreur visible sans laisser de modificateur enfoncé.
+- Letters and digits with Command, Control, Option and Shift on AZERTY/QWERTY.
+- Escape, Enter, Tab, Space, Backspace and forward Delete.
+- Arrows, Home/End, Page Up/Down and F1–F12.
+- Function keys with the relevant macOS keyboard preference enabled/disabled.
+- Supported aliases and an invalid key; no modifier should remain pressed after an error.
 
-## Menu de barre des menus
+## System menu and lifecycle
 
-- Vérifier le libellé d'état à zéro, une et deux consoles connectées.
-- Ouvrir l'éditeur, la connexion et l'onglet État, y compris après fermeture de
-  la fenêtre principale.
-- Suspendre 15 minutes, 1 heure et sans limite : les appuis 3DS doivent recevoir
-  un résultat d'échec sans être exécutés ; la connexion et les états restent
-  actifs. Reprendre et vérifier qu'un nouvel appui fonctionne. Tester
-  l'expiration d'une pause temporisée.
-- Basculer Notifications, Musique et médias, Fenêtres, Performances et OBS ;
-  vérifier les coches et la persistance dans les réglages après relance.
-- Basculer le démarrage à l'ouverture de session et vérifier l'état après
-  déconnexion/reconnexion.
-- Copier l'adresse, ouvrir le journal, ouvrir les versions GitHub, redémarrer et
-  quitter. Après redémarrage, TCP 38123 et UDP 38122 doivent être repris par une
-  seule instance.
+- Status with zero, one and two connected consoles.
+- Open the editor, connection view and status after closing the window.
+- Pause controls for 15 minutes, one hour and indefinitely. Mutations must be
+  rejected while state/network updates continue. Check resume and timed expiry.
+- Feature toggles and persistence after restart.
+- Login startup, copied address, log access, restart and quit.
+- A restart leaves one TCP/UDP listener; window size/position are restored.
+- macOS window controls and header dragging without blocking interactive controls.
+
+## Extensions
+
+Import/enable Focus, configure its grid source and top screen, then check timer
+controls, pause/resume, saved progress after restart and English/French labels.
+A slow or failed extension must not block other extension workers or native controls.
+
+Broader release checks are in [Qualification](../../../docs/QUALIFICATION.md).

@@ -1,3 +1,20 @@
 # Release qualification
 
-Before publishing a draft, check the built installers on macOS Intel and Apple Silicon and on a real Windows x64 machine. Verify application signature/notarization or Authenticode, first launch, onboarding, tray and background server, permissions, media, audio, notifications, OBS, native extensions, pairing and reconnecting to a real console or Citra. Check the generated `latest.json` against each signed installer and perform one update from an older signed version. Record OS versions and failures in the draft release notes. See [Release process](RELEASE.md) and [Windows plan](../apps/desktop/docs/WINDOWS_TEST_PLAN.md).
+[Documentation](README.md) · [Français](QUALIFICATION.fr.md)
+
+Before publishing a release, install its packages on macOS Intel/Apple Silicon
+and Windows x64. Record actual OS versions, hardware, package versions and results.
+
+- Check distribution signatures, notarization/Authenticode and the checksum manifest.
+- Check first launch, setup, saved language/preferences, tray and window lifecycle.
+- Check permissions, media, audio, available notifications, OBS and shortcuts.
+- Pair a real console; check pages, reconnect, sleep/wake and action feedback.
+- Import Focus and check its source/dashboard, timer persistence and localization.
+- Check `latest.json` against signed packages. When an earlier signed release
+  exists, install an update from it and verify data retention and restart.
+
+Keep unresolved failures in the draft release notes; publish only after the
+checks pass. See [Release process](RELEASE.md),
+[Windows checks](../apps/desktop/docs/WINDOWS_TEST_PLAN.md),
+[macOS checks](../apps/desktop/docs/MACOS_TRAY_AND_SHORTCUTS_TEST.md) and
+[performance measurement](PERFORMANCE.md).

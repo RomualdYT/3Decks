@@ -15,7 +15,7 @@ bash tools/test_console.sh
 Le premier contrôle utilise un compilateur C local. La construction `.3dsx` et
 `.cia` utilise Docker et devkitPro. Voir le [guide de compilation](../../docs/CONSOLE_PACKAGING.fr.md),
 l’[architecture](../../docs/CONSOLE_ARCHITECTURE.fr.md) et le
-[protocole](../../docs/PROTOCOL.md).
+[protocole](../../docs/PROTOCOL.fr.md).
 
 ## Typographie sur console
 
@@ -34,11 +34,8 @@ ressource absente ou de taille incorrecte utilise la police historique,
 puis la police système si nécessaire ; les échelles libres conservent le
 filtrage lissé historique.
 
-La famille native ajoute environ 3 Mio de textures et de ressources embarquées.
 Les tests hôtes couvrent les tailles, les alignements, les changements de police
-dans le cache, le repli et la libération des ressources. L’aspect final reste
-à apprécier sur les écrans physiques, notamment pour les petits caractères et
-les informations secondaires sous les reflets.
+dans le cache, le repli et la libération des ressources. Vérifiez les changements de typographie sur les écrans physiques et dans l’aperçu ordinateur.
 
 ## Icônes de marque
 
@@ -57,10 +54,11 @@ bash tools/make-brand-icons.sh
 Le fichier `.t3x` est versionné : la compilation normale ne nécessite aucune
 rasterisation SVG. Si son chargement échoue, une icône musicale générique prend
 le relais.
+
 ## Icônes des boutons sur console
 
 Les 22 icônes de la console utilisent les mêmes composants Lucide et le même
-trait de 1,9 pixel que `frontend/src/components/DeckIcon.tsx`.
+trait de 1,9 pixel que `apps/desktop/frontend/src/components/DeckIcon.tsx`.
 `source/graphics/icon_assets.def` relie les identifiants 3DS aux noms de
 l'éditeur et fixe l'ordre des atlas. Six atlas RGBA couvrent les tailles natives
 de 12 à 52 pixels ; Citro2D applique la couleur et l'état de chaque bouton.

@@ -256,6 +256,11 @@
             "title": "Clients",
             "type": "array"
           },
+          "catalog_revision": {
+            "type": "integer",
+            "minimum": 0,
+            "title": "Catalog Revision"
+          },
           "config_revision": {
             "title": "Config Revision",
             "type": "integer"

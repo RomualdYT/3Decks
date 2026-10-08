@@ -4,117 +4,107 @@
 
 ## First launch
 
-The setup assistant lets you choose console features, review the access they need, and pair a 3DS or 2DS. You can finish without a console and pair it later. Progress is saved after each step, including when macOS asks you to quit and reopen the app. On Windows, media, audio and shortcuts use native APIs; the firewall may ask for local network access. Reading other apps' notification history additionally needs a compatible packaged identity and your consent, so it is unavailable in the current direct installer. Reopen the assistant from **Settings → Advanced**.
+The setup assistant lets you choose features, review required permissions and
+pair a console. You can finish without a console and connect it later. Progress
+is saved between launches. Reopen setup from **Settings → Advanced**.
 
-Public signed builds offer **Settings → Advanced → Updates → Check**. The app checks when you press the button; it does not currently check in the background. A local unsigned build has no updater key and shows the control as unavailable.
+The editor language follows your saved choice, otherwise the system/browser:
+French for French systems, English otherwise. Console language is independent
+and starts in English. Both apps save your language choice.
 
-## Your first page
+Closing the editor keeps the desktop app running in the system menu/tray.
+That menu can reopen the editor, pause console controls or quit the app.
 
-1. Open the editor from the computer's 3Decks system menu.
-2. Add a page in the left sidebar and give it a short name.
-3. Choose **My own actions**, then select an empty button.
-4. Pick an action, such as play/pause, and complete the fields shown.
-5. Choose an icon and color, then save using the bottom bar.
+## Create a page
+
+1. In **Editor**, select **Add a page**. Choose a blank page or a template.
+2. Set a short page name and icon, then choose **Grid** or **List**.
+3. Under **Button content**, choose **My own actions** for editable buttons.
+4. Select an empty button, choose an action, and fill in its required fields.
+5. Set its label, icon and colour, then save with the editor's bottom bar.
 6. Tap the button on the connected console.
 
-Saving applies the configuration in the running desktop app and sends the new layout to connected consoles. You do not need to restart. If another editor changed the configuration, reload after the explicit conflict instead of repeatedly saving over it.
+Saving applies the configuration and sends it to connected consoles without a
+restart. Unsaved edits appear in the preview first. If another editor saves a
+newer revision, reload and reconcile your changes before saving again.
 
-## Organize the touch screen
+Drag pages or buttons to reorder them. A page's context menu provides additional
+operations. Templates create ordinary editable pages; choosing one does not
+activate a service or grant permissions.
 
-Drag pages in the sidebar to reorder them; right-click a page for its context actions. Drag buttons to reorder their positions.
+## Generated buttons
 
-- **Grid:** six large positions in a 3 × 2 layout, available on every page.
-- **List:** scrollable rows, useful for generated windows or extension content.
-- **My own actions:** buttons you configure.
-- **Available windows:** 3Decks generates items for open windows; touching one focuses it on the computer.
-- **Extension source:** content supplied by an enabled extension.
+Choose **Available windows** to list open computer windows, or an extension source
+to display that extension's items. Generated items are controlled by their source,
+not edited individually. A grid shows the first six items; use a list for up to 32.
+The computer preview is interactive, not a video feed from the console.
 
-Generated content is not a second editable copy of your buttons. A grid displays the first six items; use a list when you need more. The preview explains generated areas; it is an editor preview, not a video stream from the console.
+## Top screen
 
-## Choose the top screen
+Click the current **Top screen** choice to open the searchable chooser. Extension
+screens appear separately from built-in screens.
 
-| Dashboard | Use it for |
-|---|---|
-| Automatic | Media when available, otherwise applications |
-| Now playing | Track, artist, artwork and progress |
-| Audio | Volume, audio output and music activity |
-| Full-screen artwork | A large album cover |
-| Applications | Foreground/open applications |
-| System | Available computer performance metrics |
-| Extension dashboard | Cards supplied by an enabled extension |
+| Screen | Content |
+| --- | --- |
+| Automatic | Current media when available, otherwise open applications |
+| Now playing | Track, artist, artwork and playback progress |
+| Synced lyrics | Timestamped lyrics, with a fallback when unavailable |
+| Full-screen artwork | Large album cover |
+| Open applications | Foreground/open apps |
+| Audio outputs | Current audio output and volume |
+| Computer status | Available CPU, memory, network and storage metrics |
+| Notifications | Recent notifications when the source is enabled and available |
+| Extension screen | Dashboard supplied by an enabled extension |
 
-Metrics depend on what the OS exposes. Missing GPU or temperature data is not a zero reading. Music animation is visual feedback, not a promised real-time audio-spectrum analyzer.
+**Lyrics:** enable media and online lyrics in Settings, or select the lyrics
+feature during setup. New configurations include a music/lyrics page. Online
+lookup is off until enabled and sends track metadata to LRCLIB. Local LRC files
+can be used offline; see [lyrics details](../apps/desktop/docs/LYRICS_AND_PAGE_TEMPLATES.md).
 
-## Configure actions without guessing
+## Actions and integrations
 
-For **Open a file/folder**, use the native selection button. Choose an existing item on this computer; the field contains its path, not the contents of the file. Canceling the picker is harmless. A moved/deleted item must be selected again.
+- **Files/folders:** use the native picker. Select the item again if it moves.
+- **Applications:** use detected suggestions where available; names and paths are OS-specific.
+- **Keyboard shortcuts:** use the capture control. The shortcut acts in the focused app.
+- **OBS:** enable its WebSocket server, copy the host/port/password into Settings,
+  enable the integration and test the connection. The built-in help explains the
+  steps. Default connection: `127.0.0.1:4455`. Select the returned scene names
+  when configuring scene actions.
+- **Hold actions:** a grid button may have a secondary action triggered by holding it.
 
-For **Open an application**, choose a suggested installed application when available. App lists and identifiers depend on the OS; do not copy a Mac app name into a Windows setup expecting it to work unchanged.
-
-For **Keyboard shortcut**, focus the capture control and press the combination. Use the computer platform's modifier keys. The shortcut acts in the focused application, so test it in a safe context.
-
-For **OBS**, enable its integration in Settings, supply the WebSocket connection settings and test the connection. Use the returned scene names when configuring buttons. Streaming/recording actions can affect a live session: test with a non-live scene first.
-
-Hold actions are optional secondary actions. The console displays pending and temporary success/error feedback while the computer processes an action.
+Enable only the features you need. Missing metrics are shown as unavailable.
+The music animation is decorative rather than a measured audio spectrum.
 
 ## Console controls
 
-| Control | Behavior |
-|---|---|
-| Tap | Run the selected button/list item |
-| Hold a configured grid button | Run its secondary action |
-| Drag away before releasing | Cancel the touch |
-| Bottom tabs or L/R | Change page |
-| D-pad | Move button focus or navigate the list |
-| A | Confirm focused item; without grid focus, select the first slot |
+| Control | Behaviour |
+| --- | --- |
+| Tap / hold | Primary / configured secondary action |
+| Drag away before release | Cancel the touch |
+| Bottom dock or L/R | Change page |
+| D-pad | Move grid focus or navigate a list |
+| A | Confirm focus; with no grid focus, select the first slot |
 | B | Clear/back out of selection |
 | X / Y in the grid | Activate slots 2 / 3 |
-| L + SELECT | Open console settings |
+| Gear icon or L + SELECT | Open settings |
 | SELECT alone | Request the latest layout |
-| START | Exit the application |
+| START | Exit |
 
-Settings are also accessible while connecting. They include language, connection setup, sound and dimming. Console settings live at `sdmc:/3ds/deck3ds/settings.cfg`; pairing information is sensitive, so do not upload it.
+Console settings cover language, connection, sound, idle delay and Decky.
+Decky can be off, discreet or shown during idle. The desktop's appearance setting
+is separate. Console preferences and pairing are saved in
+`sdmc:/3ds/deck3ds/settings.cfg`; keep that file private.
 
-## Meet Decky
+## Extensions, updates and help
 
-At launch, Decky wakes up and waves in a short 1.2-second introduction while
-network discovery/connection continues. Press a button or touch the screen to
-skip it (START still exits). The introduction does not replay on reconnect or
-wake, and is disabled when the console's Decky setting is off.
+[Import and enable extensions](EXTENSIONS.md), then choose their actions, button
+sources and top screens in the editor. [Focus](../examples/extensions/focus/README.md)
+is a complete Pomodoro example.
 
-Decky is an optional pixel-art companion on the **3DS**. Open console settings
-(gear icon or L + SELECT), select **Decky**, and tap the row or press A to cycle:
+When the build includes an updater key, the editor checks for updates after it
+opens and also offers **Settings → Advanced → Updates → Check**. Installation
+requires your click and restarts the app. Builds without a key disable the updater.
 
-- **Off:** hide the companion everywhere.
-- **Discreet** (default): greetings and connection screens; a sleeping companion
-  during idle when there is no music title. Existing music artwork stays visible.
-- **Companion idle:** replace the automatic idle top screen with Decky. He wears
-  headphones while music is playing and rests otherwise. The lower screen keeps
-  its clock, battery and notification information; touching it wakes the app.
-
-The selected settings row previews all six expressions. Save to keep your choice
-on the SD card. The existing idle delay also controls Decky; **Never** disables
-automatic idle. Manually selected full-screen artwork is unchanged. Animations
-are decorative, silent, and require no network requests or extra permissions.
-There are no needs, streaks or penalties for time away. This console-only setting
-is not currently mirrored by the computer's editor preview.
-
-On the computer, Decky greets you in the connection dialog and appears during
-loading, unavailable-desktop states and the empty extensions view. **Settings →
-Language & appearance** lets you preview his expressions or hide these appearances.
-This browser-local preference applies immediately, separately from console settings.
-The Decky logo stays visible: it briefly blinks every eight seconds and waves once
-on hover or keyboard focus. Hiding Decky or enabling OS reduced motion keeps it static.
-
-The artwork is generated by `apps/console/source/graphics/decky.c`, independently of
-the hardware renderer. Contributors can export the six poses with the command
-documented in `tools/render_decky.c` and run `bash tools/test_console.sh`.
-`tools/export_decky_sprite.c` regenerates `apps/desktop/frontend/public/decky.svg`;
-the console tests check it against the native renderer. `tools/export_decky_brand.c`
-generates the static header logo and the English/French README banners.
-
-## Integrations and extensions
-
-Settings lets you enable only what you need. Turning the media group off preserves its individual player/artwork choices for the next activation. Some permission changes need an application restart. [Troubleshooting](TROUBLESHOOTING.md) covers unavailable providers.
-
-Import extensions through the Extensions tab, review their declared access and approve their fingerprint before activation. Import alone does not execute the package. See [extension trust](SECURITY.md) before enabling community code.
+Use **Community & help** in Settings for Discord or its QR code. The console also
+has a Community button in settings. See [troubleshooting](TROUBLESHOOTING.md) for
+connection, permission and feature problems.

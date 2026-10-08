@@ -13,16 +13,39 @@ concurrency:
 
 jobs:
   version:
-    name: Verify release version
+    name: Verify release version and signing configuration
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v7
       - run: python3 tools/check_release_version.py "${GITHUB_REF_NAME}"
+      - name: Check signing configuration before starting builds
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          DECKS_UPDATER_PUBKEY: ${{ vars.DECKS_UPDATER_PUBKEY }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          missing=0
+          for name in TAURI_SIGNING_PRIVATE_KEY DECKS_UPDATER_PUBKEY APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID WINDOWS_CERTIFICATE WINDOWS_CERTIFICATE_PASSWORD; do
+            if [[ -z "${!name}" ]]; then
+              echo "::error::Missing signing configuration: $name"
+              missing=1
+            fi
+          done
+          exit "$missing"
 
   quality:
     name: Qualify source and console
     needs: version
     uses: ./.github/workflows/quality.yml
+    with:
+      full: true
 
   desktop:
     name: Desktop (${{ matrix.name }})
@@ -134,6 +157,7 @@ jobs:
 
   attach-console:
     name: Add console packages and checksums
+    timeout-minutes: 10
     needs: [quality, desktop]
     runs-on: ubuntu-latest
     permissions:

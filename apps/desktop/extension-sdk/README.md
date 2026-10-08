@@ -1,32 +1,41 @@
-# API native des extensions 3Decks · v1
+# Native extension SDK · API 1
 
-Une extension Tauri est un **exécutable autonome** distribué dans un paquet
-`.3deckext` (ZIP). Aucun interpréteur Python ni commande du système n'est lancé.
-L'exécutable s'exécute dans un processus séparé, avec les droits du compte
-utilisateur. La séparation de processus évite de charger du code tiers dans
-Tauri ; **elle n'est pas un bac à sable**. L'interface demande donc une
-approbation explicite de l'empreinte SHA-256 du paquet avant activation.
+[User guide](../../../docs/EXTENSIONS.md) · [Complete Focus example](../../../examples/extensions/focus/README.md)
 
-## SDK Rust
+A 3Decks extension is a native executable distributed in a `.3deckext` ZIP.
+The host launches the approved binary in a separate process and exchanges JSON
+Lines over stdin/stdout. It runs with the user's permissions, without a sandbox.
+Declared permissions describe intended access rather than enforcing restrictions.
 
-Le crate [`three-decks-extension-sdk`](Cargo.toml) fournit `Context`,
-`Snapshot`, `ActionResult`, le trait `Extension` et `serve()`. L'exemple
-[`counter.rs`](examples/counter.rs) est exécutable :
+## Rust API
+
+The `three-decks-extension-sdk` crate provides `Context`, `Snapshot`,
+`ActionResult`, the `Extension` trait and `serve()`:
+
+- `initialize`: read settings and load saved data from `Context.data_dir`.
+- `poll`: return current states, button sources and dashboards.
+- `action`: handle a declared action and return success or failure.
+- `shutdown`: optional protocol handler. Save important changes as they happen;
+  host shutdown/disable can terminate the worker without calling this handler.
+
+Use a Git or path dependency during development. Rust edition 2024 is used by
+the SDK; the wire protocol remains language-independent.
+
+From the repository root:
 
 ```sh
-cargo test --manifest-path apps/desktop/extension-sdk/Cargo.toml
-cargo build --release --manifest-path apps/desktop/extension-sdk/Cargo.toml --example counter
+cargo build --release --locked --manifest-path apps/desktop/extension-sdk/Cargo.toml --example counter
+python3 examples/extensions/focus/package.py
 ```
 
-Un projet tiers peut déclarer le SDK en dépendance Git ou par chemin pendant
-le développement. Le protocole JSON Lines reste indépendant du langage :
-le SDK Rust est la référence de l'API v1, sans ABI Rust partagée ni chargement
-de bibliothèque dynamique.
+[Counter](examples/counter.rs) is a minimal implementation.
+[Focus](../../../examples/extensions/focus/README.md) demonstrates typed settings,
+dynamic buttons, dashboards and atomic persistence.
 
-## Manifeste et paquet
+## Package and manifest
 
-Un paquet contient `extension.json` à la racine et au moins un binaire sous
-`bin/`. Exemple pour macOS Intel :
+Place `extension.json` at the archive root and compiled binaries under `bin/`.
+This manifest matches the Counter example, including its declared dashboard:
 
 ```json
 {
@@ -34,58 +43,107 @@ Un paquet contient `extension.json` à la racine et au moins un binaire sous
   "id": "com.example.counter",
   "version": "1.0.0",
   "name": {"en": "Counter", "fr": "Compteur"},
-  "description": {"en": "Counts presses", "fr": "Compte les pressions"},
+  "description": {"en": "Counts button presses", "fr": "Compte les appuis"},
   "author": "Example",
   "runtime": "native",
-  "binaries": {"darwin-x86_64": "bin/counter"},
+  "binaries": {"darwin-aarch64": "bin/counter"},
+  "permissions": [],
+  "poll_interval": 2,
   "actions": [{"id": "increment", "title": {"en": "Increment", "fr": "Incrémenter"}, "arguments": []}],
   "sources": [],
-  "dashboards": [],
+  "dashboards": [{"id": "overview", "title": {"en": "Counter", "fr": "Compteur"}}],
   "settings": []
 }
 ```
 
-Les clés de `binaries` sont `darwin-aarch64`, `darwin-x86_64`,
-`win32-aarch64`, `win32-x86_64`, `linux-aarch64`, `linux-x86_64`.
-Déclarez uniquement les cibles réellement incluses dans le ZIP. Pour Windows,
-utilisez un chemin comme `bin/counter.exe`. Le champ `platforms` est dérivé des
-binaires ; il ne faut pas le gérer à la main. Un paquet peut contenir plusieurs
-cibles. Le binaire local est lancé depuis le dossier extrait du paquet, jamais
-depuis `PATH` ou un chemin absolu. Sur macOS et Linux, le bit exécutable est
-posé à l'import pour le binaire de la cible courante.
+Change the binary mapping to match the files actually included. Supported keys:
+`darwin-aarch64`, `darwin-x86_64`, `win32-aarch64`, `win32-x86_64`,
+`linux-aarch64`, `linux-x86_64`. These are package target IDs, not interface labels.
+Windows binaries use `.exe`. The host derives `platforms` from these mappings.
+It runs the binary from the extracted package and sets its executable permission
+on macOS/Linux. Script/command runtimes and external executable paths are rejected.
 
-Pour essayer l'exemple sur votre machine, créez un dossier temporaire avec
-`extension.json` adapté à la cible affichée par `rustc -vV`, copiez le binaire
-compilé dans `bin/`, puis archivez **le contenu du dossier** en `.3deckext`.
-Dans l'app : Extensions → Importer → lire l'empreinte → Activer.
+Limits: 4 MiB compressed, 16 MiB extracted, 256 ZIP entries; no symlinks or unsafe
+paths. A manifest supports up to 32 actions, eight sources, eight dashboards and
+16 settings. Poll intervals range from 0.5 to 60 seconds.
 
-## Protocole
+Settings and action arguments use `name`, `type`, optional `default`, `required`,
+`label` and `description`. Supported types: `text`, `password`, `number`,
+`boolean`, `select`. Numbers can have `min`/`max`; select choices contain `value`
+and a localized `label`. Password defaults are forbidden. Labels and descriptions
+can be plain strings or objects such as `{"en":"Start","fr":"Démarrer"}`.
 
-Le parent écrit une requête JSON suivie de `\n` sur stdin. L'extension répond
-sur stdout avec le même `id` ; stderr reste libre pour les diagnostics.
-Chaque ligne est limitée à 64 KiB et chaque appel à cinq secondes.
+## Contribution data
 
-| Méthode | Paramètres | Résultat |
+`Snapshot.states` contains up to 32 boolean values. For individually configured
+extension buttons, a state with the action's ID controls its active appearance.
+
+Each declared source returns an ordered array of up to 32 items:
+
+```json
+{
+  "id": "start",
+  "label": {"en": "Start", "fr": "Démarrer"},
+  "detail": {"en": "Begin a session", "fr": "Lancer une session"},
+  "icon": "play",
+  "color": "#66CB10",
+  "active": false,
+  "action": {"id": "start", "arguments": {}}
+}
+```
+
+The referenced action must be declared in the manifest and its arguments must
+match the declaration. Item IDs must be unique. Labels are limited to 64 UTF-8
+bytes and details to 80; the console further limits displayed text. Use the
+[console icon names](../../../docs/PROTOCOL.md#configuration-snapshot) for consistent rendering.
+A grid uses the first six items; a list can display all 32.
+
+Each declared dashboard returns a title and up to four cards:
+
+```json
+{
+  "title": {"en": "Focus", "fr": "Focus"},
+  "status": "ok",
+  "cards": [{
+    "label": {"en": "Remaining", "fr": "Temps restant"},
+    "value": "24:12",
+    "detail": {"en": "Session running", "fr": "Session en cours"},
+    "progress": 4
+  }]
+}
+```
+
+Status can be `neutral`, `ok`, `warning` or `error`; progress is optional, 0–100.
+Worker limits are 64 UTF-8 bytes for the title, 48 for a card label, 40 for its
+string value and 80 for detail. The host resolves localized text for each console.
+Cards are declarative; there is no custom HTML, drawing API or code download to the 3DS.
+
+## Protocol and lifecycle
+
+Requests and responses are one JSON object per line; responses echo the request
+ID. Stdout is reserved for protocol data; write diagnostics to stderr.
+
+| Method | Parameters | Result |
 | --- | --- | --- |
 | `initialize` | `api_version`, `extension_id`, `settings`, `data_dir`, `platform` | `{"api_version":1}` |
 | `poll` | `{}` | `states`, `sources`, `dashboards` |
 | `action` | `action`, `arguments` | `ok`, `message` |
 | `shutdown` | `{}` | `{}` |
 
-Le moteur valide les actions, arguments et instantanés par rapport au
-manifeste. Les noms de sources et d'écrans doivent être déclarés. Les réglages
-sensibles restent masqués dans l'interface, mais sont transmis au processus de
-l'extension lors de `initialize`. Le champ `data_dir` fournit un dossier privé
-pour ses données persistantes. Une mise à jour du contenu du paquet change son
-empreinte et exige une nouvelle approbation.
+Each line is limited to 64 KiB and each exchange to five seconds. The host keeps
+a separate serialized queue per worker, with up to 16 pending commands. A full
+queue rejects new commands; slow workers do not hold the other extensions' queues.
+Activation remains `starting` until initialization succeeds.
 
-## Compatibilité
+Use `ActionResult::failure` for an expected rejected operation. Protocol errors,
+handler errors and timeouts stop the worker and put the extension in error.
+Disable terminates the process and cancels pending calls. Changing settings
+restarts the worker, so keep persistent state in `data_dir` and validate it on load.
+Do not rely on receiving a graceful shutdown to save user progress.
 
-L'ancien format `runtime: python` ou `runtime: command` est refusé par l'hôte
-Tauri. Le serveur Python historique garde ses propres extensions tant qu'il
-reste dans le dépôt ; aucun pont de compatibilité n'est embarqué dans l'app
-native. API v1 n'est pas encore publiée comme contrat stable de production.
+The host validates contributions against the manifest. Sensitive settings are
+masked in the interface but delivered to the process. Updating package contents
+changes its fingerprint and requires renewed approval. Keep contribution IDs
+stable across updates to preserve configured pages and shortcuts.
 
-Le SDK suit actuellement la licence GPL-3.0-or-later du dépôt. Avant d'ouvrir
-un écosystème d'extensions tiers, l'équipe doit décider explicitement si ce
-SDK d'auteur recevra aussi une licence permissive distincte.
+The SDK is licensed under [GPL-3.0-or-later](../../../LICENSE).

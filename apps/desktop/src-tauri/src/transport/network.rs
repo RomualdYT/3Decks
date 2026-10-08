@@ -1,6 +1,10 @@
 use crate::features::lyrics;
 use crate::platform::windowing;
-use crate::{artwork, audio, obs, protocol, state::Shared, system, telemetry};
+use crate::{
+    artwork, audio, obs, protocol,
+    state::{Shared, console_state},
+    system, telemetry,
+};
 use serde_json::{json, Value};
 use std::{
     net::{Ipv4Addr, SocketAddr},
@@ -74,14 +78,10 @@ pub async fn run(shared: Arc<Shared>) -> Result<(), String> {
             tokio::select! {
                 _ = interval.tick() => {
                     let mut host = extension_shared.extensions.lock().await;
-                    host.poll_all().await;
+                    host.refresh();
                     let catalog = host.catalog();
                     let snapshots = host.snapshots();
-                    let changed = *extension_shared.extension_catalog.read().unwrap() != catalog
-                        || *extension_shared.extension_snapshots.read().unwrap() != snapshots;
-                    *extension_shared.extension_catalog.write().unwrap() = catalog;
-                    *extension_shared.extension_snapshots.write().unwrap() = snapshots;
-                    if changed { let _ = extension_shared.config_updates.send(extension_shared.snapshot().config_revision); }
+                    extension_shared.publish_extensions(catalog, snapshots);
                 }
                 changed = extension_stop.changed() => { if changed.is_err() || *extension_stop.borrow() { break; } }
             }
@@ -239,7 +239,7 @@ async fn serve(
     };
     protocol::write(&mut stream, &shared.config_snapshot(locale)).await?;
     let initial = collect_state(&shared).await;
-    protocol::write(&mut stream, &initial).await?;
+    protocol::write(&mut stream, &console_state(&initial, locale)).await?;
     let lyrics = shared.latest_lyrics.read().unwrap().clone();
     protocol::write(&mut stream, &lyrics).await?;
     let mut last_art_token = 0;
@@ -270,7 +270,7 @@ async fn serve(
             }
             update = state_updates.recv() => {
                 if let Ok(update) = update {
-                    if let Err(error) = protocol::write(&mut stream, &update).await { break Err(error); }
+                    if let Err(error) = protocol::write(&mut stream, &console_state(&update, locale)).await { break Err(error); }
                     if let Err(error) = write_art_if_changed(&mut stream, &shared, &update, &mut last_art_token).await { break Err(error); }
                 }
                 continue;
@@ -317,7 +317,7 @@ async fn serve(
                                 }
                             }
                         } else {
-                            perform_button(&shared, &message).await
+                            perform_button(&shared, &message, _action_slot).await
                         };
                         if outcome.is_ok() {
                             let shared = shared.clone();
@@ -355,6 +355,7 @@ async fn serve(
 async fn perform_button(
     shared: &Shared,
     message: &Value,
+    action_slot: tokio::sync::SemaphorePermit<'_>,
 ) -> Result<(&'static str, Option<&'static str>), String> {
     let page = message.get("page").and_then(Value::as_str);
     let button = message.get("button").and_then(Value::as_str);
@@ -465,13 +466,13 @@ async fn perform_button(
                                     .collect(),
                             )
                         });
-                    shared
-                        .extensions
-                        .lock()
-                        .await
-                        .execute(kind, &arguments)
-                        .await
-                        .map(|_| ("Extension action complete", None))
+                    // Extension commands serialize in their own runtime, not the system-action gate.
+                    drop(action_slot);
+                    let request = {
+                        let host = shared.extensions.lock().await;
+                        host.prepare_action(kind, &arguments)?
+                    };
+                    request.run().await.map(|_| ("Extension action complete", None))
                 }
                 _ => system::perform(&action, shared.config.volume_step())
                     .await
