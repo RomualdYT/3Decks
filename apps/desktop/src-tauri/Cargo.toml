@@ -35,6 +35,7 @@ tauri-plugin-dialog = "2"
 tauri-plugin-autostart = "2"
 tauri-plugin-updater = "2"
 tauri-plugin-window-state = "2"
+tauri-plugin-single-instance = "2"
 plist = "1.10"
 # Windows installers must not depend on an external sqlite3.lib.
 rusqlite = { version = "0.40", features = ["bundled-windows"] }

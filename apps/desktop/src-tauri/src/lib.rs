@@ -382,6 +382,18 @@ async fn open_permission_settings(permission: String) -> Result<Value, String> {
 
 pub fn run() {
     let app = tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            if !args.iter().any(|arg| arg == "--tray-only") {
+                let handle = app.clone();
+                if let Err(error) = app.run_on_main_thread(move || {
+                    if let Err(error) = open_editor(&handle) {
+                        logging::append(&format!("Unable to reopen editor: {error}"));
+                    }
+                }) {
+                    logging::append(&format!("Unable to activate existing instance: {error}"));
+                }
+            }
+        }))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_window_state::Builder::default()
             .with_state_flags(if cfg!(target_os = "windows") {
@@ -422,8 +434,8 @@ pub fn run() {
                 if let Err(error) = network::run(shared.clone()).await {
                     shared.update(|s| {
                         s.running = false;
+                        s.last_event = format!("Server unavailable: {error}");
                         s.error = Some(error);
-                        s.last_event = "Server unavailable".into();
                     });
                 }
             });
