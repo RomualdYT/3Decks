@@ -19,6 +19,9 @@ concurrency:
 jobs:
   validate:
     runs-on: ubuntu-latest
+    # GitHub only exposes draft releases to tokens with repository write access.
+    permissions:
+      contents: write
     outputs:
       release_id: ${{ steps.release.outputs.id }}
     steps:
