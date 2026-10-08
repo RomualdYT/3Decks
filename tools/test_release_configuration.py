@@ -2,6 +2,7 @@
 
 import base64
 import json
+import plistlib
 import tempfile
 import unittest
 from pathlib import Path
@@ -14,6 +15,15 @@ class ReleaseConfigurationTests(unittest.TestCase):
     PUBLIC_KEY = base64.b64encode(
         b"untrusted comment: minisign public key\n" + base64.b64encode(b"Ed" + bytes(40)) + b"\n"
     ).decode()
+
+    def test_macos_bundle_can_request_media_automation(self):
+        desktop = Path(__file__).resolve().parents[1] / "apps/desktop/src-tauri"
+        config = json.loads((desktop / "tauri.conf.json").read_text())
+        macos = config["bundle"]["macOS"]
+        entitlements = plistlib.loads((desktop / macos["entitlements"]).read_bytes())
+        self.assertIs(entitlements["com.apple.security.automation.apple-events"], True)
+        info = plistlib.loads((desktop / macos["infoPlist"]).read_bytes())
+        self.assertTrue(info["NSAppleEventsUsageDescription"].strip())
 
     def test_prepares_updater_overlay_without_changing_template(self):
         original = TEMPLATE.read_bytes()

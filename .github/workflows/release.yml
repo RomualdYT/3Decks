@@ -110,6 +110,27 @@ jobs:
           uploadUpdaterJson: true
           uploadUpdaterSignatures: true
           args: --config src-tauri/tauri.release.conf.json --target ${{ matrix.target }}
+      - name: Verify macOS media automation entitlement in the signed app
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          python3 - <<'PYTHON'
+          import plistlib
+          import subprocess
+          from pathlib import Path
+
+          bundle = Path("apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/macos/3Decks.app")
+          if not bundle.is_dir():
+              raise SystemExit(f"Missing macOS bundle: {bundle}")
+          subprocess.run(["codesign", "--verify", "--strict", str(bundle)], check=True)
+          data = subprocess.check_output(
+              ["codesign", "-d", "--entitlements", ":-", str(bundle)],
+              stderr=subprocess.DEVNULL,
+          )
+          entitlements = plistlib.loads(data)
+          if entitlements.get("com.apple.security.automation.apple-events") is not True:
+              raise SystemExit("Signed macOS app cannot request Spotify/Music automation access")
+          PYTHON
 
   attach-console:
     name: Add console packages and checksums

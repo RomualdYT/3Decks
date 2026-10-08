@@ -2,7 +2,7 @@
 //! Apple Events still require the user's Automation permission.
 use objc2::rc::Retained;
 use objc2_app_kit::NSWorkspace;
-use objc2_foundation::{NSAppleEventDescriptor, NSAppleEventSendOptions, NSString};
+use objc2_foundation::{NSAppleEventDescriptor, NSAppleEventSendOptions};
 use serde_json::{json, Value};
 use std::{
     ptr::NonNull,
@@ -81,6 +81,19 @@ mod tests {
         assert_eq!(descriptor.descriptorType(), code(b"obj "));
         assert!(descriptor.data().length() > 0);
     }
+
+    #[tokio::test]
+    #[ignore = "Requires an authorized Spotify or Music instance with a current track"]
+    async fn live_metadata_is_received_from_a_background_worker() {
+        let snapshot = snapshot(false)
+            .await
+            .expect("Apple Event metadata lookup failed")
+            .expect("No supported media player is running");
+        assert!(snapshot.media["title"]
+            .as_str()
+            .is_some_and(|title| !title.is_empty()));
+        assert!(snapshot.media["playing"].is_boolean());
+    }
 }
 
 fn send(
@@ -90,17 +103,23 @@ fn send(
     direct: &NSAppleEventDescriptor,
     data: Option<&NSAppleEventDescriptor>,
 ) -> Result<Retained<NSAppleEventDescriptor>, String> {
-    let target = NSAppleEventDescriptor::descriptorWithBundleIdentifier(&NSString::from_str(
-        player.bundle_id(),
-    ));
+    let target = player.target()?;
     let event = NSAppleEventDescriptor::appleEventWithEventClass_eventID_targetDescriptor_returnID_transactionID(
         event_class, event_id, Some(&target), -1, 0);
     event.setParamDescriptor_forKeyword(direct, code(b"----"));
     if let Some(data) = data {
         event.setParamDescriptor_forKeyword(data, code(b"data"));
     }
+    send_event(player, &event, 1.5)
+}
+
+fn send_event(
+    player: Player,
+    event: &NSAppleEventDescriptor,
+    timeout: f64,
+) -> Result<Retained<NSAppleEventDescriptor>, String> {
     let reply = event
-        .sendEventWithOptions_timeout_error(NSAppleEventSendOptions::WaitForReply, 1.5)
+        .sendEventWithOptions_timeout_error(NSAppleEventSendOptions::WaitForReply, timeout)
         .map_err(|error| format!("{}: {}", player.name(), error.localizedDescription()))?;
     if let Some(error) = reply.paramDescriptorForKeyword(code(b"errn")) {
         if error.int32Value() != 0 {
@@ -191,9 +210,10 @@ fn inspect(player: Player, include_artwork: bool) -> Result<MediaSnapshot, Strin
         .ok()
         .map(|value| value.int32Value().clamp(0, 100) as u8);
     let track = property(code(b"pTrk"), None)?;
-    let title = get(player, b"pnam", Some(&track))
-        .map(|value| string(&value))
-        .unwrap_or_default();
+    // Preserve lookup errors so a failed Apple Event can be diagnosed rather
+    // than silently looking like an idle player.
+    let title = get(player, b"pnam", Some(&track))?;
+    let title = string(&title);
     if title.is_empty() {
         return Ok(MediaSnapshot {
             media: Value::Null,
@@ -302,6 +322,22 @@ enum Player {
 }
 
 impl Player {
+    fn target(self) -> Result<Retained<NSAppleEventDescriptor>, String> {
+        // Address the running process directly. Bundle-ID Apple Event routing
+        // can time out even when the player itself is responding normally.
+        NSWorkspace::sharedWorkspace()
+            .runningApplications()
+            .iter()
+            .find(|app| {
+                app.bundleIdentifier()
+                    .is_some_and(|identifier| identifier.to_string() == self.bundle_id())
+            })
+            .map(|app| {
+                NSAppleEventDescriptor::descriptorWithProcessIdentifier(app.processIdentifier())
+            })
+            .ok_or_else(|| format!("{} is not running", self.name()))
+    }
+
     fn bundle_id(self) -> &'static str {
         match self {
             Self::Spotify => "com.spotify.client",
@@ -367,14 +403,10 @@ pub async fn command(command: &str) -> Result<(), String> {
     tokio::task::spawn_blocking(move || {
         let player = running_player().ok_or("No supported media player is running")?;
         let (event_class, event_id) = player.event(&command)?;
-        let target = NSAppleEventDescriptor::descriptorWithBundleIdentifier(
-            &NSString::from_str(player.bundle_id()),
-        );
+        let target = player.target()?;
         let event = NSAppleEventDescriptor::appleEventWithEventClass_eventID_targetDescriptor_returnID_transactionID(
             event_class, event_id, Some(&target), -1, 0,
         );
-        event.sendEventWithOptions_timeout_error(NSAppleEventSendOptions::WaitForReply, 3.0)
-            .map(|_| ())
-            .map_err(|error| format!("{}: {}", player.name(), error.localizedDescription()))
+        send_event(player, &event, 3.0).map(|_| ())
     }).await.map_err(|error| error.to_string())?
 }

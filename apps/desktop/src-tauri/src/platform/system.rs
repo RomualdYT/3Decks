@@ -6,6 +6,23 @@ use std::sync::Mutex;
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 static PREVIOUS_INPUT_VOLUME: Mutex<Option<u8>> = Mutex::new(None);
 
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+static LAST_MEDIA_ERROR: Mutex<Option<String>> = Mutex::new(None);
+
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+fn report_media_error(error: Option<&str>) {
+    let mut previous = LAST_MEDIA_ERROR.lock().unwrap();
+    if previous.as_deref() == error {
+        return;
+    }
+    if let Some(error) = error {
+        crate::app::logging::append(&format!("Media metadata unavailable: {error}"));
+    } else if previous.is_some() {
+        crate::app::logging::append("Media metadata error cleared");
+    }
+    *previous = error.map(str::to_owned);
+}
+
 pub async fn change_volume(direction: i8, step: u8) -> Result<&'static str, String> {
     #[cfg(any(target_os = "macos", target_os = "windows"))]
     {
@@ -278,6 +295,7 @@ pub async fn state_snapshot(include_media: bool, include_artwork: bool) -> Syste
             }
         );
         let mut state = json!({"type":"state.update","volume":null,"muted":null,"mic_muted":null,"media":null,"app_volume":null});
+        report_media_error(media.as_ref().err().map(String::as_str));
         if let Ok((volume, muted)) = output {
             state["volume"] = json!(volume);
             state["muted"] = json!(muted);
