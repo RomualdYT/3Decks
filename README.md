@@ -6,7 +6,7 @@
 
 **Your Nintendo 3DS. Your desktop controls.**
 
-[Get started](docs/INSTALLATION.md) · [Documentation](docs/README.md) · [Français](README.fr.md)
+[Get started](docs/INSTALLATION.md) · [Documentation](docs/README.md) · [Français](README.fr.md) · [Discord](https://discord.gg/EmdnneHeus)
 
 </div>
 

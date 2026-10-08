@@ -5,7 +5,7 @@ edition = "2024"
 build = "build.rs"
 
 [lib]
-name = "decks_desktop"
+name = "decks_desktop_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
