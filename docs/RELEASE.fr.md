@@ -15,6 +15,8 @@ Configurez les clés, la notarisation Apple et la signature Windows, puis qualif
 
 Les changements Rust natifs et les extensions sont qualifiés automatiquement lors des releases ; lancer leurs contrôles locaux ou une qualification complète manuelle pour obtenir un retour plus tôt. Les commandes sont partagées dans un même workflow entre contrôles légers et complets.
 
+Les builds officiels intègrent le Client ID public Twitch de 3Decks. Les forks distribués comme une autre application doivent renseigner la variable de dépôt `DECKS_TWITCH_CLIENT_ID` avec le Client ID de leur propre application Twitch de type Public. Aucun Client Secret n’est requis. Voir le [chat de stream](STREAM_CHAT.fr.md).
+
 ## Configuration unique du dépôt
 
 1. Créer une paire de clés avec `cd apps/desktop && npm run tauri -- signer generate -w /chemin/prive/3decks.key`. Enregistrer la clé privée dans le secret GitHub `TAURI_SIGNING_PRIVATE_KEY`, son mot de passe éventuel dans `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`, et la clé publique dans la variable `DECKS_UPDATER_PUBKEY`. Ne jamais versionner la clé privée. Voir la [documentation Tauri](https://v2.tauri.app/plugin/updater/#signing-updates).

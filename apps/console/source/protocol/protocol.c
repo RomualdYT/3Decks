@@ -10,6 +10,7 @@
 
 #include "json.h"
 #include "extension_state.h"
+#include "stream_chat.h"
 
 /*
  * Un unique document JSON est réutilisé pour tous les messages entrants. Il
@@ -569,6 +570,7 @@ bool protocol_decode(const char *json, size_t length, IncomingMessage *out,
 		out->kind = MSG_STATE_UPDATE;
 		parse_state(&s_doc, root, state);
 		extension_state_parse(&s_doc, root, state);
+		stream_chat_parse(&s_doc, root, state);
 
 		/*
 		 * Une notification venant d'arriver est signalée à part : la console

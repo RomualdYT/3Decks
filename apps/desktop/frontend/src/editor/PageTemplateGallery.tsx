@@ -11,6 +11,7 @@ const templateDetails: Record<PageTemplateId, { fr: string; en: string }> = {
   notifications: { fr: "Accès rapide", en: "Quick access" },
   windows: { fr: "Liste dynamique", en: "Live list" },
   obs: { fr: "Commandes OBS", en: "OBS controls" },
+  streaming: { fr: "Chat + OBS", en: "Chat + OBS" },
   system: { fr: "4 commandes", en: "4 controls" },
 };
 

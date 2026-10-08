@@ -73,6 +73,7 @@ typedef enum {
 	DASH_AUDIO, /**< Volumes, sortie active et égaliseur animé. */
 	DASH_FRAME,        /**< Cadre à musique : pochette plein écran. */
 	DASH_NOTIFICATIONS, /**< Notifications récentes du système. */
+	DASH_STREAM_CHAT, /**< Native stream chat. */
 	DASH_EXTENSION, /**< Cartes déclaratives fournies par une extension. */
 } DashboardMode;
 
@@ -157,6 +158,17 @@ typedef enum {
 	AUDIO_OUTPUT_HOST_ONLY,
 } AudioOutputMode;
 
+#define MAX_CHAT_MESSAGES 20
+typedef struct {
+    char id[65];
+    char author[49];
+    char text[257];
+    char color[8];
+    char time[6];
+    u32 badges[3];
+    int badge_count;
+} ChatMessage;
+
 #define MAX_EXTENSION_CARDS 4
 #define MAX_EXTENSION_BUTTONS (MAX_PAGES * MAX_BUTTONS)
 typedef struct {
@@ -205,6 +217,12 @@ typedef struct {
 	/** Position de lecture et durée, en secondes. -1 si inconnues. */
 	int media_position;
 	int media_duration;
+    char chat_status[32];
+    char chat_channel[26];
+    bool chat_compact;
+    bool chat_timestamps;
+    int chat_count;
+    ChatMessage chat_messages[MAX_CHAT_MESSAGES];
 	char lyrics_status[16];
 	int lyrics_count;
 	LyricLine lyrics[MAX_LYRIC_LINES];

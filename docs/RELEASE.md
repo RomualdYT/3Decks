@@ -13,6 +13,8 @@ Configure the signing material below and qualify the actual installers and updat
 
 Native Rust and extension changes are qualified automatically at release time; run their local checks or manual full qualification for earlier feedback. The lightweight and full checks share one workflow to keep their commands consistent.
 
+Official builds include the public 3Decks Twitch Client ID. Forks distributed as a different application must set repository variable `DECKS_TWITCH_CLIENT_ID` to their own Public Twitch application Client ID. No Client Secret is required. See [stream chat](STREAM_CHAT.md).
+
 ## One-time repository setup
 
 1. Generate a Tauri updater key pair with `cd apps/desktop && npm run tauri -- signer generate -w /safe/location/3decks.key` (see [Tauri updater signing](https://v2.tauri.app/plugin/updater/#signing-updates)). Store the **private** key as GitHub Actions secret `TAURI_SIGNING_PRIVATE_KEY` and its password, if used, as `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`. Store the public key content as repository variable `DECKS_UPDATER_PUBKEY`. Never commit the private key.

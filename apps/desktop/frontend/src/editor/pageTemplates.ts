@@ -1,7 +1,7 @@
 import type { DeckConfig, PageConfig, Schema } from "../app/types";
 import { defaultAction, newPage, uniqueId } from "../utils/config";
 
-export type PageTemplateId = "blank" | "lyrics" | "notifications" | "windows" | "obs" | "system";
+export type PageTemplateId = "blank" | "lyrics" | "notifications" | "windows" | "obs" | "streaming" | "system";
 
 export const PAGE_TEMPLATES: { id: PageTemplateId; title: { fr: string; en: string }; description: { fr: string; en: string }; icon: string; dashboard: string; actions: string[] }[] = [
   { id: "blank", title: { fr: "Page vierge", en: "Blank page" }, description: { fr: "Composez chaque écran librement.", en: "Build both screens your way." }, icon: "page", dashboard: "auto", actions: [] },
@@ -9,6 +9,7 @@ export const PAGE_TEMPLATES: { id: PageTemplateId; title: { fr: string; en: stri
   { id: "notifications", title: { fr: "Notifications", en: "Notifications" }, description: { fr: "Notifications récentes et accès aux réglages.", en: "Recent notifications and quick access to settings." }, icon: "bell", dashboard: "notifications", actions: ["settings.open"] },
   { id: "windows", title: { fr: "Fenêtres", en: "Windows" }, description: { fr: "Vos fenêtres ouvertes, mises à jour automatiquement.", en: "Your open windows, updated automatically." }, icon: "app", dashboard: "apps", actions: [] },
   { id: "obs", title: { fr: "OBS Studio", en: "OBS Studio" }, description: { fr: "Enregistrement, diffusion et scènes.", en: "Recording, streaming and scenes." }, icon: "monitor", dashboard: "system", actions: ["obs.record.toggle", "obs.stream.toggle", "obs.scene.set"] },
+  { id: "streaming", title: { fr: "Streaming", en: "Streaming" }, description: { fr: "Chat Twitch en haut, commandes OBS en bas.", en: "Twitch chat above, OBS controls below." }, icon: "chat", dashboard: "stream_chat", actions: ["obs.stream.toggle", "obs.record.toggle", "obs.scene.set", "mic.mute_toggle", "modal.volumes", "settings.open"] },
   { id: "system", title: { fr: "Performances", en: "Performance" }, description: { fr: "CPU, mémoire et commandes utiles.", en: "CPU, memory and useful controls." }, icon: "monitor", dashboard: "system", actions: ["volume.down", "volume.mute_toggle", "volume.up", "modal.volumes"] },
 ];
 

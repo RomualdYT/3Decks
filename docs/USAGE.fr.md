@@ -56,6 +56,7 @@ d'extension sont regroupés séparément des écrans intégrés.
 | Sorties audio | Sortie actuelle et volume |
 | État de l'ordinateur | CPU, mémoire, réseau et stockage disponibles |
 | Notifications | Notifications récentes lorsque la source est active et disponible |
+| Chat de stream | Messages Twitch configurés dans Réglages → Streaming ; voir la [configuration](STREAM_CHAT.fr.md) |
 | Écran d'extension | Tableau de bord fourni par une extension activée |
 
 **Paroles :** activez les médias et les paroles en ligne dans les réglages ou

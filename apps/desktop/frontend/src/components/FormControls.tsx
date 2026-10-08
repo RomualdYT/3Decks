@@ -29,11 +29,12 @@ interface TextControlProps {
   autoComplete?: string;
   maxLength?: number;
   isRequired?: boolean;
+  isDisabled?: boolean;
 }
 
-export function TextControl({ label, value, onChange, description, placeholder, type = "text", autoComplete, maxLength, isRequired }: TextControlProps) {
+export function TextControl({ label, value, onChange, description, placeholder, type = "text", autoComplete, maxLength, isRequired, isDisabled }: TextControlProps) {
   return (
-    <TextField className="ui-field" fullWidth value={value} onChange={onChange} isRequired={isRequired}>
+    <TextField className="ui-field" fullWidth value={value} onChange={onChange} isRequired={isRequired} isDisabled={isDisabled}>
       <Label>{label}</Label>
       <Input type={type} autoComplete={autoComplete} placeholder={placeholder} maxLength={maxLength} />
       {description && <Description>{description}</Description>}

@@ -6,6 +6,7 @@
 
 - [Install and pair](INSTALLATION.md)
 - [Pages, actions, lyrics and console controls](USAGE.md)
+- [Stream chat and OBS](STREAM_CHAT.md)
 - [Install and use extensions](EXTENSIONS.md), including [Focus](../examples/extensions/focus/README.md)
 - [Troubleshooting](TROUBLESHOOTING.md)
 - [Security and privacy](SECURITY.md)

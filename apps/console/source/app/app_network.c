@@ -20,6 +20,7 @@
 
 #include "app_feedback.h"
 #include "artwork.h"
+#include "chat_badges.h"
 #include "i18n.h"
 #include "protocol.h"
 #include "sound.h"
@@ -302,6 +303,7 @@ void app_pump_network(App *app)
 		break;
 	case NET_CONNECTED:
 		if (!app->hello_sent) {
+			chat_badges_exit(); /* A new peer starts its own FIFO badge cache. */
 			send_hello(app);
 		}
 		app->link = app->handshake_ok ? LINK_ONLINE : LINK_CONNECTING;
@@ -316,7 +318,7 @@ void app_pump_network(App *app)
 		if (!net_receive(s_rx_message, sizeof(s_rx_message), &length)) {
 			break;
 		}
-		if (artwork_consume(s_rx_message, length)) {
+		if (artwork_consume(s_rx_message, length) || chat_badges_consume(s_rx_message, length)) {
 			app->last_rx_at = monotonic_seconds();
 			continue;
 		}

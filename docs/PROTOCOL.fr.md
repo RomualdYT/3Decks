@@ -104,7 +104,7 @@ jamais les chemins, URL ou commandes privées des actions.
 | Champ de page | Valeurs |
 | --- | --- |
 | `id`, `title`, `icon` | Identité et onglet ; traduction résolue par console |
-| `dashboard` | `auto`, `media`, `lyrics`, `system`, `apps`, `audio`, `frame`, `notifications`, `extension` |
+| `dashboard` | `auto`, `media`, `lyrics`, `system`, `apps`, `audio`, `frame`, `notifications`, `stream_chat`, `extension` |
 | `layout` | `grid` ou `list` |
 | `buttons` | Six positions au maximum, `slot` de 0 à 5 |
 | `entries` | Jusqu'à 32 lignes ordonnées |
@@ -149,6 +149,27 @@ Une mesure absente est indisponible, pas une valeur zéro.
 
 Les résultats pilotent attente/succès/erreur. Des champs facultatifs peuvent aussi
 demander l'ouverture d'une page, d'un panneau ou des réglages console.
+
+## Chat de stream
+
+L’objet facultatif `stream_chat` de `state.update` contient `provider` (`twitch`),
+`channel`, `status`, `timestamps`, `compact` et au plus 20 `messages`. Un message
+contient `id` (64 octets UTF-8), `user_id` (32), `author` (48), `text` (256),
+`color` (`#RRGGBB`), `time` (`HH:MM`, UTC) et `badges` (jusqu’à trois objets : `token` positif sur 31 bits, `title` et URL `image` du CDN officiel). Cet objet
+remplace l’historique précédent, y compris ses suppressions. Aucun identifiant
+d’authentification n’y figure. Le mode d’écran est `stream_chat`.
+
+### Images des badges Twitch
+
+Une trame binaire `BDG0` utilise le même préfixe de longueur que le JSON et les
+pochettes. Son en-tête de 12 octets contient la signature, la largeur et la
+hauteur little-endian (16 chacune), puis le jeton du badge (`u32`). Les 1 024
+octets suivants contiennent les pixels RGBA8 en tuiles, ordre ABGR du PICA200.
+L’ordinateur envoie les images avant les historiques, une seule fois par séjour
+dans le cache FIFO de 64 badges de la console. `badge_revision` déclenche leur
+envoi après un téléchargement asynchrone. Les images indisponibles sont omises
+sans bloquer les messages. Aucun jeton OAuth n’est transmis.
+
 
 ## Paroles synchronisées
 

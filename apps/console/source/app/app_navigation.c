@@ -47,6 +47,8 @@ void app_goto_page(App *app, int index)
 	}
 
 	app->current_page = index;
+	app->chat_paused = false;
+	app->chat_offset = 0;
 	app->page_fade = 0.0f; /* relance l'animation d'entrée */
 	sound_play(SOUND_PAGE);
 	app->enter_anim = 0.0f;

@@ -147,6 +147,34 @@ fn save_config(shared: tauri::State<'_, Arc<Shared>>, document: Value) -> Result
 }
 
 #[tauri::command]
+fn get_stream_chat(shared: tauri::State<'_, Arc<Shared>>) -> features::stream_chat::View {
+    shared.stream_chat.view()
+}
+
+#[tauri::command]
+fn configure_stream_chat(shared: tauri::State<'_, Arc<Shared>>, settings: features::stream_chat::Settings) -> Result<features::stream_chat::View, String> {
+    shared.stream_chat.configure(settings)
+}
+
+#[tauri::command]
+async fn authorize_stream_chat(shared: tauri::State<'_, Arc<Shared>>) -> Result<features::stream_chat::View, String> {
+    shared.stream_chat.authorize().await
+}
+
+#[tauri::command]
+async fn disconnect_stream_chat(shared: tauri::State<'_, Arc<Shared>>) -> Result<features::stream_chat::View, String> {
+    shared.stream_chat.disconnect().await
+}
+
+#[tauri::command]
+async fn open_stream_chat_authorization(shared: tauri::State<'_, Arc<Shared>>) -> Result<(), String> {
+    let authorization = shared.stream_chat.view().authorization.ok_or("authorization_expired")?;
+    // The backend validates the Twitch activation URL before exposing it.
+    system::perform(&serde_json::json!({"type":"url.open", "url":authorization.url}), 5).await?;
+    Ok(())
+}
+
+#[tauri::command]
 async fn get_obs_status(shared: tauri::State<'_, Arc<Shared>>) -> Result<Value, String> {
     let config = obs::ObsConfig::from_document(&shared.config.document())?;
     obs::status(&config).await
@@ -376,6 +404,9 @@ pub fn run() {
                     .map_err(std::io::Error::other)?,
             );
             app.manage(shared.clone());
+            let chat = shared.stream_chat.clone();
+            let chat_stop = shared.stop.subscribe();
+            tauri::async_runtime::spawn(async move { chat.run(chat_stop).await; });
             let tray_menu = tray::TrayMenu::install(app.handle())?;
             tray_menu.refresh(app.handle(), &shared);
             app.manage(tray_menu);
@@ -441,6 +472,11 @@ pub fn run() {
             rotate_pairing,
             revoke_paired_device,
             save_config,
+            get_stream_chat,
+            configure_stream_chat,
+            authorize_stream_chat,
+            disconnect_stream_chat,
+            open_stream_chat_authorization,
             get_obs_status,
             test_obs,
             get_audio_outputs,

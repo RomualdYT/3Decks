@@ -12,13 +12,14 @@ import { ConsoleConnectionIcon } from "../components/BrandIcons";
 import { NumberControl, TextControl } from "../components/FormControls";
 import { formatDeviceName } from "../utils/devices";
 import { FeatureSettings } from "./FeatureSettings";
+import { StreamChatSettings } from "../stream-chat/StreamChatSettings";
 import { ObsSetupHelp } from "./ObsSetupHelp";
 import { CommunityHelp } from "./CommunityHelp";
 
-type Section = "connection" | "features" | "appearance" | "obs" | "advanced";
+type Section = "connection" | "features" | "appearance" | "streaming" | "obs" | "advanced";
 
 const SECTIONS: Array<[Section, string]> = [
-  ["connection", "link"], ["features", "sliders"], ["appearance", "language"], ["obs", "video"], ["advanced", "gear"],
+  ["connection", "link"], ["features", "sliders"], ["appearance", "language"], ["obs", "video"], ["streaming", "chat"], ["advanced", "gear"],
 ];
 
 const SECTION_HELP: Record<Section, Record<Locale, string>> = {
@@ -37,6 +38,10 @@ const SECTION_HELP: Record<Section, Record<Locale, string>> = {
   obs: {
     en: "Connect OBS Studio to control scenes and recording from your 3DS.",
     fr: "Connectez OBS Studio pour piloter les scènes et l’enregistrement depuis votre 3DS.",
+  },
+  streaming: {
+    en: "Read Twitch chat on your console’s top screen while using OBS controls below.",
+    fr: "Lisez le chat Twitch sur l’écran supérieur et gardez les commandes OBS en bas.",
   },
   advanced: {
     en: "Adjust network settings, update timing and how 3Decks starts on your computer.",
@@ -117,11 +122,12 @@ export function SettingsView({ config, schema, status, locale, t, update, onLoca
     <div className="settings-layout">
       <aside className="settings-sidebar">
         <div className="sidebar-heading"><div><span className="eyebrow">3Decks</span><h2>{t("settings")}</h2></div></div>
-        <nav>{SECTIONS.map(([id, icon]) => <button key={id} type="button" aria-label={t(id === "features" ? "features" : id === "appearance" ? "appearance" : id === "obs" ? "obs" : id === "advanced" ? "advanced" : "connection")} className={section === id ? "active" : ""} onClick={() => setSection(id)}><span>{id === "connection" ? <ConsoleConnectionIcon connected={Boolean(status?.clients.length)} /> : <DeckIcon name={icon} />}</span>{t(id === "features" ? "features" : id === "appearance" ? "appearance" : id === "obs" ? "obs" : id === "advanced" ? "advanced" : "connection")}{id === "obs" && !config.integrations.obs.enabled ? <small>{t("disabled")}</small> : null}</button>)}</nav>
+        <nav>{SECTIONS.map(([id, icon]) => <button key={id} type="button" aria-label={(id === "streaming" ? "Streaming" : t(id === "features" ? "features" : id === "appearance" ? "appearance" : id === "obs" ? "obs" : id === "advanced" ? "advanced" : "connection"))} className={section === id ? "active" : ""} onClick={() => setSection(id)}><span>{id === "connection" ? <ConsoleConnectionIcon connected={Boolean(status?.clients.length)} /> : <DeckIcon name={icon} />}</span>{(id === "streaming" ? "Streaming" : t(id === "features" ? "features" : id === "appearance" ? "appearance" : id === "obs" ? "obs" : id === "advanced" ? "advanced" : "connection"))}{id === "obs" && !config.integrations.obs.enabled ? <small>{t("disabled")}</small> : null}</button>)}</nav>
         <div className="settings-community"><CommunityHelp locale={locale} /></div>
         <div className="settings-platform"><span className="connection-dot connected" /><div><strong>{platformLabel(status?.platform)}</strong><small>{status ? t("online") : t("offline")}</small></div></div>
       </aside>
       <main className="settings-workspace">
+        {section === "streaming" && <StreamChatSettings locale={locale} />}
         {section === "features" && <FeatureSettings config={config} schema={schema} status={status} locale={locale} t={t} update={update} />}
         {section === "connection" && <div className="settings-content"><SettingsHeading icon="link" title={t("connectionTitle")} help={t("connectionHelp")} />
           <section className="pairing-card"><div className="pairing-card-head"><span><DeckIcon name="wifi" size={21} /></span><div><h3>{locale === "fr" ? "Détection automatique active" : "Automatic discovery is on"}</h3><p>{locale === "fr" ? "Ouvrez 3Decks sur la console : cet ordinateur apparaîtra avec son nom, sans adresse à recopier." : "Open 3Decks on the console: this computer will appear by name, with no address to type."}</p></div><i className="pairing-live">{locale === "fr" ? "VISIBLE" : "VISIBLE"}</i></div>

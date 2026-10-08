@@ -148,6 +148,7 @@ pub struct Shared {
     clients: RwLock<Vec<ClientSummary>>,
     next_client: AtomicU64,
     pub telemetry: Arc<Mutex<Telemetry>>,
+    pub stream_chat: Arc<crate::features::stream_chat::Service>,
     pub notifications: Arc<Mutex<NotificationReader>>,
     pub artwork: Arc<Mutex<ArtworkCache>>,
     pub onboarding: OnboardingStore,
@@ -158,6 +159,7 @@ pub struct Shared {
     pub config_updates: watch::Sender<u64>,
     pub state_updates: broadcast::Sender<Value>,
     pub lyrics_updates: broadcast::Sender<Value>,
+    pub chat_updates: broadcast::Sender<Value>,
     pub latest_lyrics: RwLock<Value>,
     pub revoked: broadcast::Sender<String>,
     pub actions: Semaphore,
@@ -241,6 +243,7 @@ impl Shared {
         let (config_updates, _) = watch::channel(config_revision);
         let (state_updates, _) = broadcast::channel(32);
         let (lyrics_updates, _) = broadcast::channel(8);
+        let (chat_updates, _) = broadcast::channel(8);
         let (revoked, _) = broadcast::channel(32);
         let extension_host = ExtensionHost::new(directory.join("extensions"))?;
         let extension_catalog = extension_host.catalog();
@@ -278,12 +281,14 @@ impl Shared {
             clients: RwLock::new(Vec::new()),
             next_client: AtomicU64::new(1),
             telemetry: Arc::new(Mutex::new(Telemetry::new())),
+            stream_chat: Arc::new(crate::features::stream_chat::Service::new(directory.join("stream-chat.json"))?),
             notifications: Arc::new(Mutex::new(NotificationReader::new(&directory))),
             artwork: Arc::new(Mutex::new(ArtworkCache::default())),
             onboarding: OnboardingStore::new(directory.join("onboarding.json")),
             config_updates,
             state_updates,
             lyrics_updates,
+            chat_updates,
             latest_lyrics: RwLock::new(
                 serde_json::json!({"type":"media.lyrics","status":"idle","lines":[]}),
             ),

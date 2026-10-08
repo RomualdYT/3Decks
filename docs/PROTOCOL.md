@@ -88,7 +88,7 @@ The full snapshot rebuilds the console layout. It contains display metadata and 
 | Page field | Meaning |
 |---|---|
 | `id`, `title`, `icon` | Identity and tab display; localized text resolved by agent |
-| `dashboard` | `auto`, `media`, `lyrics`, `system`, `apps`, `audio`, `frame`, `notifications`, or `extension` |
+| `dashboard` | `auto`, `media`, `lyrics`, `system`, `apps`, `audio`, `frame`, `notifications`, `stream_chat`, or `extension` |
 | `layout` | `grid` (default) or `list` |
 | `buttons` | Up to six grid positions, `slot` 0–5 |
 | `entries` | Up to 32 ordered list items |
@@ -107,6 +107,26 @@ Unknown names use the generic application icon.
 Audio state carries `audio_output` (active display name), `audio_output_mode` (`direct`, `host_only` or `unavailable`), `audio_output_count` (total available) and `audio_output_options` (up to 12 objects with `id`, `name` and `active`). IDs are opaque 32-character tokens for the current device identity. The console sends the selected token through `audio.output.select`; the agent resolves it against a fresh device list before changing the output. Windows reports `host_only`: its active output is shown, but the console does not offer remote selection.
 
 Performance keys include `cpu`, `memory`, `memory_used_mb`, `memory_total_mb`, `disk`, `disk_free_mb`, `disk_total_mb`, `network_down_kbps`, `network_up_kbps`, `top_process`, `top_process_cpu`, optional `gpu` and `temperature`. Memory/storage units are MiB, network rates kilobits/second and temperature Celsius. Missing metrics are unavailable, not invented zeros. Time/date are resolved by the agent; the console can fall back to its own clock.
+
+### Stream chat
+
+The optional `stream_chat` object in `state.update` contains `provider` (`twitch`),
+`channel`, `status`, `timestamps`, `compact`, and at most 20 `messages`. Each message
+contains `id` (64 UTF-8 bytes), `user_id` (32), `author` (48), `text` (256), `color`
+(`#RRGGBB`), `time` (`HH:MM`, UTC), and `badges` (up to three objects with positive 31-bit `token`, `title` and official CDN `image` URL). This object replaces
+the previous chat history, including removals. Authentication material is never
+included. Readers select `stream_chat` as their page dashboard.
+
+### Twitch badge images
+
+A `BDG0` binary frame uses the same length prefix as JSON and artwork. Its
+12-byte header contains the signature, little-endian width/height (both 16) and
+badge token (`u32`). The remaining 1,024 bytes contain 16×16 tiled RGBA8 pixels
+in PICA200 ABGR byte order. The host sends images before history patches and
+only once per residency in the console's 64-slot FIFO cache. `badge_revision`
+in the chat snapshot triggers delivery when an asynchronous download completes.
+Missing images are omitted without blocking messages. No OAuth tokens are sent.
+
 
 ### Synchronized lyrics
 

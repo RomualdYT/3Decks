@@ -24,6 +24,12 @@ not contact the lyrics service. Update checks contact GitHub when an updater key
 is configured. See [lyrics](../apps/desktop/docs/LYRICS_AND_PAGE_TEMPLATES.md) and
 [release signing](RELEASE.md).
 
+Stream chat is optional. The desktop connects to Twitch over HTTPS/WebSocket TLS
+and stores access/refresh tokens in the system credential store. Recent
+messages and badge images are sent to paired consoles over the local protocol.
+Official badge images load from Twitch’s CDN without OAuth credentials. Messages are
+kept in memory, not saved to disk. See [stream chat](STREAM_CHAT.md).
+
 ## Extensions
 
 Importing a package does not execute it. Enabling it requires approval of its

@@ -28,6 +28,7 @@
 #include "sound.h"
 #include "stereo.h"
 #include "artwork.h"
+#include "chat_badges.h"
 #include "brand_icons.h"
 #include "icons.h"
 #include "net.h"
@@ -36,6 +37,7 @@
 #include "text.h"
 #include "theme.h"
 #include "ui.h"
+#include "ui_top_chat.h"
 #include "ui_intro.h"
 #include "ui_companion.h"
 #include "render_pacing.h"
@@ -452,7 +454,7 @@ static void handle_input(App *app, float dt)
 {
 	hidScanInput();
 
-	const u32 down = hidKeysDown();
+	u32 down = hidKeysDown();
 	const u32 up = hidKeysUp();
 	const u32 held = hidKeysHeld();
 
@@ -473,6 +475,7 @@ static void handle_input(App *app, float dt)
 
 	update_grid_touch(app, held);
 	finish_touch(app, up);
+	ui_top_chat_input(app, &down);
 	handle_list_controls(app, down, dt);
 
 	if (down & KEY_L) {
@@ -778,6 +781,7 @@ int main(int argc, char *argv[])
 	sound_exit();
 	brand_icons_exit();
 	icons_exit();
+	chat_badges_exit();
 	artwork_exit();
 	text_exit();
 	C2D_Fini();

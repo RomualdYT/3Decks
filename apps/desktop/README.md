@@ -49,7 +49,7 @@ See [release maintenance](../../docs/RELEASE.md) for published packages and
 | `src/` | Desktop React entry point, onboarding and Tauri command adapter |
 | `src-tauri/src/app/` | Configuration, pairing, lifecycle, tray and persistence |
 | `src-tauri/src/transport/` | Console discovery, TCP framing and sessions |
-| `src-tauri/src/features/` | Artwork, lyrics, notifications, OBS, telemetry and extensions |
+| `src-tauri/src/features/` | Artwork, lyrics, stream chat, notifications, OBS, telemetry and extensions |
 | `src-tauri/src/platform/` | macOS, Windows and Linux system adapters |
 | `catalog.json`, `default-config.json` | Bundled editor catalog and initial configuration |
 | [extension-sdk](extension-sdk/README.md) | Native extension author API |
@@ -66,6 +66,7 @@ resolves availability from the platform and enabled features.
 | `DECKS_DISCOVERY_PORT` | Override the default UDP discovery port, 38122 |
 | `DECKS_START_TRAY_ONLY=1` | Start without opening the editor |
 | `DECKS_TEST_PAIR_CODE` | Fixed initial pairing code in debug builds only; ignored in release |
+| `DECKS_TWITCH_CLIENT_ID` | Override the bundled public 3Decks Twitch Client ID at compile time; see [stream chat](../../docs/STREAM_CHAT.md) |
 | `DECKS_UPDATER_PUBKEY` | Embed the updater public key at compile time |
 
 Only one listener can bind a given port. Automatic console discovery uses UDP

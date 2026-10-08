@@ -40,6 +40,7 @@ void model_state_clear(PcState *state)
 	state->media_duration = -1;
 	state->lyrics_count = 0;
 	strcpy(state->lyrics_status, "idle");
+	strcpy(state->chat_status, "disabled");
 }
 
 /* Table nom -> icône, alignée sur la liste documentée dans PROTOCOL.md. */
@@ -94,6 +95,7 @@ DashboardMode model_dashboard_from_name(const char *name)
 	if (strcmp(name, "media") == 0) {
 		return DASH_MEDIA;
 	}
+	if (strcmp(name, "stream_chat") == 0) return DASH_STREAM_CHAT;
 	if (strcmp(name, "lyrics") == 0) {
 		return DASH_LYRICS;
 	}

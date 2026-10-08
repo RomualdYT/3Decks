@@ -754,6 +754,17 @@
       "name": "system",
       "capability": "system_stats",
       "supported": false
+    },
+    {
+      "name": "stream_chat",
+      "capability": "stream_chat",
+      "supported": false,
+      "title": { "en": "Stream chat", "fr": "Chat de stream" },
+      "description": {
+        "en": "Read Twitch chat. Set up your channel in Settings → Streaming.",
+        "fr": "Lisez le chat Twitch. Configurez la chaîne dans Réglages → Streaming."
+      },
+      "icon": "chat"
     }
   ],
   "icons": [

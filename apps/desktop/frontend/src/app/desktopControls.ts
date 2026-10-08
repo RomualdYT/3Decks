@@ -1,3 +1,5 @@
+import type { StreamChatSettings, StreamChatView } from "../stream-chat/types";
+
 /** Optional desktop-only controls installed by the Tauri entrypoint. */
 export interface DesktopControls {
   windowFrame?: {
@@ -7,6 +9,11 @@ export interface DesktopControls {
     close(): Promise<void>;
   };
   openCommunity(): Promise<void>;
+  getStreamChat(): Promise<StreamChatView>;
+  configureStreamChat(settings: StreamChatSettings): Promise<StreamChatView>;
+  authorizeStreamChat(): Promise<StreamChatView>;
+  disconnectStreamChat(): Promise<StreamChatView>;
+  openStreamChatAuthorization(): Promise<void>;
   getAutostart(): Promise<boolean>;
   setAutostart(enabled: boolean): Promise<boolean>;
   getUpdateCapability(): Promise<{ configured: boolean; version: string }>;

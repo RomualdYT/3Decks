@@ -3,6 +3,8 @@ import type { AgentState, Locale, PageConfig } from "../app/types";
 import { agentApi } from "../api/client";
 import { DeckIcon } from "../components/DeckIcon";
 import { SpotifyIcon, AppleMusicIcon } from "../components/BrandIcons";
+import { StreamChatFeed } from "../stream-chat/StreamChatFeed";
+import type { StreamChatSnapshot } from "../stream-chat/types";
 import { ExtensionPreview } from "../extensions/ExtensionPreview";
 
 type Data = Record<string, unknown>;
@@ -186,6 +188,7 @@ export function ConsoleTopScreen({ page, status, locale }: { page: PageConfig; s
         <g><Label x={16} y={40} width={365} size={20} bold color="#f6f6f7">Notifications</Label>
           {notifications.length ? notifications.slice(0, 3).map((item, i) => <g key={i}><rect x={12} y={72 + i * 51} width={376} height={46} rx={8} fill="#1a1a1e" /><Icon name="chat" x={23} y={85 + i * 51} color="#ffb020" /><Label x={50} y={76 + i * 51} width={325} bold>{string(item.app, "Notification")}</Label><Label x={50} y={95 + i * 51} width={325} size={12.6}>{string(item.title)}</Label></g>) :
             <Label x={20} y={124} width={360} align="center">{fr ? "Aucune notification" : "No notifications"}</Label>}</g> :
+        mode === "stream_chat" ? <foreignObject x={12} y={36} width={376} height={196}><StreamChatFeed snapshot={snapshot.stream_chat as StreamChatSnapshot | undefined} locale={locale} console /></foreignObject> :
         mode.startsWith("ext:") ? <foreignObject x={12} y={36} width={376} height={196}><ExtensionPreview dashboard={mode} status={status} locale={locale} /></foreignObject> :
           <g><rect x={12} y={36} width={376} height={196} rx={10} fill="#1a1a1e" /><Icon name="app" x={27} y={54} size={28} />
             <Label x={68} y={49} width={300} size={12.6}>{fr ? "APPLICATION ACTIVE" : "FOREGROUND"}</Label>

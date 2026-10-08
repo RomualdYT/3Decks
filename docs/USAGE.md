@@ -54,6 +54,7 @@ screens appear separately from built-in screens.
 | Audio outputs | Current audio output and volume |
 | Computer status | Available CPU, memory, network and storage metrics |
 | Notifications | Recent notifications when the source is enabled and available |
+| Stream chat | Twitch messages configured in Settings → Streaming; see [setup](STREAM_CHAT.md) |
 | Extension screen | Dashboard supplied by an enabled extension |
 
 **Lyrics:** enable media and online lyrics in Settings, or select the lyrics

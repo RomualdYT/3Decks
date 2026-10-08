@@ -1,4 +1,5 @@
 fn main() {
+    println!("cargo:rerun-if-env-changed=DECKS_TWITCH_CLIENT_ID");
     let project = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .expect("Tauri project directory");

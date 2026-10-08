@@ -5,7 +5,7 @@ use crate::{
     state::{Shared, console_state},
     system, telemetry,
 };
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::{
     net::{Ipv4Addr, SocketAddr},
     sync::Arc,
@@ -13,7 +13,7 @@ use std::{
 };
 use tokio::{
     net::{TcpListener, TcpStream, UdpSocket},
-    sync::{watch, Semaphore},
+    sync::{Semaphore, watch},
     time::timeout,
 };
 
@@ -48,6 +48,7 @@ pub async fn run(shared: Arc<Shared>) -> Result<(), String> {
     });
 
     let mut stop = shared.stop.subscribe();
+    let chat_task = tokio::spawn(super::stream_chat::run(shared.clone()));
     let lyrics_shared = shared.clone();
     let lyrics_task = tokio::spawn(async move { lyrics::run(lyrics_shared).await });
     let udp_shared = shared.clone();
@@ -137,6 +138,7 @@ pub async fn run(shared: Arc<Shared>) -> Result<(), String> {
     let _ = state_task.await;
     let _ = extension_task.await;
     let _ = lyrics_task.await;
+    let _ = chat_task.await;
     let _ = window_task.await;
     shared.update(|s| {
         s.running = false;
@@ -239,6 +241,8 @@ async fn serve(
     };
     protocol::write(&mut stream, &shared.config_snapshot(locale)).await?;
     let initial = collect_state(&shared).await;
+    let mut sent_badges = std::collections::VecDeque::new();
+    write_badges_if_changed(&mut stream, &shared, &initial, &mut sent_badges).await?;
     protocol::write(&mut stream, &console_state(&initial, locale)).await?;
     let lyrics = shared.latest_lyrics.read().unwrap().clone();
     protocol::write(&mut stream, &lyrics).await?;
@@ -249,6 +253,7 @@ async fn serve(
     let mut config_updates = shared.config_updates.subscribe();
     let mut state_updates = shared.state_updates.subscribe();
     let mut lyrics_updates = shared.lyrics_updates.subscribe();
+    let mut chat_updates = shared.chat_updates.subscribe();
     let mut revoked = shared.revoked.subscribe();
     let result = loop {
         let message = tokio::select! {
@@ -270,8 +275,16 @@ async fn serve(
             }
             update = state_updates.recv() => {
                 if let Ok(update) = update {
+                    if let Err(error) = write_badges_if_changed(&mut stream, &shared, &update, &mut sent_badges).await { break Err(error); }
                     if let Err(error) = protocol::write(&mut stream, &console_state(&update, locale)).await { break Err(error); }
                     if let Err(error) = write_art_if_changed(&mut stream, &shared, &update, &mut last_art_token).await { break Err(error); }
+                }
+                continue;
+            }
+            update = chat_updates.recv() => {
+                if let Ok(update) = update {
+                    if let Err(error) = write_badges_if_changed(&mut stream, &shared, &update, &mut sent_badges).await { break Err(error); }
+                    if let Err(error) = protocol::write(&mut stream, &update).await { break Err(error); }
                 }
                 continue;
             }
@@ -475,7 +488,10 @@ async fn perform_button(
                         let host = shared.extensions.lock().await;
                         host.prepare_action(kind, &arguments)?
                     };
-                    request.run().await.map(|_| ("Extension action complete", None))
+                    request
+                        .run()
+                        .await
+                        .map(|_| ("Extension action complete", None))
                 }
                 _ => system::perform(&action, shared.config.volume_step())
                     .await
@@ -544,14 +560,16 @@ async fn collect_state(shared: &Shared) -> Value {
                 "host_only"
             });
             state["audio_output_count"] = json!(outputs.len());
-            state["audio_output_options"] = json!(visible
-                .iter()
-                .map(|output| json!({
-                    "id": audio::output_token(&output.id),
-                    "name": output.name,
-                    "active": output.is_default,
-                }))
-                .collect::<Vec<_>>());
+            state["audio_output_options"] = json!(
+                visible
+                    .iter()
+                    .map(|output| json!({
+                        "id": audio::output_token(&output.id),
+                        "name": output.name,
+                        "active": output.is_default,
+                    }))
+                    .collect::<Vec<_>>()
+            );
         }
     }
     if shared.config.feature_enabled("system_stats") {
@@ -603,8 +621,42 @@ async fn collect_state(shared: &Shared) -> Value {
     }
     state["extension_panels"] = json!(extension_panels);
     state["extension_buttons"] = json!(extension_buttons);
+    state["stream_chat"] =
+        serde_json::to_value(shared.stream_chat.snapshot()).unwrap_or(Value::Null);
     *shared.latest_state.write().unwrap() = state.clone();
     state
+}
+
+/// Send each tiny transparent badge once per console cache residency, before its history patch.
+async fn write_badges_if_changed(
+    stream: &mut TcpStream,
+    shared: &Shared,
+    state: &Value,
+    sent: &mut std::collections::VecDeque<u32>,
+) -> Result<(), String> {
+    if let Some(messages) = state["stream_chat"]["messages"].as_array() {
+        for message in messages {
+            for badge in message["badges"].as_array().into_iter().flatten().take(3) {
+                let Some(token) = badge["token"]
+                    .as_u64()
+                    .and_then(|token| u32::try_from(token).ok())
+                else {
+                    continue;
+                };
+                if sent.contains(&token) {
+                    continue;
+                }
+                if let Some(frame) = shared.stream_chat.badge_frame(token) {
+                    protocol::write_binary(stream, &frame).await?;
+                    if sent.len() == 64 {
+                        sent.pop_front();
+                    }
+                    sent.push_back(token);
+                }
+            }
+        }
+    }
+    Ok(())
 }
 
 async fn write_art_if_changed(

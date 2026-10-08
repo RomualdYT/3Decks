@@ -42,6 +42,7 @@ function TouchLayoutPicker({ value, locale, onChange }: { value: PageConfig["lay
 }
 
 const DASHBOARD_COPY: Record<string, { fr: string; en: string; icon: string; descriptionFr: string; descriptionEn: string }> = {
+  stream_chat: { fr: "Chat de stream", en: "Stream chat", icon: "chat", descriptionFr: "Lisez le chat Twitch. Configurez la chaîne dans Réglages → Streaming.", descriptionEn: "Read Twitch chat. Set up your channel in Settings → Streaming." },
   auto: { fr: "Automatique", en: "Automatic", icon: "sparkle", descriptionFr: "Choisit le contenu le plus utile selon l’activité.", descriptionEn: "Chooses the most useful content for the current activity." },
   media: { fr: "Musique en cours", en: "Now playing", icon: "music", descriptionFr: "Titre, artiste et progression de lecture.", descriptionEn: "Track, artist and playback progress." },
   lyrics: { fr: "Paroles synchronisées", en: "Synced lyrics", icon: "music", descriptionFr: "Paroles sur l’écran supérieur, avec repli si elles sont indisponibles.", descriptionEn: "Lyrics on the top screen, with a fallback when unavailable." },

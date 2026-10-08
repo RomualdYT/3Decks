@@ -145,7 +145,7 @@ pub fn catalog(shared: &Shared) -> Result<Value, String> {
         "open_path":cfg!(any(target_os = "macos", target_os = "windows")), "lock":cfg!(any(target_os = "macos", target_os = "windows")),
         "notifications":notifications_available, "media_artwork":cfg!(any(target_os = "macos", target_os = "windows")),
         "lyrics_online":cfg!(any(target_os = "macos", target_os = "windows")),
-        "system_stats":true, "obs":obs
+        "system_stats":true, "obs":obs, "stream_chat":cfg!(any(target_os = "macos", target_os = "windows"))
     });
     for (feature, capability) in [
         ("audio_output", "audio_output"),

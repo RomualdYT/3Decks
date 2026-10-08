@@ -6,6 +6,7 @@
 
 - [Installer et appairer](INSTALLATION.fr.md)
 - [Pages, actions, paroles et commandes console](USAGE.fr.md)
+- [Chat de stream et OBS](STREAM_CHAT.fr.md)
 - [Installer et utiliser des extensions](EXTENSIONS.fr.md), dont [Focus](../examples/extensions/focus/README.fr.md)
 - [Dépannage](TROUBLESHOOTING.fr.md)
 - [Sécurité et confidentialité](SECURITY.fr.md)

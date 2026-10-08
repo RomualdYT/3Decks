@@ -15,6 +15,17 @@ static Language s_language = LANG_EN;
  */
 
 static const char *const kEnglish[STR_COUNT] = {
+    [STR_CHAT_CONNECTED] = "Connected",
+    [STR_CHAT_DISABLED] = "Disabled",
+    [STR_CHAT_CONNECTING] = "Connecting...",
+    [STR_CHAT_AUTHORIZE] = "Connect on PC",
+    [STR_CHAT_SETUP] = "Set up on PC",
+    [STR_CHAT_UNAVAILABLE] = "Chat unavailable",
+    [STR_CHAT_WAITING] = "Waiting for messages",
+    [STR_CHAT_SETTINGS] = "Settings > Streaming on your computer",
+    [STR_CHAT_PAUSED] = "Paused - D-pad: history / Y: resume",
+    [STR_CHAT_CONTROLS] = "X: pause / Y: follow chat",
+
     [STR_COMMUNITY] = "Community",
     [STR_COMMUNITY_TITLE] = "Community & help",
     [STR_COMMUNITY_HELP] = "Need help or found a bug?",
@@ -167,6 +178,17 @@ static const char *const kEnglish[STR_COUNT] = {
 };
 
 static const char *const kFrench[STR_COUNT] = {
+    [STR_CHAT_CONNECTED] = "Connecté",
+    [STR_CHAT_DISABLED] = "Désactivé",
+    [STR_CHAT_CONNECTING] = "Connexion...",
+    [STR_CHAT_AUTHORIZE] = "Connexion sur PC",
+    [STR_CHAT_SETUP] = "Configurer sur PC",
+    [STR_CHAT_UNAVAILABLE] = "Chat indisponible",
+    [STR_CHAT_WAITING] = "En attente des messages",
+    [STR_CHAT_SETTINGS] = "Réglages > Streaming sur votre ordinateur",
+    [STR_CHAT_PAUSED] = "Pause - Croix: historique / Y: reprendre",
+    [STR_CHAT_CONTROLS] = "X: pause / Y: suivre le chat",
+
     [STR_COMMUNITY] = "Communauté",
     [STR_COMMUNITY_TITLE] = "Communauté & aide",
     [STR_COMMUNITY_HELP] = "Besoin d’aide ou un bug à signaler ?",

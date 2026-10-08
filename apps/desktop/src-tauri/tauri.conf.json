@@ -11,7 +11,7 @@
   },
   "app": {
     "windows": [],
-    "security": { "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src ipc: http://ipc.localhost; img-src 'self' data: blob:" }
+    "security": { "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src ipc: http://ipc.localhost; img-src 'self' data: blob: https://static-cdn.jtvnw.net/badges/v1/" }
   },
   "bundle": {
     "active": true,

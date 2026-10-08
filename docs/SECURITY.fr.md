@@ -26,6 +26,12 @@ La console ne contacte pas ce service. Les recherches de mise à jour contactent
 GitHub lorsqu'une clé publique est configurée. Voir les
 [paroles](../apps/desktop/docs/LYRICS_AND_PAGE_TEMPLATES.md) et les [signatures](RELEASE.fr.md).
 
+Le chat de stream est facultatif. L’ordinateur contacte Twitch via HTTPS/WebSocket
+TLS ; les jetons restent dans le coffre d’identifiants système. Les messages
+récents et les images des badges sont transmis aux consoles appairées par le protocole local.
+Les badges officiels sont chargés depuis le CDN de Twitch sans identifiants OAuth. L’historique
+reste en mémoire, sans enregistrement sur disque. Voir le [chat de stream](STREAM_CHAT.fr.md).
+
 ## Extensions
 
 Importer un paquet ne l'exécute pas. L'activation exige l'approbation de son

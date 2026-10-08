@@ -117,6 +117,9 @@ typedef struct {
 	int last_page_count;
 
 	int current_page;
+	bool chat_paused;
+	int chat_offset;
+	char chat_anchor[65];
 	/** Compteur de requêtes, corrèle `button.press` et `action.result`. */
 	int next_request_id;
 	/** Actions récentes, conservées jusqu'à leur confirmation ou expiration. */

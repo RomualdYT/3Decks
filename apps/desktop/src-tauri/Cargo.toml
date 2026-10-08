@@ -23,10 +23,11 @@ hex = "0.4"
 subtle = "2"
 base64 = "0.22"
 futures-util = "0.3"
-tokio-tungstenite = { version = "0.30", default-features = false, features = ["connect"] }
+tokio-tungstenite = { version = "0.30", default-features = false, features = ["connect", "rustls-tls-webpki-roots"] }
 sysinfo = { version = "0.39.6", default-features = false, features = ["system", "disk", "network"] }
 url = "2"
-reqwest = { version = "0.13.5", default-features = false, features = ["json", "rustls-no-provider", "stream"] }
+keyring = { version = "3", features = ["apple-native", "windows-native"] }
+reqwest = { version = "0.13.5", default-features = false, features = ["json", "rustls-no-provider", "stream", "form", "query"] }
 image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "webp"] }
 rustls = { version = "0.23", default-features = false, features = ["ring"] }
 if-addrs = "0.15"
