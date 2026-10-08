@@ -1,2 +1,11 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# The OpenAPI generator compares output byte-for-byte, including on Windows.
+apps/desktop/frontend/src/api/generated.ts text eol=lf
+
+# Shell scripts are also run through WSL/Docker from Windows checkouts.
+*.sh text eol=lf
+
+# Generated artwork is checked byte-for-byte by the console tests.
+*.svg text eol=lf

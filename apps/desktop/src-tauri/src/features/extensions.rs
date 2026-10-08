@@ -403,6 +403,8 @@ impl ExtensionHost {
             return Err("Native extension binary missing".into());
         }
         let mut command = Command::new(program);
+        #[cfg(target_os = "windows")]
+        command.creation_flags(windows::Win32::System::Threading::CREATE_NO_WINDOW.0);
         command
             .current_dir(&package.path)
             .stdin(Stdio::piped())
@@ -1090,7 +1092,7 @@ mod tests {
             "name":{"en":"Worker","fr":"Worker"},"description":{"en":"Test worker","fr":"Test worker"},
             "author":"3Decks","runtime":"native","binaries":binaries,
             "actions":[{"id":"increment","title":{"en":"Increment","fr":"Incrémenter"},"arguments":[]}],
-            "sources":[],"dashboards":[],"settings":[]
+            "sources":[],"dashboards":[{"id":"overview","title":{"en":"Counter","fr":"Compteur"}}],"settings":[]
         })).unwrap()).unwrap();
         assert_eq!(
             load_manifest(&package).unwrap()["platforms"],
@@ -1119,11 +1121,12 @@ mod tests {
         .await
         .unwrap();
         host.poll_all().await;
+        assert_eq!(host.describe()["extensions"][0]["status"], "ready", "{}", host.describe());
         assert_eq!(
             host.execute("ext:com.example.worker/increment", &json!({}))
                 .await
                 .unwrap(),
-            "Compteur : 1"
+            "Counter / Compteur: 1"
         );
         assert_eq!(
             host.snapshots()["com.example.worker"]["states"]["ready"],

@@ -11,7 +11,8 @@ pub struct ConfigStore {
 impl ConfigStore {
     pub fn new(path: PathBuf) -> Result<Self, String> {
         if !path.exists() {
-            write_private(&path, DEFAULT_CONFIG.as_bytes())?;
+            let defaults = initial_config()?;
+            write_private(&path, &serde_json::to_vec_pretty(&defaults).map_err(|e| e.to_string())?)?;
         }
         #[cfg(unix)]
         {
@@ -119,6 +120,38 @@ impl ConfigStore {
             Some(action.clone())
         }
     }
+}
+
+fn initial_config() -> Result<Value, String> {
+    let defaults: Value = serde_json::from_str(DEFAULT_CONFIG).map_err(|e| e.to_string())?;
+    #[cfg(target_os = "windows")]
+    {
+        let mut defaults = defaults;
+        for page in defaults["pages"].as_array_mut().into_iter().flatten() {
+            for button in page["buttons"].as_array_mut().into_iter().flatten() {
+                let action = &mut button["action"];
+                if action["type"] == "hotkey" && action["keys"] == "cmd+shift+4" {
+                    action["keys"] = json!("win+shift+s");
+                }
+                if action["type"] == "app.launch" {
+                    let target = match action["target"].as_str() {
+                        Some("Safari") => Some("msedge.exe"),
+                        Some("Terminal") => Some("powershell.exe"),
+                        Some("Visual Studio Code") => Some("Code.exe"),
+                        Some("Spotify") => Some("spotify:"),
+                        Some("Discord") => Some("discord:"),
+                        _ => None,
+                    };
+                    if let Some(target) = target {
+                        action["target"] = json!(target);
+                    }
+                }
+            }
+        }
+        return Ok(defaults);
+    }
+    #[cfg(not(target_os = "windows"))]
+    Ok(defaults)
 }
 
 fn write_private(path: &PathBuf, bytes: &[u8]) -> Result<(), String> {
@@ -335,6 +368,23 @@ fn valid_action(value: &Value) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn fresh_windows_configuration_uses_windows_actions() {
+        let defaults = initial_config().unwrap();
+        validate(&defaults).unwrap();
+        let pages = defaults["pages"].as_array().unwrap();
+        let main = pages.iter().find(|page| page["id"] == "main").unwrap();
+        let buttons = main["buttons"].as_array().unwrap();
+        let capture = buttons.iter().find(|button| button["id"] == "capture").unwrap();
+        let browser = buttons.iter().find(|button| button["id"] == "browser").unwrap();
+        assert_eq!(capture["action"]["keys"], "win+shift+s");
+        assert_eq!(browser["action"]["target"], "msedge.exe");
+        let work = pages.iter().find(|page| page["id"] == "work").unwrap();
+        let terminal = work["buttons"].as_array().unwrap().iter().find(|button| button["id"] == "terminal").unwrap();
+        assert_eq!(terminal["action"]["target"], "powershell.exe");
+    }
 
     #[test]
     fn bundled_configuration_produces_safe_snapshot() {

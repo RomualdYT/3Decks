@@ -27,6 +27,8 @@
 .save-bar-copy strong { font-size: 11px; }
 .save-bar-copy small { color: var(--muted); font-size: 9px; margin-top: 3px; }
 .save-bar-actions { align-items: center; display: flex; gap: 6px; }
+/* Keep confirmation toasts clear of the next edit's save controls. */
+body:has(.save-bar) .toast-region--bottom-end { bottom: 112px; }
 .save-primary { background: var(--accent) !important; color: #0b1604 !important; }
 .connection-modal [data-slot="modal-header"] { align-items: flex-start; display: flex; gap: 12px; }
 .connection-modal [data-slot="modal-header"] > div:last-child { flex: 1; }

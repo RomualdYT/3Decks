@@ -333,7 +333,10 @@ async fn serve(
                                 }
                                 result
                             }
-                            Err(note) => action_result(id, false, &note),
+                            Err(note) => {
+                                crate::app::logging::append(&format!("Action request {id} failed: {note}"));
+                                action_result(id, false, &note)
+                            },
                         })
                     }
                 }

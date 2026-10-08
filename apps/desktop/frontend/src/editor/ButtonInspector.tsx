@@ -9,6 +9,7 @@ import { ComboControl, NumberControl, SelectControl, TextControl } from "../comp
 import { IconPicker } from "../components/IconPicker";
 import { HotkeyInput } from "../components/HotkeyInput";
 import { PathPicker } from "../components/PathPicker";
+import { ApplicationPicker } from "../components/ApplicationPicker";
 import { InspectorDeleteAction, InspectorPreviewNote, InspectorSection, LocalizedInspectorField } from "./InspectorControls";
 import { ExtensionField } from "../extensions/ExtensionFields";
 
@@ -103,6 +104,7 @@ function ActionArgumentControl({ argument, spec, value, locale, config, scenes, 
   if (argument.name === "path" && spec.kind === "path.open") return <PathPicker value={value} locale={locale} onChange={(next) => onChange(next)} />;
   if (argument.name === "scene") return <SelectControl label={copy.label} value={value} description={copy.description} choices={(scenes.length ? scenes : [value].filter(Boolean)).map((scene) => ({ id: scene, label: scene, icon: "video", description: scenes.length ? undefined : (fr ? "Testez la connexion OBS pour charger vos scènes." : "Test OBS to load your scenes.") }))} onChange={onChange} />;
   if (argument.type === "number") return <NumberControl label={copy.label} value={Number(value || argument.min || 0)} min={argument.min ?? 0} max={argument.max ?? 100} description={copy.description} onChange={onChange} />;
-  if (argument.name === "target" && spec.kind.startsWith("app.")) return <ComboControl label={copy.label} value={value} choices={apps} description={copy.description} placeholder={fr ? "Ex. Safari, Spotify, OBS Studio…" : "e.g. Safari, Spotify, OBS Studio…"} onChange={onChange} />;
+  if (argument.name === "target" && spec.kind === "app.launch") return <ApplicationPicker value={value} choices={apps} locale={locale} onChange={onChange} />;
+  if (argument.name === "target" && spec.kind.startsWith("app.")) return <ComboControl label={copy.label} value={value} choices={apps} description={copy.description} placeholder={fr ? "Nom de l’application…" : "Application name…"} onChange={onChange} />;
   return <TextControl label={copy.label} value={value} description={copy.description} placeholder={argument.name === "url" ? "youtube.com" : undefined} type={argument.name === "url" ? "url" : "text"} isRequired={argument.required} maxLength={argument.max_length ?? undefined} onChange={(next) => onChange(next)} />;
 }

@@ -71,8 +71,19 @@ fn validate_config(document: Value) -> Value {
 }
 
 #[tauri::command]
-fn get_apps(shared: tauri::State<'_, Arc<Shared>>) -> Value {
-    desktop::apps(&shared)
+async fn get_apps(shared: tauri::State<'_, Arc<Shared>>) -> Result<Value, String> {
+    let result = desktop::apps(&shared);
+    #[cfg(target_os = "windows")]
+    {
+        let mut names: Vec<String> = result["apps"].as_array().unwrap().iter()
+            .filter_map(|name| name.as_str().map(str::to_owned)).collect();
+        names.extend(platform::windows::applications::names().await);
+        names.sort_by_key(|name| name.to_lowercase());
+        names.dedup();
+        return Ok(serde_json::json!({"apps": names}));
+    }
+    #[cfg(not(target_os = "windows"))]
+    Ok(result)
 }
 
 #[tauri::command]

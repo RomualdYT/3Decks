@@ -34,9 +34,9 @@ impl Drop for ComApartment {
 }
 
 unsafe fn endpoint_id(device: &IMMDevice) -> Result<String, String> {
-    let id = device.GetId().map_err(|error| error.to_string())?;
-    let value = id.to_string().map_err(|error| error.to_string());
-    CoTaskMemFree(Some(id.0.cast()));
+    let id = unsafe { device.GetId() }.map_err(|error| error.to_string())?;
+    let value = unsafe { id.to_string() }.map_err(|error| error.to_string());
+    unsafe { CoTaskMemFree(Some(id.0.cast())) };
     value
 }
 

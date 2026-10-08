@@ -72,7 +72,6 @@ fn process_executable(pid: u32) -> Option<String> {
 fn matching_sessions(source_id: &str) -> Result<Vec<ISimpleAudioVolume>, String> {
     let expected = source_executable(source_id)
         .ok_or_else(|| "The active media app cannot be matched to an audio session".to_owned())?;
-    let _apartment = ComApartment::enter()?;
     let enumerator: IMMDeviceEnumerator =
         unsafe { CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL) }
             .map_err(|error| error.to_string())?;
@@ -110,6 +109,7 @@ fn matching_sessions(source_id: &str) -> Result<Vec<ISimpleAudioVolume>, String>
 }
 
 pub(crate) fn volume_for_source(source_id: &str) -> Result<Option<u8>, String> {
+    let _apartment = ComApartment::enter()?;
     let sessions = matching_sessions(source_id)?;
     Ok(average_volume(&sessions))
 }
@@ -130,6 +130,7 @@ pub async fn set_active_media_volume(value: u8) -> Result<(), String> {
         .await?
         .ok_or("No active media session")?;
     tokio::task::spawn_blocking(move || {
+        let _apartment = ComApartment::enter()?;
         let sessions = matching_sessions(&source_id)?;
         if sessions.is_empty() {
             return Err("No active audio session matched the current media app".into());
@@ -149,6 +150,7 @@ pub async fn change_active_media_volume(direction: i8, step: u8) -> Result<(), S
         .await?
         .ok_or("No active media session")?;
     tokio::task::spawn_blocking(move || {
+        let _apartment = ComApartment::enter()?;
         let sessions = matching_sessions(&source_id)?;
         let current = average_volume(&sessions)
             .ok_or("No active audio session matched the current media app")?;

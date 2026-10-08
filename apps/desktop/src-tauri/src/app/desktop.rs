@@ -19,21 +19,32 @@ fn platform() -> &'static str {
 }
 
 pub(crate) fn address_hints(port: u16) -> Vec<String> {
+    // Windows adapter names can be GUIDs, including for WSL/Hyper-V. Prefer
+    // the address selected by the routing table over interface-name guesses.
+    // UDP connect selects a route without sending any traffic.
+    let preferred = std::net::UdpSocket::bind("0.0.0.0:0")
+        .ok()
+        .and_then(|socket| {
+            socket.connect("1.1.1.1:80").ok()?;
+            socket.local_addr().ok().map(|address| address.ip())
+        });
     let mut interfaces = if_addrs::get_if_addrs().unwrap_or_default();
     interfaces.retain(|interface| match &interface.addr {
         if_addrs::IfAddr::V4(address) => !address.ip.is_loopback() && !address.ip.is_link_local(),
         if_addrs::IfAddr::V6(_) => false,
     });
     interfaces.sort_by_key(|interface| {
-        if interface.name == "en0"
+        if Some(interface.ip()) == preferred {
+            0
+        } else if interface.name == "en0"
             || interface.name.starts_with("wlan")
             || interface.name.starts_with("Wi-Fi")
         {
-            0
-        } else if interface.name.starts_with("en") || interface.name.starts_with("eth") {
             1
-        } else {
+        } else if interface.name.starts_with("en") || interface.name.starts_with("eth") {
             2
+        } else {
+            3
         }
     });
     interfaces

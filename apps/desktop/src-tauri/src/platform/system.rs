@@ -381,7 +381,7 @@ async fn toggle_mic() -> Result<&'static str, String> {
 }
 
 async fn launch_app(target: &str) -> Result<&'static str, String> {
-    if target.is_empty() || target.len() > 256 {
+    if target.is_empty() || target.len() > 2048 {
         return Err("Invalid app target".into());
     }
     #[cfg(target_os = "macos")]
@@ -391,7 +391,8 @@ async fn launch_app(target: &str) -> Result<&'static str, String> {
     }
     #[cfg(target_os = "windows")]
     {
-        super::windows::shell::open(target).await?;
+        let target = super::windows::applications::launch_target(target).await;
+        super::windows::shell::open(&target).await?;
         Ok("Application launched")
     }
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]

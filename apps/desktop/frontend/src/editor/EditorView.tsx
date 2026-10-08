@@ -27,6 +27,9 @@ export function EditorView({ config, schema, status, locale, scenes, apps, t, up
   const [galleryOpen, setGalleryOpen] = useState(false);
   const page = config.pages[pageIndex];
   const button = page?.buttons.find((item) => item.slot === selectedSlot) ?? null;
+  const appChoices = button && actionKind(button.action) === "app.quit"
+    ? (Array.isArray(status?.snapshot?.apps) ? status.snapshot.apps.map(String) : [])
+    : apps;
   useEffect(() => {
     if (pageIndex >= config.pages.length) setPageIndex(Math.max(0, config.pages.length - 1));
   }, [config.pages.length, pageIndex]);
@@ -122,7 +125,7 @@ export function EditorView({ config, schema, status, locale, scenes, apps, t, up
     <div className="editor-layout">
       <AppSidebar config={config} locale={locale} selectedPage={pageIndex} pageLimit={schema.limits.pages} t={t} onSelect={(index) => { setPageIndex(index); setSelectedSlot(null); }} onAdd={() => setGalleryOpen(true)} onMove={movePage} onRename={renamePage} onDelete={deletePageAt} />
       <main className="editor-workspace">{preview}</main>
-      {page && <Inspector config={config} schema={schema} page={page} button={button} locale={locale} scenes={scenes} apps={apps} t={t} onUpdatePage={updatePage} onUpdateButton={updateButton}
+      {page && <Inspector config={config} schema={schema} page={page} button={button} locale={locale} scenes={scenes} apps={appChoices} t={t} onUpdatePage={updatePage} onUpdateButton={updateButton}
         onChangeAction={() => setPickerOpen(true)} onDeletePage={() => deletePageAt(pageIndex)}
         onDeleteButton={() => { update((draft) => { const target = draft.pages[pageIndex]; if (target) target.buttons = target.buttons.filter((item) => item.slot !== selectedSlot); }); setSelectedSlot(null); }}
         onDeselect={() => setSelectedSlot(null)} />}
