@@ -19,6 +19,10 @@ describe("hotkey editor", () => {
     expect(splitHotkey("shift+cmd+a", catalog)).toEqual({ modifiers: ["cmd", "shift"], key: "a" });
   });
 
+  it.each(["win", "super", "meta", "command"])("recognizes the backend-supported %s alias without losing the main key", (alias) => {
+    expect(splitHotkey(`${alias}+shift+d`, catalog)).toEqual({ modifiers: ["cmd", "shift"], key: "d" });
+  });
+
   it("captures physical keys independently from keyboard labels", () => {
     expect(hotkeyFromEvent({ code: "KeyQ", metaKey: true, ctrlKey: false, altKey: false, shiftKey: true }, catalog)).toBe("cmd+shift+q");
     expect(hotkeyFromEvent({ code: "Escape", metaKey: false, ctrlKey: false, altKey: false, shiftKey: false }, catalog)).toBe("escape");
