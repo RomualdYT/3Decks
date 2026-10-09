@@ -36,6 +36,13 @@ def check_ncch(data: bytes) -> None:
     require(data[0x18F] & 4 != 0, "Homebrew NCCH must be unencrypted")
     require(hashlib.sha256(data[0x200:0x600]).digest() == data[0x160:0x180],
             "Extended header checksum mismatch")
+    # Application priorities in the RSF are relative to 32. Validate the
+    # encoded header, rather than trusting makerom to reject invalid values.
+    priority = data[0x40F]
+    require(32 <= priority <= 63,
+            f"Invalid application thread priority: {priority} (expected 32..63)")
+    require(data[0x40E] >> 4 == 0 and data[0x40D] & 0xF == 0,
+            "Console package must use the Old 3DS-compatible 64MB/Legacy memory mode")
     exefs_offset = u32(data, 0x1A0) * 512
     exefs_size = u32(data, 0x1A4) * 512
     require(exefs_offset + exefs_size <= len(data), "Truncated ExeFS")
