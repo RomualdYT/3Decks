@@ -1,5 +1,6 @@
 packages:
   - .
+  - tools/openapi
 
 allowBuilds:
   esbuild: true

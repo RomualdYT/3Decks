@@ -59,6 +59,8 @@ Tests/builds do not replace runtime checks on each platform.
   and lifecycle/configuration in `app/`.
 - React components use the typed editor API boundary. Regenerate OpenAPI types
   with `pnpm api:types` after changing its contract.
+  The app uses TypeScript 7. The private `frontend/tools/openapi` workspace
+  supplies TypeScript 5.9's compiler API to the generator independently.
 - Update English/French text and user guides for visible behaviour changes.
 - Follow [shared asset instructions](../resources/README.md) for generated images/icons.
 - Keep stable page/action/contribution IDs; labels can change independently.

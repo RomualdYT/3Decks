@@ -1,0 +1,13 @@
+{
+  "name": "@3decks/openapi",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "generate": "openapi-typescript ../../api/openapi.json -o ../../src/api/generated.ts --default-non-nullable false",
+    "check": "openapi-typescript ../../api/openapi.json -o ../../src/api/generated.ts --default-non-nullable false --check"
+  },
+  "devDependencies": {
+    "openapi-typescript": "^7.13.0",
+    "typescript": "5.9.3"
+  }
+}
