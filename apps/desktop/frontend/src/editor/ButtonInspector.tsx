@@ -18,6 +18,7 @@ export interface ButtonInspectorProps {
   schema: Schema;
   button: ButtonConfig;
   locale: Locale;
+  platform?: string;
   scenes: string[];
   apps: string[];
   t: (key: CopyKey, values?: Record<string, string | number>) => string;
@@ -51,7 +52,7 @@ function argumentCopy(name: string, kind: string, locale: Locale) {
   return { label: (values[name] ?? [name, name])[fr ? 0 : 1], description: descriptions[name]?.[fr ? 0 : 1] };
 }
 
-export function ButtonInspector({ config, schema, button, locale, scenes, apps, t, onUpdateButton, onChangeAction, onDeleteButton, onDeselect }: ButtonInspectorProps) {
+export function ButtonInspector({ config, schema, button, locale, platform, scenes, apps, t, onUpdateButton, onChangeAction, onDeleteButton, onDeselect }: ButtonInspectorProps) {
   const fr = locale === "fr";
   const otherLocale = fr ? "en" : "fr";
   const updateLabel = (language: Locale, value: string) => onUpdateButton((item) => { item.label = setLocalized(item.label, language, value); });
@@ -80,7 +81,7 @@ export function ButtonInspector({ config, schema, button, locale, scenes, apps, 
         <InspectorSection title={t("action")} icon="workflow">
           <button className="current-action" type="button" aria-label={t("changeAction")} onClick={onChangeAction}><span style={{ "--action-color": spec?.color ?? button.color } as CSSProperties}><DeckIcon name={spec?.icon ?? button.icon} /></span><span><strong>{spec?.title[locale] ?? kind}</strong><small>{spec?.description[locale] ?? kind}</small></span><DeckIcon name="down" /></button>
           {!spec?.supported && <Card variant="secondary" className="support-warning"><Card.Content><DeckIcon name="info" /><p>{kind.startsWith("ext:") ? (fr ? "Vérifiez que cette intégration est installée et activée dans Extensions. Ses paramètres sont conservés." : "Check that this integration is installed and enabled in Extensions. Its parameters are preserved.") : (fr ? "Cette action nécessite une fonctionnalité désactivée. Vous pouvez l’activer dans Réglages → Fonctionnalités." : "This action needs a disabled feature. Enable it in Settings → Features.")}</p></Card.Content></Card>}
-          {spec?.arguments.map((argument) => spec.extension ? <ExtensionField key={argument.name} field={argument} value={args[argument.name] ?? argument.default} locale={locale} onChange={(value) => setArg(argument.name, value)} /> : <ActionArgumentControl key={argument.name} argument={argument} spec={spec} value={String(args[argument.name] ?? "")} locale={locale} config={config} scenes={scenes} apps={apps} schema={schema} onChange={(value) => setArg(argument.name, value)} />)}
+          {spec?.arguments.map((argument) => spec.extension ? <ExtensionField key={argument.name} field={argument} value={args[argument.name] ?? argument.default} locale={locale} onChange={(value) => setArg(argument.name, value)} /> : <ActionArgumentControl key={argument.name} argument={argument} spec={spec} value={String(args[argument.name] ?? "")} locale={locale} platform={platform} config={config} scenes={scenes} apps={apps} schema={schema} onChange={(value) => setArg(argument.name, value)} />)}
         </InspectorSection>
         <Disclosure className="inspector-advanced">
           <Disclosure.Heading><Disclosure.Trigger><span><DeckIcon name="gear" size={16} />{fr ? "Avancé et actions du bouton" : "Advanced & button actions"}</span><Disclosure.Indicator /></Disclosure.Trigger></Disclosure.Heading>
@@ -95,12 +96,12 @@ export function ButtonInspector({ config, schema, button, locale, scenes, apps, 
   );
 }
 
-function ActionArgumentControl({ argument, spec, value, locale, config, scenes, apps, schema, onChange }: { argument: ActionSpec["arguments"][number]; spec: ActionSpec; value: string; locale: Locale; config: DeckConfig; scenes: string[]; apps: string[]; schema: Schema; onChange: (value: string | number) => void }) {
+function ActionArgumentControl({ argument, spec, value, locale, platform, config, scenes, apps, schema, onChange }: { argument: ActionSpec["arguments"][number]; spec: ActionSpec; value: string; locale: Locale; platform?: string; config: DeckConfig; scenes: string[]; apps: string[]; schema: Schema; onChange: (value: string | number) => void }) {
   const copy = argumentCopy(argument.name, spec.kind, locale);
   const fr = locale === "fr";
   if (argument.type === "page") return <SelectControl label={copy.label} value={value} description={copy.description} choices={config.pages.map((item) => ({ id: item.id, label: localized(item.title, locale) || item.id, icon: item.icon }))} onChange={onChange} />;
   if (argument.type === "script") return <SelectControl label={copy.label} value={value} choices={Object.keys(config.scripts ?? {}).map((script) => ({ id: script, label: script, icon: "workflow" }))} onChange={onChange} />;
-  if (argument.type === "hotkey") return <div className="ui-field"><span className="field-label">{copy.label}</span><HotkeyInput value={value} catalog={schema.keys} locale={locale} onChange={onChange} /></div>;
+  if (argument.type === "hotkey") return <div className="ui-field"><span className="field-label">{copy.label}</span><HotkeyInput value={value} catalog={schema.keys} locale={locale} platform={platform} onChange={onChange} /></div>;
   if (argument.name === "path" && spec.kind === "path.open") return <PathPicker value={value} locale={locale} onChange={(next) => onChange(next)} />;
   if (argument.name === "scene") return <SelectControl label={copy.label} value={value} description={copy.description} choices={(scenes.length ? scenes : [value].filter(Boolean)).map((scene) => ({ id: scene, label: scene, icon: "video", description: scenes.length ? undefined : (fr ? "Testez la connexion OBS pour charger vos scènes." : "Test OBS to load your scenes.") }))} onChange={onChange} />;
   if (argument.type === "number") return <NumberControl label={copy.label} value={Number(value || argument.min || 0)} min={argument.min ?? 0} max={argument.max ?? 100} description={copy.description} onChange={onChange} />;
