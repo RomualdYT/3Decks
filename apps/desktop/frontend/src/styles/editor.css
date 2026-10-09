@@ -280,6 +280,7 @@
 .empty-editor { align-items: center; display: flex; justify-content: center; min-height: 70vh; }
 .empty-editor button { background: var(--accent); border: 0; border-radius: 12px; color: #0b1604; cursor: pointer; font-weight: 750; padding: 12px 18px; }
 .hotkey-editor { align-items: center; display: grid; gap: 6px; grid-template-columns: 1fr auto; position: relative; }
+.hotkey-help { color: var(--muted); font-size: 10px; grid-column: 1 / -1; line-height: 1.5; }
 .hotkey-capture { align-items: center; background: var(--surface-input); border: 1px solid var(--border-strong); border-radius: 11px; color: var(--muted); cursor: pointer; display: flex; gap: 8px; min-height: 43px; overflow: hidden; padding: 8px 10px; text-align: left; }
 .hotkey-capture span { font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hotkey-capture.capturing { background: var(--accent-soft); border-color: rgba(102,203,16,.65); box-shadow: 0 0 0 3px rgba(102,203,16,.1); color: #eaffd9; }

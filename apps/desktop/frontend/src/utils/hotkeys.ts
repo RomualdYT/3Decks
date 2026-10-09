@@ -8,7 +8,11 @@ export const CODE_TO_KEY = Object.freeze<Record<string, string>>({
 });
 
 export function splitHotkey(value: string, catalog: Schema["keys"]) {
-  const parts = value.split("+").map((part) => part.trim().toLowerCase()).filter(Boolean);
+  // Keep the saved grammar compatible with both native keyboard adapters.
+  const parts = value.split("+").map((part) => {
+    const name = part.trim().toLowerCase();
+    return ["win", "super", "meta", "command"].includes(name) ? "cmd" : name;
+  }).filter(Boolean);
   const order = catalog.modifiers.map((modifier) => modifier.name);
   const known = new Set(order);
   return { modifiers: order.filter((name) => parts.includes(name)), key: parts.find((part) => !known.has(part)) ?? "" };
