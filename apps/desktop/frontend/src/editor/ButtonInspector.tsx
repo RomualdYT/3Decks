@@ -28,6 +28,24 @@ export interface ButtonInspectorProps {
   onDeselect: () => void;
 }
 
+export function actionSupportWarning(kind: string, spec: ActionSpec | undefined, schema: Schema, locale: Locale, platform?: string): string {
+  const fr = locale === "fr";
+  if (kind.startsWith("ext:")) return fr
+    ? "Vérifiez que cette intégration est installée et activée dans Extensions. Ses paramètres sont conservés."
+    : "Check that this integration is installed and enabled in Extensions. Its parameters are preserved.";
+  if (platform === "win32" && (kind === "audio_output.cycle" || kind === "audio_output.set")) return fr
+    ? "Le changement de sortie audio à distance n’est pas pris en charge sous Windows. Choisissez la sortie dans les paramètres Son de Windows. Activer la fonctionnalité ne débloque pas cette action."
+    : "Remote audio output switching is not supported on Windows. Change the output in Windows Sound settings. Enabling the feature does not enable this action.";
+  if (!spec) return fr ? "Cette action n’est pas disponible dans cette version de 3Decks." : "This action is not available in this version of 3Decks.";
+  const feature = schema.features.find((item) => item.capability === spec.capability);
+  if (feature?.available === false || !spec.capability || schema.capabilities[spec.capability]) return fr
+    ? "Cette action n’est pas prise en charge sur cet ordinateur."
+    : "This action is not supported on this computer.";
+  return fr
+    ? "Cette action nécessite une fonctionnalité désactivée. Vous pouvez l’activer dans Réglages → Fonctionnalités."
+    : "This action needs a disabled feature. Enable it in Settings → Features.";
+}
+
 function argumentCopy(name: string, kind: string, locale: Locale) {
   const fr = locale === "fr";
   const values: Record<string, [string, string]> = {
@@ -80,7 +98,7 @@ export function ButtonInspector({ config, schema, button, locale, platform, scen
         </InspectorSection>
         <InspectorSection title={t("action")} icon="workflow">
           <button className="current-action" type="button" aria-label={t("changeAction")} onClick={onChangeAction}><span style={{ "--action-color": spec?.color ?? button.color } as CSSProperties}><DeckIcon name={spec?.icon ?? button.icon} /></span><span><strong>{spec?.title[locale] ?? kind}</strong><small>{spec?.description[locale] ?? kind}</small></span><DeckIcon name="down" /></button>
-          {!spec?.supported && <Card variant="secondary" className="support-warning"><Card.Content><DeckIcon name="info" /><p>{kind.startsWith("ext:") ? (fr ? "Vérifiez que cette intégration est installée et activée dans Extensions. Ses paramètres sont conservés." : "Check that this integration is installed and enabled in Extensions. Its parameters are preserved.") : (fr ? "Cette action nécessite une fonctionnalité désactivée. Vous pouvez l’activer dans Réglages → Fonctionnalités." : "This action needs a disabled feature. Enable it in Settings → Features.")}</p></Card.Content></Card>}
+          {!spec?.supported && <Card variant="secondary" className="support-warning"><Card.Content><DeckIcon name="info" /><p>{actionSupportWarning(kind, spec, schema, locale, platform)}</p></Card.Content></Card>}
           {spec?.arguments.map((argument) => spec.extension ? <ExtensionField key={argument.name} field={argument} value={args[argument.name] ?? argument.default} locale={locale} onChange={(value) => setArg(argument.name, value)} /> : <ActionArgumentControl key={argument.name} argument={argument} spec={spec} value={String(args[argument.name] ?? "")} locale={locale} platform={platform} config={config} scenes={scenes} apps={apps} schema={schema} onChange={(value) => setArg(argument.name, value)} />)}
         </InspectorSection>
         <Disclosure className="inspector-advanced">

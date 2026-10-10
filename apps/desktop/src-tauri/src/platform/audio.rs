@@ -147,7 +147,7 @@ fn enumerate() -> Result<Vec<Output>, String> {
 
 #[cfg(target_os = "windows")]
 fn set_default(_id: &str) -> Result<(), String> {
-    Err("Windows requires choosing the default output in Sound settings".into())
+    Err("Remote audio output switching is not supported on Windows. Change the output in Windows Sound settings.".into())
 }
 
 #[cfg(target_os = "linux")]
