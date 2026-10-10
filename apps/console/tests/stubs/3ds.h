@@ -8,6 +8,7 @@ extern struct in_addr __3dslink_host;
 typedef uint8_t u8;
 typedef uint16_t u16;
 typedef uint32_t u32;
+typedef uint64_t u64;
 typedef int32_t Result;
 #define R_FAILED(result) ((result) < 0)
 #define R_SUCCEEDED(result) ((result) >= 0)

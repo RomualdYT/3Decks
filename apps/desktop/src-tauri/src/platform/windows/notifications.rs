@@ -261,6 +261,7 @@ fn decode(notification: &UserNotification, now: u64) -> Option<NotificationItem>
         .collect::<String>();
     let key = format!("{created_unix}:{id}:{app}:{title}");
     let mut payload = json!({
+        "id": crate::features::notifications::event_id(&format!("{created}:{id}:{app}")),
         "app":app,
         "title":title,
         "icon":notification_icon(&app),

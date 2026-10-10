@@ -106,6 +106,8 @@ Unknown names use the generic application icon.
 
 Audio state carries `audio_output` (active display name), `audio_output_mode` (`direct`, `host_only` or `unavailable`), `audio_output_count` (total available) and `audio_output_options` (up to 12 objects with `id`, `name` and `active`). IDs are opaque 32-character tokens for the current device identity. The console sends the selected token through `audio.output.select`; the agent resolves it against a fresh device list before changing the output. Windows reports `host_only`: its active output is shown, but the console does not offer remote selection.
 
+`notification_new` announces a newly observed notification with `app`, `title`, `icon`, optional `body` and a stable opaque `id` (32 hexadecimal characters). Repeated snapshots of the same event keep its ID; distinct events receive different IDs even when their text matches. The console remembers recent IDs across TCP reconnects and plays their sound once. For older agents without IDs, it deduplicates using the application and title.
+
 Performance keys include `cpu`, `memory`, `memory_used_mb`, `memory_total_mb`, `disk`, `disk_free_mb`, `disk_total_mb`, `network_down_kbps`, `network_up_kbps`, `top_process`, `top_process_cpu`, optional `gpu` and `temperature`. Memory/storage units are MiB, network rates kilobits/second and temperature Celsius. Missing metrics are unavailable, not invented zeros. Time/date are resolved by the agent; the console can fall back to its own clock.
 
 ### Stream chat

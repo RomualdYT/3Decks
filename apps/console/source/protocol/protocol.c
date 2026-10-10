@@ -578,6 +578,8 @@ bool protocol_decode(const char *json, size_t length, IncomingMessage *out,
 		 */
 		const JsonToken *fresh = json_get(&s_doc, root, "notification_new");
 		if (fresh != NULL && fresh->type == JSON_OBJECT) {
+			json_get_string(&s_doc, fresh, "id", out->notification_id,
+			                sizeof(out->notification_id));
 			json_get_string(&s_doc, fresh, "app", out->notification_app,
 			                sizeof(out->notification_app));
 			json_get_string(&s_doc, fresh, "title", out->notification_title,

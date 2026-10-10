@@ -70,6 +70,7 @@ typedef struct {
 	 * `has_notification` distingue l'absence d'une notification vide.
 	 */
 	bool has_notification;
+	char notification_id[33]; /**< Identite stable optionnelle de l'evenement. */
 	char notification_app[LEN_APP_NAME];
 	char notification_title[LEN_TEXT];
 	IconId notification_icon;

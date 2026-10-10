@@ -22,6 +22,7 @@
 #include <string.h>
 
 #include "app.h"
+#include "app_settings.h"
 #include "i18n.h"
 #include "modal.h"
 #include "setup.h"
@@ -680,6 +681,10 @@ int main(int argc, char *argv[])
 		if (s_app.settings_requested) {
 			s_app.settings_requested = false;
 			setup_open_settings(&s_setup);
+			if (s_app.pairing_save_failed) {
+				snprintf(s_setup.save_error, sizeof(s_setup.save_error), "%s",
+				         app_settings_save_error());
+			}
 		}
 
 		/* Demandes venues de l'ordinateur. */

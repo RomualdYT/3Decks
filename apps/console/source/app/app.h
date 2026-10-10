@@ -104,6 +104,9 @@ typedef struct {
 	char pair_code[8];
 	/** Demande à l'assistant d'ouvrir la saisie du code d'appairage. */
 	bool pairing_requested;
+	bool pairing_save_failed; /**< Jeton en memoire, mais pas encore sauve sur SD. */
+	u64 seen_notifications[16]; /**< Evenements deja annonces, conserves a la reconnexion. */
+	unsigned int notification_cursor;
 	/** Dernière trame reçue, pour détecter une connexion devenue muette. */
 	double last_rx_at;
 	double next_ping_at;

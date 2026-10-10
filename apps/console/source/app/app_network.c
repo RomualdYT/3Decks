@@ -16,6 +16,7 @@
 
 #include <3ds.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <string.h>
 
 #include "app_feedback.h"
@@ -147,6 +148,26 @@ static void handle_notification(App *app, const IncomingMessage *message)
 	if (!message->has_notification) {
 		return;
 	}
+	/* New agents send an event identity. With older agents, use the visible
+	 * content so repeated state snapshots cannot replay the same sound. */
+	const char *parts[] = {message->notification_id[0] != '\0'
+	                          ? message->notification_id : message->notification_app,
+	                      message->notification_id[0] != '\0'
+	                          ? "" : message->notification_title};
+	u64 key = UINT64_C(14695981039346656037);
+	for (unsigned int part = 0; part < 2; part++) {
+		for (const unsigned char *p = (const unsigned char *)parts[part]; *p; p++) {
+			key = (key ^ *p) * UINT64_C(1099511628211);
+		}
+		key = (key ^ 0xff) * UINT64_C(1099511628211);
+	}
+	if (key == 0) key = 1;
+	const unsigned int history = sizeof(app->seen_notifications) / sizeof(app->seen_notifications[0]);
+	for (unsigned int i = 0; i < history; i++) {
+		if (app->seen_notifications[i] == key) return;
+	}
+	app->seen_notifications[app->notification_cursor] = key;
+	app->notification_cursor = (app->notification_cursor + 1) % history;
 	char text[LEN_TEXT];
 	if (message->notification_app[0] != '\0') {
 		snprintf(text, sizeof(text), "%.16s : %.40s", message->notification_app,
@@ -215,8 +236,13 @@ static void handle_hello_ok(App *app, const IncomingMessage *message)
 		snprintf(app->settings.token, sizeof(app->settings.token), "%s",
 		         message->paired_token);
 		app->pair_code[0] = '\0';
-		app_save_settings(app);
-		app_notify(app, tr(STR_PAIRING_SAVED), false);
+		app->pairing_save_failed = !app_save_settings(app);
+		if (app->pairing_save_failed) {
+			app->settings_requested = true;
+			app_notify(app, tr(STR_SETTINGS_SAVE_FAILED), true);
+		} else {
+			app_notify(app, tr(STR_PAIRING_SAVED), false);
+		}
 	}
 }
 

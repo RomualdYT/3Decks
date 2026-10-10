@@ -3,7 +3,7 @@
 
 use super::MAX_NOTIFICATIONS;
 use rusqlite::{Connection, OpenFlags};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::{
     collections::HashSet,
     io::Cursor,
@@ -20,21 +20,19 @@ pub(super) fn read(path: &Path) -> Result<Vec<(String, Value)>, rusqlite::Error>
         OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
     )?;
     connection.busy_timeout(Duration::from_millis(500))?;
-    let mut query = connection
-        .prepare(
-            "SELECT rec.delivered_date, app.identifier, rec.data \
+    let mut query = connection.prepare(
+        "SELECT rec.delivered_date, app.identifier, rec.data \
          FROM record rec JOIN app ON rec.app_id = app.app_id \
          WHERE rec.delivered_date IS NOT NULL \
          ORDER BY rec.delivered_date DESC LIMIT 40",
-        )?;
-    let rows = query
-        .query_map([], |row| {
-            Ok((
-                row.get::<_, f64>(0)?,
-                row.get::<_, Option<String>>(1)?.unwrap_or_default(),
-                row.get::<_, Option<Vec<u8>>>(2)?.unwrap_or_default(),
-            ))
-        })?;
+    )?;
+    let rows = query.query_map([], |row| {
+        Ok((
+            row.get::<_, f64>(0)?,
+            row.get::<_, Option<String>>(1)?.unwrap_or_default(),
+            row.get::<_, Option<Vec<u8>>>(2)?.unwrap_or_default(),
+        ))
+    })?;
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
@@ -85,8 +83,9 @@ fn decode(delivered: f64, bundle: &str, data: &[u8], now: f64) -> Option<(String
     } else {
         body.to_owned()
     };
-    let key = format!("{bundle}|{title}|{body}");
+    let key = format!("{}|{bundle}|{title}|{body}", delivered.to_bits());
     let mut payload = json!({
+        "id": super::event_id(&key),
         "app": app, "title": if title.is_empty() { app.as_str() } else { title },
         "icon": icon(&app), "age": age.max(0.0) as u64,
     });
@@ -145,7 +144,7 @@ fn icon(app: &str) -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use super::super::{status, NotificationReader};
+    use super::super::{NotificationReader, RecentNotifications, status};
     use super::*;
 
     fn sample_plist(title: &str) -> Vec<u8> {
@@ -167,6 +166,11 @@ mod tests {
         let (_, payload) = decode(100_000.0, "com.apple.mobilesms", &bytes, now).unwrap();
         assert_eq!(payload["app"], "Messages");
         assert_eq!(payload["body"], "Alice — Message");
+        let (_, later) = decode(100_000.0, "com.apple.mobilesms", &bytes, now + 1.0).unwrap();
+        let (_, distinct) = decode(100_001.0, "com.apple.mobilesms", &bytes, now + 1.0).unwrap();
+        assert_eq!(payload["id"], later["id"]);
+        assert_eq!(payload["id"].as_str().unwrap().len(), 32);
+        assert_ne!(payload["id"], distinct["id"]);
         assert!(decode(100_000.0, "com.apple.mail", &bytes, now + MAX_AGE + 1.0).is_none());
         assert!(decode(100_000.0, "com.apple.mail", b"invalid", now).is_none());
     }
@@ -176,14 +180,19 @@ mod tests {
         let path = std::env::temp_dir().join(format!(
             "3decks-notification-schema-{}-{}.db",
             std::process::id(),
-            SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos()
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
         ));
         let connection = Connection::open(&path).unwrap();
-        connection.execute_batch("CREATE TABLE unrelated(value TEXT);").unwrap();
+        connection
+            .execute_batch("CREATE TABLE unrelated(value TEXT);")
+            .unwrap();
         drop(connection);
         let mut reader = NotificationReader {
             path: path.clone(),
-            last_key: None,
+            recent: RecentNotifications::default(),
             status: status(false, true, ""),
         };
         assert_eq!(reader.read(true).count, 0);
@@ -221,7 +230,7 @@ mod tests {
             .unwrap();
         let mut reader = NotificationReader {
             path: path.clone(),
-            last_key: None,
+            recent: RecentNotifications::default(),
             status: status(false, true, ""),
         };
         let first = reader.read(true);
@@ -236,7 +245,25 @@ mod tests {
             .unwrap();
         let second = reader.read(true);
         assert_eq!(second.count, 2);
-        assert_eq!(second.newest.unwrap()["title"], "New");
+        let announced = second.newest.unwrap();
+        assert_eq!(announced["title"], "New");
+        assert!(reader.read(true).newest.is_none());
+        connection
+            .execute(
+                "DELETE FROM record WHERE delivered_date = ?1",
+                [delivered + 1.0],
+            )
+            .unwrap();
+        assert!(reader.read(true).newest.is_none());
+        connection
+            .execute(
+                "INSERT INTO record VALUES (1, ?1, ?2)",
+                rusqlite::params![delivered + 2.0, sample_plist("New")],
+            )
+            .unwrap();
+        let distinct = reader.read(true).newest.unwrap();
+        assert_eq!(distinct["title"], "New");
+        assert_ne!(distinct["id"], announced["id"]);
         assert!(reader.read(true).newest.is_none());
         drop(connection);
         std::fs::remove_file(path).unwrap();

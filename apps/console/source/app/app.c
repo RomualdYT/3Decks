@@ -33,6 +33,7 @@ bool app_save_settings(App *app)
 		return false;
 	}
 	app->settings.configured = true;
+	app->pairing_save_failed = false;
 	return true;
 }
 

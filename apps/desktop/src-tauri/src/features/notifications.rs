@@ -8,12 +8,50 @@ mod macos_reader;
 #[path = "notifications/windows_history.rs"]
 mod windows_history;
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
+use sha2::{Digest, Sha256};
 #[cfg(target_os = "macos")]
 use std::path::PathBuf;
 
 const MAX_NOTIFICATIONS: usize = 8;
 const MAX_PAYLOAD_NOTIFICATIONS: usize = 4;
+
+pub(crate) fn event_id(key: &str) -> String {
+    hex::encode(&Sha256::digest(key.as_bytes())[..16])
+}
+
+#[cfg(target_os = "macos")]
+#[derive(Default)]
+struct RecentNotifications {
+    seen: std::collections::VecDeque<String>,
+    primed: bool,
+}
+
+#[cfg(target_os = "macos")]
+impl RecentNotifications {
+    fn newest(&mut self, items: &[(String, Value)]) -> Option<Value> {
+        let newest = if self.primed {
+            items
+                .iter()
+                .find(|(key, _)| !self.seen.contains(key))
+                .map(|(_, payload)| payload.clone())
+        } else {
+            None
+        };
+        self.primed = true;
+        // Remember every visible event, including ones that were not the newest.
+        // Dismissing a newer notification must not announce an older one again.
+        for (key, _) in items.iter().rev() {
+            if !self.seen.contains(key) {
+                self.seen.push_back(key.clone());
+                if self.seen.len() > 64 {
+                    self.seen.pop_front();
+                }
+            }
+        }
+        newest
+    }
+}
 
 pub struct NotificationUpdate {
     pub notifications: Vec<Value>,
@@ -25,7 +63,7 @@ pub struct NotificationReader {
     #[cfg(target_os = "macos")]
     path: PathBuf,
     #[cfg(target_os = "macos")]
-    last_key: Option<String>,
+    recent: RecentNotifications,
     #[cfg(target_os = "windows")]
     history: windows_history::History,
     status: Value,
@@ -43,7 +81,7 @@ impl NotificationReader {
             let present = path.is_file();
             Self {
                 path,
-                last_key: None,
+                recent: RecentNotifications::default(),
                 status: status(false, present, ""),
             }
         }
@@ -112,7 +150,7 @@ impl NotificationReader {
         if !enabled {
             #[cfg(target_os = "macos")]
             {
-                self.last_key = None;
+                self.recent = RecentNotifications::default();
             }
             #[cfg(target_os = "macos")]
             let present = self.path.is_file();
@@ -154,14 +192,14 @@ impl NotificationReader {
             }
             match macos_reader::read(&self.path) {
                 Ok(items) => {
-                    if self.status["error"].as_str().is_some_and(|error| !error.is_empty()) {
+                    if self.status["error"]
+                        .as_str()
+                        .is_some_and(|error| !error.is_empty())
+                    {
                         crate::app::logging::append("Notification reader access restored");
                     }
                     self.status = status(true, true, "");
-                    let newest = items.first().and_then(|(key, payload)| {
-                        let previous = self.last_key.replace(key.clone());
-                        previous.filter(|old| old != key).map(|_| payload.clone())
-                    });
+                    let newest = self.recent.newest(&items);
                     NotificationUpdate {
                         count: items.len(),
                         notifications: items

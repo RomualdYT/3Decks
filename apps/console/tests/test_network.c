@@ -41,6 +41,10 @@ static int connect_peer(int listener, int port)
         if (peer >= 0 && net_state() == NET_CONNECTED) break;
     }
     assert(peer >= 0 && net_state() == NET_CONNECTED);
+    /* BSD/macOS accept inherits the listener's O_NONBLOCK flag. The mock
+     * server reads complete frames synchronously; Linux does not inherit it. */
+    int flags = fcntl(peer, F_GETFL, 0);
+    assert(flags >= 0 && fcntl(peer, F_SETFL, flags & ~O_NONBLOCK) == 0);
     return peer;
 }
 static void send_payload(int peer, const char *payload, size_t size)
@@ -60,6 +64,14 @@ static void pump_until_handshake(void)
     assert(app.handshake_ok);
 }
 static JsonDoc pairing_doc;
+static void notification(int peer, int sequence, const char *event)
+{
+    char payload[512];
+    snprintf(payload, sizeof(payload), "{\"type\":\"state.update\",\"notification_count\":%d,\"notification_new\":%s}", sequence, event);
+    send_payload(peer, payload, strlen(payload));
+    for (int i = 0; i < 10000 && app.state.notification_total != sequence; i++) app_pump_network(&app);
+    assert(app.state.notification_total == sequence);
+}
 static void read_hello(int peer, char *payload, size_t capacity)
 {
     unsigned char header[4];
@@ -88,6 +100,18 @@ static void test_pairing_reconnect(void)
     snprintf(reply, sizeof(reply), "{\"type\":\"hello.ok\",\"token\":\"%s\"}", issued);
     send_payload(peer, reply, strlen(reply)); pump_until_handshake();
     assert(app.pair_code[0] == '\0');
+    assert(test_save_count == 1 && !app.pairing_save_failed && !test_notify_error);
+    int sounds = test_sound_count[SOUND_CONNECT];
+    const char *event = "{\"id\":\"event-one\",\"app\":\"Mail\",\"title\":\"New message\",\"icon\":\"page\"}";
+    notification(peer, 1, event);
+    assert(test_sound_count[SOUND_CONNECT] == sounds + 1);
+    notification(peer, 2, event);
+    assert(test_sound_count[SOUND_CONNECT] == sounds + 1);
+    notification(peer, 3, "{\"id\":\"event-two\",\"app\":\"Mail\",\"title\":\"New message\"}");
+    assert(test_sound_count[SOUND_CONNECT] == sounds + 2);
+    notification(peer, 4, "{\"app\":\"Mail\",\"title\":\"Legacy message\"}");
+    notification(peer, 5, "{\"app\":\"Mail\",\"title\":\"Legacy message\"}");
+    assert(test_sound_count[SOUND_CONNECT] == sounds + 3);
     app_force_reconnect(&app); close(peer);
     peer = connect_peer(listener, port);
     app_pump_network(&app); net_poll();
@@ -101,6 +125,17 @@ static void test_pairing_reconnect(void)
     for (int i = 0; i < 10000 && !app.handshake_ok && !app.pairing_requested; i++) app_pump_network(&app);
     assert(!app.pairing_requested && app.handshake_ok);
     assert(accepted && !strcmp(app.settings.token, issued));
+    sounds = test_sound_count[SOUND_CONNECT];
+    notification(peer, 6, event);
+    assert(test_sound_count[SOUND_CONNECT] == sounds);
+    /* A fresh pairing must report a failed SD write while retaining its token
+     * in memory for this session, rather than claiming permanent pairing. */
+    test_save_ok = false;
+    send_payload(peer, reply, strlen(reply));
+    for (int i = 0; i < 10000 && test_save_count < 2; i++) app_pump_network(&app);
+    assert(test_save_count == 2 && app.pairing_save_failed && app.settings_requested);
+    assert(test_notify_error && !strcmp(app.settings.token, issued));
+    test_save_ok = true;
     net_disconnect(); close(peer); close(listener); net_exit();
     memset(&app, 0, sizeof(app));
     puts("pairing: full-length token survives TCP handshake and reconnect without another code");
