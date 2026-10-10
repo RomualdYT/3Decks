@@ -447,6 +447,14 @@ void icons_draw(IconId icon, float cx, float cy, float size, float depth,
 	case ICON_STAR:
 		icon_star(cx, cy, size, depth, color);
 		break;
+	case ICON_CHECK:
+		draw_line(cx - size * 0.33f, cy,
+		          cx - size * 0.08f, cy + size * 0.25f,
+		          size * 0.08f, depth, color);
+		draw_line(cx - size * 0.08f, cy + size * 0.25f,
+		          cx + size * 0.33f, cy - size * 0.25f,
+		          size * 0.08f, depth, color);
+		break;
 	case ICON_BELL:
 		icon_bell(cx, cy, size, depth, color);
 		break;

@@ -29,6 +29,7 @@ static bool save_settings(Setup *setup, App *app)
 	setup->save_error[0] = '\0';
 	if (app_save_settings(app)) {
 		app_notify(app, tr(STR_SETTINGS_SAVED), false);
+		app->toast.icon = ICON_CHECK;
 		return true;
 	}
 	snprintf(setup->save_error, sizeof(setup->save_error), "%s",
