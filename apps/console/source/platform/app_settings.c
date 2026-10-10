@@ -9,6 +9,7 @@
 
 #include <3ds.h>
 #include <arpa/inet.h>
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -19,6 +20,86 @@
 
 #define SETTINGS_PATH "sdmc:/3ds/deck3ds/settings.cfg"
 #define SETTINGS_TMP_PATH "sdmc:/3ds/deck3ds/settings.tmp"
+#define SETTINGS_BACKUP_PATH "sdmc:/3ds/deck3ds/settings.bak"
+
+static char save_error[64];
+
+const char *app_settings_save_error(void)
+{
+	return save_error;
+}
+
+static bool save_failed(const char *operation)
+{
+	/* libctru preserves unmapped FS Result values in errno. Keep all bits. */
+	snprintf(save_error, sizeof(save_error), "%s: 0x%08X", operation,
+	         (unsigned int)errno);
+	return false;
+}
+
+static bool ensure_directory(const char *path, const char *operation)
+{
+	if (mkdir(path, 0777) == 0) return true;
+	if (errno == EEXIST) {
+		struct stat info;
+		if (stat(path, &info) == 0) {
+			if (S_ISDIR(info.st_mode)) return true;
+			errno = ENOTDIR;
+		}
+	}
+	return save_failed(operation);
+}
+
+static bool replace_settings(void)
+{
+#ifdef __3DS__
+	/* Call FS directly: libctru's file-to-directory fallback masks the
+	 * original RenameFile error with ENOENT. Keep a recoverable old copy. */
+	FS_Archive archive;
+	Result result = FSUSER_OpenArchive(&archive, ARCHIVE_SDMC,
+	                                  fsMakePath(PATH_EMPTY, ""));
+	if (R_FAILED(result)) {
+		errno = (int)result;
+		return save_failed("archive");
+	}
+	const FS_Path temporary = fsMakePath(PATH_ASCII, "/3ds/deck3ds/settings.tmp");
+	const FS_Path destination = fsMakePath(PATH_ASCII, "/3ds/deck3ds/settings.cfg");
+	const FS_Path backup = fsMakePath(PATH_ASCII, "/3ds/deck3ds/settings.bak");
+	bool moved_old = false;
+	struct stat info;
+	if (stat(SETTINGS_PATH, &info) == 0) {
+		/* A valid primary still exists if removing a stale backup fails. */
+		if (remove(SETTINGS_BACKUP_PATH) != 0 && errno != ENOENT) {
+			save_failed("backup remove");
+			FSUSER_CloseArchive(archive);
+			return false;
+		}
+		result = FSUSER_RenameFile(archive, destination, archive, backup);
+		moved_old = R_SUCCEEDED(result);
+	} else if (errno == ENOENT) {
+		result = 0;
+	} else {
+		save_failed("stat");
+		FSUSER_CloseArchive(archive);
+		return false;
+	}
+	if (R_SUCCEEDED(result)) {
+		result = FSUSER_RenameFile(archive, temporary, archive, destination);
+	}
+	if (R_FAILED(result)) {
+		errno = (int)result;
+		save_failed("rename FS");
+		if (moved_old) FSUSER_RenameFile(archive, backup, archive, destination);
+	}
+	FSUSER_CloseArchive(archive);
+	if (R_FAILED(result)) return false;
+	if (moved_old) remove(SETTINGS_BACKUP_PATH);
+	return true;
+#else
+	if (rename(SETTINGS_TMP_PATH, SETTINGS_PATH) == 0) return true;
+	return save_failed("rename");
+#endif
+}
 
 static void trim(char *text)
 {
@@ -58,6 +139,10 @@ void app_settings_load(Settings *settings)
 	settings->configured = false;
 
 	FILE *file = fopen(SETTINGS_PATH, "r");
+	if (file == NULL && errno == ENOENT) {
+		/* Recover a previous save interrupted between the two SD renames. */
+		file = fopen(SETTINGS_BACKUP_PATH, "r");
+	}
 	if (file == NULL) {
 		return;
 	}
@@ -132,15 +217,18 @@ bool app_settings_detect_netload_host(Settings *settings)
 
 bool app_settings_save(const Settings *settings)
 {
-	mkdir("sdmc:/3ds", 0777);
-	mkdir("sdmc:/3ds/deck3ds", 0777);
-
-	FILE *file = fopen(SETTINGS_TMP_PATH, "w");
-	if (file == NULL) {
+	save_error[0] = '\0';
+	if (!ensure_directory("sdmc:/3ds", "mkdir 3ds") ||
+	    !ensure_directory("sdmc:/3ds/deck3ds", "mkdir deck3ds")) {
 		return false;
 	}
 
-	fprintf(file,
+	FILE *file = fopen(SETTINGS_TMP_PATH, "w");
+	if (file == NULL) {
+		return save_failed("open");
+	}
+
+	const int written = fprintf(file,
 	        "# Reglages 3Decks\n"
 	        "# Fichier ecrit par l'application. Modifiable a la main.\n\n"
 	        "# Nom affiche par la decouverte automatique.\n"
@@ -168,18 +256,25 @@ bool app_settings_save(const Settings *settings)
 	        settings->sound ? 1 : 0, settings->dim_delay,
 	        settings->stereo ? 1 : 0, settings->companion);
 
-	bool write_ok = fflush(file) == 0;
+	bool write_ok = written >= 0;
+	if (!write_ok) save_failed("write");
+	if (write_ok && fflush(file) != 0) {
+		save_failed("fflush");
+		write_ok = false;
+	}
 	if (write_ok) {
 		write_ok = fsync(fileno(file)) == 0;
+		if (!write_ok) save_failed("fsync");
 	}
 	if (fclose(file) != 0) {
+		if (write_ok) save_failed("close");
 		write_ok = false;
 	}
 	if (!write_ok) {
 		remove(SETTINGS_TMP_PATH);
 		return false;
 	}
-	if (rename(SETTINGS_TMP_PATH, SETTINGS_PATH) != 0) {
+	if (!replace_settings()) {
 		remove(SETTINGS_TMP_PATH);
 		return false;
 	}

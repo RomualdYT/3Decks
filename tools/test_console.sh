@@ -27,6 +27,9 @@ run() {
     "$test_build/$name"
 }
 run test_framing "$src/network/framing.c"
+run test_app_settings
+"$cc" "${flags[@]}" "${includes[@]}" -DSETTINGS_TEST_NATIVE "$tests/test_app_settings.c" -lm -o "$test_build/test_app_settings_native"
+"$test_build/test_app_settings_native"
 run test_decky "$src/graphics/decky.c"
 "$cc" "${flags[@]}" -I"$src/graphics" "$repo/tools/export_decky_sprite.c" "$src/graphics/decky.c" -lm -o "$test_build/export-decky"
 "$test_build/export-decky" "$test_build/decky.svg"

@@ -21,7 +21,24 @@
 #include "theme.h"
 
 #include "setup_internal.h"
+#include "app_settings.h"
 #include <arpa/inet.h>
+
+static bool save_settings(Setup *setup, App *app)
+{
+	setup->save_error[0] = '\0';
+	if (app_save_settings(app)) {
+		app_notify(app, tr(STR_SETTINGS_SAVED), false);
+		return true;
+	}
+	snprintf(setup->save_error, sizeof(setup->save_error), "%s",
+	         app_settings_save_error());
+	char message[LEN_TEXT];
+	snprintf(message, sizeof(message), "%s (%s)",
+	         tr(STR_SETTINGS_SAVE_FAILED), app_settings_save_error());
+	app_notify(app, message, true);
+	return false;
+}
 
 static void advance(Setup *setup, App *app)
 {
@@ -41,8 +58,7 @@ static void advance(Setup *setup, App *app)
 	}
 
 	/* Dernière étape : on enregistre et on quitte l'assistant. */
-	app_save_settings(app);
-	setup_close(setup);
+	if (save_settings(setup, app)) setup_close(setup);
 }
 
 /** Modifie la valeur d'une ligne de réglage. */
@@ -165,12 +181,9 @@ bool setup_touch(Setup *setup, App *app, float x, float y)
 		}
 		if (setup->step == SETUP_DONE && !setup->first_run && x >= 20.0f + SETTINGS_SAVE_W) return true;
 		if (setup->step == SETUP_DONE && !setup->first_run) {
-			if (app_save_settings(app)) {
-				app_notify(app, tr(STR_SETTINGS_SAVED), false);
-			} else {
-				app_notify(app, tr(STR_SETTINGS_SAVE_FAILED), true);
+			if (save_settings(setup, app)) {
+				setup_close(setup);
 			}
-			setup_close(setup);
 			return true;
 		}
 		if (setup->step == SETUP_HOST && !setup->manual_connection) {
@@ -327,8 +340,7 @@ void setup_buttons(Setup *setup, App *app, u32 pressed)
 			begin_connection_step(setup);
 		} else if (!setup->first_run) {
 			/* Hors premier démarrage, B ferme les réglages. */
-			app_save_settings(app);
-			setup_close(setup);
+			if (save_settings(setup, app)) setup_close(setup);
 		}
 	}
 

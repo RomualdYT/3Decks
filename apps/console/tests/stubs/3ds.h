@@ -3,6 +3,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <netinet/in.h>
+extern struct in_addr __3dslink_host;
 typedef uint8_t u8;
 typedef uint16_t u16;
 typedef uint32_t u32;

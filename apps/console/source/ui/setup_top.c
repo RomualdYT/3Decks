@@ -268,6 +268,16 @@ void setup_draw_top(const Setup *setup, const App *app)
 	          ALIGN_CENTER,
 	          setup->first_run ? tr(STR_WELCOME_TITLE) : "3Decks");
 
+	if (setup->save_error[0] != '\0' && setup->step == SETUP_DONE) {
+		/* The dashboard toast is not drawn while setup owns the top screen. */
+		text_draw_clipped(SCREEN_TOP_W * 0.5f, 94.0f, Z_CONTENT,
+		                  TEXT_BODY, COL_ERR, ALIGN_CENTER, 376.0f,
+		                  tr(STR_SETTINGS_SAVE_FAILED));
+		text_draw(SCREEN_TOP_W * 0.5f, 126.0f, Z_CONTENT, TEXT_BODY,
+		          COL_TEXT, ALIGN_CENTER, setup->save_error);
+		return;
+	}
+
 	if (setup->first_run) {
 		draw_steps(setup);
 	}

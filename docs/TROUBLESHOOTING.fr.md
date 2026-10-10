@@ -7,6 +7,7 @@
 | Ordinateur introuvable | Même réseau local, isolation du réseau invité, VPN et pare-feu. Essayez l'IPv4/port TCP manuels. Ports par défaut : UDP 38122, TCP 38123. |
 | Port occupé | Quittez l'autre instance ou le processus utilisant ce port, puis rouvrez 3Decks. |
 | Échec de l'appairage | Utilisez le code actuel à six chiffres de l'ordinateur. Un appairage réussi le renouvelle. Révoquez et réappairez si l'identifiant sauvegardé ne fonctionne plus. |
+| Enregistrement impossible sur la carte SD | Les réglages sont écrits dans `sdmc:/3ds/deck3ds/settings.cfg`. Vérifiez l'espace libre, le verrou de l'adaptateur SD et que `3ds/deck3ds` est un dossier. Les builds avec diagnostic affichent l'opération (`mkdir`, `open`, `write`, `fflush`, `fsync`, `close`, `rename`) et son code d'erreur : indiquez-les dans votre signalement. L'assistant reste ouvert si l'enregistrement échoue. |
 | Action nécessitant une permission indisponible | Consultez la fonction dans les réglages ou rouvrez l'assistant depuis Avancé. macOS peut demander de quitter et rouvrir l'application. |
 | Sortie Windows non modifiable à distance | L'application affiche la sortie et ouvre les réglages Son Windows ; le choix se fait sur l'ordinateur. |
 | Notifications Windows indisponibles | L'installateur direct n'a pas l'identité de paquet nécessaire au lecteur de notifications. |

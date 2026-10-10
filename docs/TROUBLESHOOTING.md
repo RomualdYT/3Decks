@@ -7,6 +7,7 @@
 | Computer not found | Same LAN, guest-network isolation, VPN and firewall. Try manual IPv4/TCP setup. Defaults: UDP 38122, TCP 38123. |
 | Port already in use | Quit the other desktop instance or the process using that port, then reopen 3Decks. |
 | Pairing fails | Use the current six-digit code shown by the computer. A successful pairing replaces it. Revoke/re-pair if a saved credential no longer works. |
+| Could not save to SD card | Settings are written to `sdmc:/3ds/deck3ds/settings.cfg`. Check free space, the SD adapter lock, and that `3ds/deck3ds` is a directory. Diagnostic builds show the operation (`mkdir`, `open`, `write`, `fflush`, `fsync`, `close`, `rename`) and its error code: include both in your report. Setup stays open when saving fails. |
 | Permission-dependent action unavailable | Review the feature in Settings or reopen setup under Advanced. macOS permission changes may require quitting and reopening the app. |
 | Windows audio output cannot be changed remotely | The direct installer shows the output and opens Windows Sound settings; selection happens on the computer. |
 | Windows notifications unavailable | The direct installer lacks the package identity required by the Windows notification listener. |

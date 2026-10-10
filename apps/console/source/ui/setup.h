@@ -47,6 +47,7 @@ typedef struct {
 	float discovery_retry;
 	bool manual_connection; /**< Affiche les champs IP/port avancés. */
 	int selected_agent;     /**< Agent découvert sélectionné, ou -1. */
+	char save_error[64]; /**< Echec SD visible jusqu'a la prochaine tentative. */
 } Setup;
 
 /** Prépare l'assistant. `first_run` déclenche le parcours guidé. */
