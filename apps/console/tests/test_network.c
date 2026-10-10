@@ -1,6 +1,7 @@
 #include "app_network.h"
 #include "network_policy.h"
 #include "support.h"
+#include "json.h"
 #include <arpa/inet.h>
 #include <assert.h>
 #include <errno.h>
@@ -58,9 +59,56 @@ static void pump_until_handshake(void)
     for (int i = 0; i < 10000 && !app.handshake_ok; i++) app_pump_network(&app);
     assert(app.handshake_ok);
 }
+static JsonDoc pairing_doc;
+static void read_hello(int peer, char *payload, size_t capacity)
+{
+    unsigned char header[4];
+    assert(recv(peer, header, sizeof(header), MSG_WAITALL) == (ssize_t)sizeof(header));
+    size_t length = ((size_t)header[0] << 24) | ((size_t)header[1] << 16) |
+                    ((size_t)header[2] << 8) | header[3];
+    assert(length > 0 && length < capacity);
+    assert(recv(peer, payload, length, MSG_WAITALL) == (ssize_t)length);
+    payload[length] = '\0';
+    assert(json_parse(&pairing_doc, payload, length));
+}
+static void test_pairing_reconnect(void)
+{
+    /* Synthetic fixtures; the server accepts only the exact issued token. */
+    const char *issued = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+    char reply[256], received[256], token[128], code[16];
+    int port, listener = open_listener(&port);
+    assert(net_init());
+    strcpy(app.settings.host, "127.0.0.1"); app.settings.port = port;
+    strcpy(app.pair_code, "123456");
+    int peer = connect_peer(listener, port);
+    app_pump_network(&app); net_poll();
+    read_hello(peer, received, sizeof(received));
+    assert(json_get_string(&pairing_doc, json_root(&pairing_doc), "pair_code", code, sizeof(code)));
+    assert(!strcmp(code, "123456"));
+    snprintf(reply, sizeof(reply), "{\"type\":\"hello.ok\",\"token\":\"%s\"}", issued);
+    send_payload(peer, reply, strlen(reply)); pump_until_handshake();
+    assert(app.pair_code[0] == '\0');
+    app_force_reconnect(&app); close(peer);
+    peer = connect_peer(listener, port);
+    app_pump_network(&app); net_poll();
+    read_hello(peer, received, sizeof(received));
+    assert(json_get_string(&pairing_doc, json_root(&pairing_doc), "token", token, sizeof(token)));
+    bool accepted = !strcmp(issued, token);
+    const char *response = accepted
+        ? "{\"type\":\"hello.ok\"}"
+        : "{\"type\":\"hello.error\",\"code\":\"pairing_required\"}";
+    send_payload(peer, response, strlen(response));
+    for (int i = 0; i < 10000 && !app.handshake_ok && !app.pairing_requested; i++) app_pump_network(&app);
+    assert(!app.pairing_requested && app.handshake_ok);
+    assert(accepted && !strcmp(app.settings.token, issued));
+    net_disconnect(); close(peer); close(listener); net_exit();
+    memset(&app, 0, sizeof(app));
+    puts("pairing: full-length token survives TCP handshake and reconnect without another code");
+}
 int main(void)
 {
     alarm(20); /* A transport regression must fail, not hang the CI runner. */
+    test_pairing_reconnect();
     assert(!deadline_reached(7.9, 8) && deadline_reached(8, 8));
     const double expected[] = {2,4,8,15,30,30};
     for (int i = 0; i < 6; i++) assert(network_retry_delay(i) == expected[i]);

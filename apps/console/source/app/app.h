@@ -19,7 +19,7 @@ typedef struct {
 	char agent_name[64];
 	char host[64];
 	int port;
-	char token[64];
+	char token[LEN_PAIRING_TOKEN];
 	bool sound;
 	/** Langue de l'interface, valeur de l'énumération `Language`. */
 	int language;

@@ -691,7 +691,7 @@ int protocol_encode_hello(char *dest, size_t dest_size, const char *device,
                           const char *language)
 {
 	char safe_device[32];
-	char safe_token[64];
+	char safe_token[LEN_PAIRING_TOKEN];
 	char safe_pair_code[16];
 	char safe_language[8];
 	escape_json(device, safe_device, sizeof(safe_device));

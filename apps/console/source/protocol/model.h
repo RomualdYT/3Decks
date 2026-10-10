@@ -35,6 +35,9 @@
 #define LEN_ICON 17
 #define LEN_STATE_KEY 25
 
+/** Desktop pairing tokens: 64 hexadecimal characters plus the terminator. */
+#define LEN_PAIRING_TOKEN 65
+
 /** Icônes vectorielles dessinées par `icons.c`. */
 typedef enum {
 	ICON_NONE = 0,
