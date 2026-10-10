@@ -14,6 +14,10 @@
 contrôle sans fil pour votre ordinateur. Créez vos pages dans l'éditeur, puis
 utilisez l'écran tactile pour contrôler les applications, la musique, l'audio et OBS.
 
+[![Voir 3Decks — Meet Decky](docs/assets/meet-decky-preview.png)](docs/assets/meet-decky.mp4)
+
+**[▶ Voir la vidéo — Meet Decky](docs/assets/meet-decky.mp4)**
+
 ## Fonctionnalités
 
 - Éditeur visuel avec grilles de six boutons, listes défilantes et aperçu interactif.

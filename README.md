@@ -14,6 +14,10 @@
 surface for your computer. Create pages in the desktop editor, then use the
 console's touch screen to control apps, music, audio and OBS.
 
+[![Watch 3Decks — Meet Decky](docs/assets/meet-decky-preview.png)](docs/assets/meet-decky.mp4)
+
+**[▶ Watch the video — Meet Decky](docs/assets/meet-decky.mp4)**
+
 ## Features
 
 - Visual page editor with six-button grids, scrollable lists and a live preview.
