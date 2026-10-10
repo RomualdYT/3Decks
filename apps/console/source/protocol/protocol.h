@@ -60,7 +60,7 @@ typedef struct {
 	bool pairing_required;
 
 	/* MSG_HELLO_OK, uniquement après consommation d'un code court. */
-	char paired_token[64];
+	char paired_token[LEN_PAIRING_TOKEN];
 
 	/* MSG_PONG */
 	int ping_id;

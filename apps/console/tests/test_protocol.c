@@ -1,3 +1,4 @@
+#include "app.h"
 #include "protocol.h"
 #include "json.h"
 #include <assert.h>
@@ -12,8 +13,39 @@ static IncomingMessage message;
 static bool decode(const char *wire) {
     return protocol_decode(wire, strlen(wire), &message, &config, &state);
 }
+static void test_pairing_token_roundtrip(void)
+{
+    /* Matches the desktop's 32 random bytes encoded as 64 hex characters. */
+    const char *issued = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+    char reply[256], hello[192], sent[128];
+    Settings settings = {0};
+    assert(strlen(issued) == 64);
+    snprintf(reply, sizeof(reply), "{\"type\":\"hello.ok\",\"token\":\"%s\"}", issued);
+    assert(decode(reply) && message.kind == MSG_HELLO_OK);
+    assert(!strcmp(message.paired_token, issued));
+    snprintf(settings.token, sizeof(settings.token), "%s", message.paired_token);
+    assert(!strcmp(settings.token, issued));
+    int written = protocol_encode_hello(hello, sizeof(hello), "new_3ds_xl", settings.token, "", "en");
+    assert(written > 0 && (size_t)written < sizeof(hello));
+    assert(json_parse(&doc, hello, (size_t)written));
+    assert(json_get_string(&doc, json_root(&doc), "token", sent, sizeof(sent)));
+    assert(!strcmp(sent, issued));
+    /* Exercise the serializer without depending on decode/storage buffers. */
+    written = protocol_encode_hello(hello, sizeof(hello), "new_3ds_xl", issued, "", "en");
+    assert(written > 0 && (size_t)written < sizeof(hello));
+    assert(json_parse(&doc, hello, (size_t)written));
+    assert(json_get_string(&doc, json_root(&doc), "token", sent, sizeof(sent)));
+    assert(!strcmp(sent, issued));
+    /* A fresh code must still take precedence over a stale stored token. */
+    written = protocol_encode_hello(hello, sizeof(hello), "3ds", "stale", "123456", "fr");
+    assert(written > 0 && (size_t)written < sizeof(hello));
+    assert(json_parse(&doc, hello, (size_t)written));
+    assert(json_get_string(&doc, json_root(&doc), "pair_code", sent, sizeof(sent)));
+    assert(!strcmp(sent, "123456") && json_get(&doc, json_root(&doc), "token") == NULL);
+}
 int main(void)
 {
+    test_pairing_token_roundtrip();
     const char *labels[] = {"Main", "Principal", "Fenêtres", "Musique 🎵"};
     char wire[1024], label[64];
     for (size_t i = 0; i < sizeof(labels)/sizeof(*labels); i++) {
