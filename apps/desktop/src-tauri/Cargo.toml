@@ -39,7 +39,7 @@ tauri-plugin-single-instance = "2"
 plist = "1.10"
 # Windows installers must not depend on an external sqlite3.lib.
 rusqlite = { version = "0.40", features = ["bundled-windows"] }
-zip = { version = "8", default-features = false, features = ["deflate"] }
+zip = { version = "9", default-features = false, features = ["deflate"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6.4"
