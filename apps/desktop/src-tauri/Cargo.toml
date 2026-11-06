@@ -24,7 +24,7 @@ subtle = "2"
 base64 = "0.23"
 futures-util = "0.3"
 tokio-tungstenite = { version = "0.30", default-features = false, features = ["connect", "rustls-tls-webpki-roots"] }
-sysinfo = { version = "0.39.6", default-features = false, features = ["system", "disk", "network"] }
+sysinfo = { version = "0.40.1", default-features = false, features = ["system", "disk", "network"] }
 url = "2"
 keyring = { version = "3", features = ["apple-native", "windows-native"] }
 reqwest = { version = "0.13.5", default-features = false, features = ["json", "rustls-no-provider", "stream", "form", "query"] }
@@ -38,8 +38,8 @@ tauri-plugin-window-state = "2"
 tauri-plugin-single-instance = "2"
 plist = "1.10"
 # Windows installers must not depend on an external sqlite3.lib.
-rusqlite = { version = "0.40", features = ["bundled-windows"] }
-zip = { version = "8", default-features = false, features = ["deflate"] }
+rusqlite = { version = "0.41", features = ["bundled-windows"] }
+zip = { version = "9", default-features = false, features = ["deflate"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6.4"
